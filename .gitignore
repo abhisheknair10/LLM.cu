@@ -4,7 +4,7 @@
 *.iml
 
 # dirs
-# /model_weights/*
+/model_weights/*
 
 # compiled files
 /output/*
