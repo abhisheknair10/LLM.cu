@@ -1,0 +1,15 @@
+.idea/
+.vscode/
+.DS_Store
+*.iml
+
+# dirs
+# /model_weights/*
+
+# compiled files
+/output/*
+*.out
+*.o
+
+# env
+.env
