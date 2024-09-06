@@ -46,7 +46,6 @@ void safetensor_load_header(SafeTensorFile *STF) {
 
 void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model) {
     cJSON *json = cJSON_ParseWithLength(STF->header, STF->header_size);
-
     // printf("%s\n", STF->header);
 
     if (json == NULL) {

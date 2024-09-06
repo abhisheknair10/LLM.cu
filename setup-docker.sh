@@ -23,14 +23,7 @@ fi
 
 sudo usermod -aG docker $USER
 
-# Test Docker installation
-echo "Testing Docker installation with hello-world container..."
-sudo docker run hello-world
-
-# Build Docker image
-echo "Building Docker image..."
-sudo docker build -t llama3-8b-cuda-inference .
-
-# Run the Docker image
-echo "Running Docker image..."
-docker run --gpus all -it llama3-8b-cuda-inference /bin/bash
+# Inform the user to log out and log back in
+echo "Docker has been installed and the current user has been added to the 'docker' group."
+echo "Please log out and log back in, or start a new terminal session."
+echo "Once done, you can run './run-docker.sh' to build the Docker image and then run it."
