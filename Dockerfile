@@ -20,9 +20,3 @@ COPY . /llama3-workspace
 
 # Default command to keep the container running and allow manual commands
 CMD ["/bin/bash"]
-
-# build
-# docker build -t llama3-8b-cuda-inference .
-
-# run
-# docker run --gpus all -it llama3-8b-cuda-inference /bin/bash

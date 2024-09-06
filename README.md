@@ -10,13 +10,19 @@ LLM.cu is a CUDA native implementation of the LLaMa3 architecture for sequence t
 
 2. For this inference engine to work, a SafeTensor formatted file(s) of the Llama3-8b model needs to be stored in the ./model_weights/ folder. Head to [HuggingFace - meta-llama/Meta-Llama-3-8B](https://huggingface.co/meta-llama/Meta-Llama-3-8B?text=My+name+is+Julien+and+I+like+to) repo to get access to the model. Additionally, [Generate a Hugging Face Token](https://huggingface.co/settings/tokens) so that the next step can successfully download the weights files.
 
-3. Once the Docker container has started up, run the following command to store the Hugging Face token as an environment variable, replacing **<your_token>** with the token you generated.
+3. Start the Docker container:
+
+```bash
+docker run --gpus all -it llama3-8b-cuda-inference /bin/bash
+```
+
+4. Once the Docker container has started up, run the following command to store the Hugging Face token as an environment variable, replacing **<your_token>** with the token you generated.
 
 ```bash
 export HF_TOKEN=<your_token>
 ```
 
-4. Next, run the following command to download the model parameters into the target directory.
+5. Next, run the following command to download the model parameters into the target directory.
 
 ```bash
 huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir ./model_weights/ --token $HF_TOKEN

@@ -33,6 +33,3 @@ docker run hello-world
 # Build Docker image and run it with GPU access
 echo "Building Docker image..."
 docker build -t llama3-8b-cuda-inference .
-
-echo "Running Docker container with GPU access..."
-docker run --gpus all -it llama3-8b-cuda-inference /bin/bash
