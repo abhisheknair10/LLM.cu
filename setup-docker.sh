@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Exit on any error
+# Exit on any error except for the groupadd error when the group already exists
 set -e
 
 # Install Nvidia Container Toolkit to allow Docker to access GPUs
@@ -15,7 +15,12 @@ sudo apt-get install -y nvidia-container-toolkit
 
 # Add the current user to the docker group
 echo "Setting up Docker permissions..."
-sudo groupadd docker || true # Ignore error if group already exists
+if getent group docker > /dev/null 2>&1; then
+    echo "Group 'docker' already exists, skipping group creation."
+else
+    sudo groupadd docker
+fi
+
 sudo usermod -aG docker $USER
 
 # Create a new group for docker (so changes take effect immediately)
@@ -26,7 +31,7 @@ echo "Testing Docker installation with hello-world container..."
 docker run hello-world
 
 # Build Docker image and run it with GPU access
-echo "Building Llama3-8B Docker image..."
+echo "Building Docker image..."
 docker build -t llama3-8b-cuda-inference .
 
 echo "Running Docker container with GPU access..."
