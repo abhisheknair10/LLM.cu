@@ -17,8 +17,6 @@ WORKDIR /llama3-workspace
 
 COPY . /llama3-workspace
 
-RUN pip install -U "huggingface_hub[cli]"
-
 # Default command to keep the container running and allow manual commands
 CMD ["/bin/bash"]
 
