@@ -4,18 +4,13 @@ LLM.cu is a CUDA native implementation of the LLaMa3 architecture for sequence t
 
 ## Implementation Details
 
-## Usage
+## Setup and Usage
+
+1. Run the **[setup-docker-sh](https://github.com/abhisheknair10/LLM.cu/blob/main/setup-docker.sh)** file to setup your Virtual/Physical Machine to run Docker with access to Nvidia GPUs.
+
+2. 
 
 ```bash
-# Host system setup
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-    && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-# Host system setup
-sudo apt-get istall -y nvidia-container-toolkit
-
 # Install the model weights 
 huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir ./model_weights/ --token $HF_TOKEN
 ```
