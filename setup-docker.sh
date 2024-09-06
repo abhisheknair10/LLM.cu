@@ -26,4 +26,4 @@ sudo usermod -aG docker $USER
 # Inform the user to log out and log back in
 echo "Docker has been installed and the current user has been added to the 'docker' group."
 echo "Please log out and log back in, or start a new terminal session."
-echo "Once done, you can run './run-docker.sh' to build the Docker image and then run it."
+echo "Once done, you can run './run-docker.sh' to build and run the Docker image."
