@@ -14,7 +14,7 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dear
     sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
 # Host system setup
-sudo apt-get install -y nvidia-container-toolkit
+sudo apt-get istall -y nvidia-container-toolkit
 
 # Install the model weights 
 huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir ./model_weights/ --token $HF_TOKEN

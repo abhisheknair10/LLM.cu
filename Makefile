@@ -1,6 +1,6 @@
 # Variables
 CC = clang
-CFLAGS = -std=c17
+CFLAGS = -std=gnu17
 SRC_DIR = ./src
 OUTPUT_DIR = ./output
 
