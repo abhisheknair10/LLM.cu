@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     clang \
-    docker.io
+    docker.io \
+    python3.10
 
 # Create the workspace directory
 RUN mkdir -p /llama3-workspace
@@ -15,6 +16,8 @@ RUN mkdir -p /llama3-workspace
 WORKDIR /llama3-workspace
 
 COPY . /llama3-workspace
+
+RUN pip install -U "huggingface_hub[cli]"
 
 # Default command to keep the container running and allow manual commands
 CMD ["/bin/bash"]
