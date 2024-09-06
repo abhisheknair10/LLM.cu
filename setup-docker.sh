@@ -23,13 +23,14 @@ fi
 
 sudo usermod -aG docker $USER
 
-# Create a new group for docker (so changes take effect immediately)
-newgrp docker
-
 # Test Docker installation
 echo "Testing Docker installation with hello-world container..."
-docker run hello-world
+sudo docker run hello-world
 
-# Build Docker image and run it with GPU access
+# Build Docker image
 echo "Building Docker image..."
-docker build -t llama3-8b-cuda-inference .
+sudo docker build -t llama3-8b-cuda-inference .
+
+# Run the Docker image
+echo "Running Docker image..."
+docker run --gpus all -it llama3-8b-cuda-inference /bin/bash
