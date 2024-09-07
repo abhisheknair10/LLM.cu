@@ -33,3 +33,7 @@ export HF_TOKEN=<your_token>
 ```bash
 huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir ./model_weights/ --token $HF_TOKEN
 ```
+
+## Acknowledgments
+
+- This project makes use of the [cJSON library](https://github.com/DaveGamble/cJSON), which is licensed under the MIT License.
