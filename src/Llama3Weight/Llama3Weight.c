@@ -92,3 +92,18 @@ void free_LLaMa3(Llama3 *llama3) {
     free(llama3->layers);
     free(llama3);
 }
+
+void bf16_to_fp16(Tensor *t) {
+}
+
+int arr_to_mem_index(Tensor *t, int n, int *idx) {
+    int mem_idx = 0;
+    int stride = 1;
+
+    for (int i = n - 1; i >= 0; i--) {
+        mem_idx += (idx[i] * stride);
+        stride *= t->shape[i];
+    }
+
+    return mem_idx;
+}

@@ -1,6 +1,6 @@
 #include "SafeTensor.h"
 
-// #include <cuda_fp16.h>
+#include <cuda_fp16.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -136,6 +136,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     component->mem_len = mem_len;
     component->tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
+    component->half_tensor = (half *)malloc(sizeof(half) * mem_len);
 
     if (component->tensor == NULL) {
         printf("An Error Occurred while allocating memory for the component Tensor\n");

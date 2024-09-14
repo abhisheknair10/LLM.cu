@@ -1,6 +1,6 @@
 #pragma once
 
-// #include <cuda_fp16.h>
+#include <cuda_fp16.h>
 #include <stdint.h>
 
 typedef struct {
@@ -8,7 +8,7 @@ typedef struct {
     int *shape;
     long mem_len;
     uint16_t *tensor;
-    // half *half_tensor;
+    half *half_tensor;
 } Tensor;
 
 typedef struct {
@@ -35,3 +35,7 @@ typedef struct {
 Llama3 *init_LLaMa3(int n_layers);
 
 void free_LLaMa3(Llama3 *llama3);
+
+void bf16_to_fp16(Tensor *t);
+
+int arr_to_mem_index(Tensor *t, int n, int *index);
