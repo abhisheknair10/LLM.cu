@@ -2,7 +2,8 @@
 CC = clang
 NVCC = nvcc
 CFLAGS = -std=gnu17
-NVCCFLAGS = -std=c++11
+NVCCFLAGS = -std=c++11 -I/usr/local/cuda/include
+LDFLAGS = -L/usr/local/cuda/lib64 -lcudart
 SRC_DIR = ./src
 OUTPUT_DIR = ./output
 
@@ -27,7 +28,7 @@ run: $(OUTPUT_DIR)/output.out
 
 # Target for the final executable
 $(OUTPUT_DIR)/output.out: $(OBJS)
-	$(NVCC) $(OBJS) $(INCLUDES) -o $@
+	$(NVCC) $(OBJS) $(INCLUDES) $(LDFLAGS) -o $@
 
 # Target for creating object files from .c files
 $(OUTPUT_DIR)/%.o: $(SRC_DIR)/%.c
