@@ -150,6 +150,10 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     cudaMemcpy(component->d_half_tensor, component->tensor, sizeof(uint16_t) * component->mem_len, cudaMemcpyHostToDevice);
 
+    // printf("Device: %u\n", component->d_half_tensor[component->mem_len - 1]);
+    // printf("Device: %u\n", component->tensor[component->mem_len - 1]);
+    // printf("Last Index: %ld\n", component->mem_len - 1);
+
     free(component->tensor);
 }
 
