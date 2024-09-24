@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Llama3Weight/Llama3Weight.h"
-#include "SafeTensor/SafeTensor.h"
+#include "Llama3Weight/Llama3Weight.cuh"
+#include "SafeTensor/SafeTensor.cuh"
 
 const int MODEL_NUM_LAYERS = 32;
 

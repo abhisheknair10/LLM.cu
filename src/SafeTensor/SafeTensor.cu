@@ -1,12 +1,10 @@
-#include "SafeTensor.h"
-
-#include <cuda_fp16.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "Llama3Weight/Llama3Weight.h"
+#include "Llama3Weight/Llama3Weight.cuh"
+#include "SafeTensor.cuh"
 #include "cJSON/cJSON.h"
 
 void load_safetensor_weights(Llama3 *llama3_model, char *filename) {
@@ -136,7 +134,6 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     component->mem_len = mem_len;
     component->tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
-    component->half_tensor = (half *)malloc(sizeof(half) * mem_len);
 
     if (component->tensor == NULL) {
         printf("An Error Occurred while allocating memory for the component Tensor\n");
@@ -176,30 +173,6 @@ int get_llama3_decoder_layer_num(char *layer_key, int index) {
 
     free(layer_key_copy);
     return -1;
-}
-
-void weight_format_bf16_fp16(Tensor *component) {
-    /*
-    free(component->half_tensor);
-
-    component->half_tensor = (half *)malloc(sizeof(half) * mem_len);
-    if (component->half_tensor == NULL) {
-        printf("An Error Occurred while allocating memory for FP16 Tensor\n");
-        exit(1);
-    }
-
-    uint16_t sign = (bf16 & 0x8000);
-    uint16_t exponent_bf16 = (bf16 & 0x7F80);
-    uint16_t mantissa_bf16 = (bf16 & 0x007F);
-
-    uint16_t exponent_fp16 = ((exponent_bf16 >> 7) - 127 + 15) << 10;
-
-    uint16_t mantissa_fp16 = (mantissa_bf16 << 3);
-
-    uint16_t fp16 = sign | exponent_fp16 | mantissa_fp16;
-
-    return fp16;
-    */
 }
 
 void free_safetensor_handler(SafeTensorFile *STF) {
