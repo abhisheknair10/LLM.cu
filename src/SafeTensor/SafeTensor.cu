@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -144,6 +145,12 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     fseek(STF->fp, offset, SEEK_SET);
     size_t num = fread(component->tensor, sizeof(uint16_t), mem_len, STF->fp);
+
+    cudaMalloc(&component->d_half_tensor, sizeof(uint16_t) * component->mem_len);
+
+    cudaMemcpy(component->d_half_tensor, component->tensor, component->mem_len, cudaMemcpyHostToDevice);
+
+    free(component->tensor);
 }
 
 int get_llama3_decoder_layer_num(char *layer_key, int index) {
