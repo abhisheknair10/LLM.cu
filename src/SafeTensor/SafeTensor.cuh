@@ -12,7 +12,7 @@ typedef struct {
     uint64_t header_size;
 } SafeTensorFile;
 
-void load_safetensor_weights(Llama3 *llama3_model, char *filename);
+void load_safetensor_weights(Llama3 *llama3_model, const char *filename);
 
 void safetensor_load_header(SafeTensorFile *STF);
 
