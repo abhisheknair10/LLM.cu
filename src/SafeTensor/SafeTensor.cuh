@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "Llama3Weight/Llama3Weight.h"
+#include "Llama3Weight/Llama3Weight.cuh"
 #include "cJSON/cJSON.h"
 
 typedef struct {
@@ -21,7 +21,5 @@ void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model);
 void llama3_load_layer(cJSON *json, SafeTensorFile *STF, Llama3 *llama3_model);
 
 int get_llama3_decoder_layer_num(char *layer_key, int index);
-
-void weight_format_bf16_fp16(Tensor *component);
 
 void free_safetensor_handler(SafeTensorFile *STF);

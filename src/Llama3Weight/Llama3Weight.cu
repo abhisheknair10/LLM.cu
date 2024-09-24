@@ -1,9 +1,9 @@
-#include "Llama3Weight.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "Llama3Weight.cuh"
 
 Llama3 *init_LLaMa3(int n_layers) {
     // main llama 3 struct with n layers
