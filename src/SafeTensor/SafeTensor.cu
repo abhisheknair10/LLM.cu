@@ -148,7 +148,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     cudaMalloc(&component->d_half_tensor, sizeof(uint16_t) * component->mem_len);
 
-    cudaMemcpy(component->d_half_tensor, component->tensor, component->mem_len, cudaMemcpyHostToDevice);
+    cudaMemcpy(component->d_half_tensor, component->tensor, sizeof(uint16_t) * component->mem_len, cudaMemcpyHostToDevice);
 
     free(component->tensor);
 }
