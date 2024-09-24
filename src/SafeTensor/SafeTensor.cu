@@ -8,7 +8,7 @@
 #include "SafeTensor.cuh"
 #include "cJSON/cJSON.h"
 
-void load_safetensor_weights(Llama3 *llama3_model, char *filename) {
+void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
     SafeTensorFile STF;
     STF.fp = fopen(filename, "rb");
 
