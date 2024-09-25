@@ -9,6 +9,8 @@
 const int MODEL_NUM_LAYERS = 32;
 
 int main() {
+    cudaSetDevice(0);
+
     Llama3 *llama3_model = init_LLaMa3(MODEL_NUM_LAYERS);
 
     if (llama3_model == NULL) {

@@ -151,10 +151,18 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     cudaMemcpy(component->d_half_tensor, component->tensor, sizeof(uint16_t) * component->mem_len, cudaMemcpyHostToDevice);
 
     // printf("Device: %u\n", component->d_half_tensor[component->mem_len - 1]);
-    // printf("Device: %u\n", component->tensor[component->mem_len - 1]);
-    // printf("Last Index: %ld\n", component->mem_len - 1);
+    printf("Device: %u\n", component->tensor[component->mem_len - 1]);
+
+    printValue<<<1, 1>>>(component->d_half_tensor, component->mem_len - 1);
+    cudaDeviceSynchronize();
+
+    printf("Last Index: %ld\n", component->mem_len - 1);
 
     free(component->tensor);
+}
+
+__global__ void printValue(half *d_data, int memlen) {
+    printf("Value from device memory: %d\n", d_data[memlen]);
 }
 
 int get_llama3_decoder_layer_num(char *layer_key, int index) {
