@@ -26,6 +26,10 @@ void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
     return;
 }
 
+__global__ void printValue(half *d_data, int memlen) {
+    printf("Value from device memory: %d\n", d_data[memlen]);
+}
+
 void safetensor_load_header(SafeTensorFile *STF) {
     uint64_t header_size;
     fread(&header_size, sizeof(uint64_t), 1, STF->fp);
@@ -161,12 +165,8 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     free(component->tensor);
 }
 
-__global__ void printValue(half *d_data, int memlen) {
-    printf("Value from device memory: %d\n", d_data[memlen]);
-}
-
 int get_llama3_decoder_layer_num(char *layer_key, int index) {
-    char *delimiter = ".";
+    const char *delimiter = ".";
     char *token;
 
     // Duplicate the layer_key to avoid modifying the original string
