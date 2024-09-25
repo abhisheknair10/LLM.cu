@@ -26,10 +26,6 @@ void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
     return;
 }
 
-__global__ void printValue(half *d_data, int memlen) {
-    printf("Value from device memory: %d\n", d_data[memlen]);
-}
-
 void safetensor_load_header(SafeTensorFile *STF) {
     uint64_t header_size;
     fread(&header_size, sizeof(uint64_t), 1, STF->fp);
@@ -154,13 +150,9 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     cudaMemcpy(component->d_half_tensor, component->tensor, sizeof(uint16_t) * component->mem_len, cudaMemcpyHostToDevice);
 
-    // printf("Device: %u\n", component->d_half_tensor[component->mem_len - 1]);
-    printf("Device: %u\n", component->tensor[component->mem_len - 1]);
-
-    printValue<<<1, 1>>>(component->d_half_tensor, component->mem_len - 1);
-    cudaDeviceSynchronize();
-
-    printf("Last Index: %ld\n", component->mem_len - 1);
+    // printf("Half Tensor: %u\n", component->d_half_tensor[component->mem_len - 1]);
+    // printf("FP16 Tensor: %u\n", component->tensor[component->mem_len - 1]);
+    // printf("Last Index: %ld\n", component->mem_len - 1);
 
     free(component->tensor);
 }
