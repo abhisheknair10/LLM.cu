@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "Llama3/Llama3.cuh"
-#include "SafeTensor/SafeTensor.h"
+#include "SafeTensor/SafeTensor.cuh"
 
 #define WARN "\033[1;33m"
 #define GREY "\033[2m"
