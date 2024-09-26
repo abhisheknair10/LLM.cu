@@ -1,12 +1,14 @@
 #pragma once
 
+#include <cuda_fp16.h>
 #include <stdint.h>
 
 typedef struct {
     int ndim;
     int *shape;
     long mem_len;
-    uint16_t *tensor;
+    uint16_t *bf16_tensor;
+    __half *tensor;
 } Tensor;
 
 typedef struct {

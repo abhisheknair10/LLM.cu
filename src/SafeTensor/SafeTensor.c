@@ -139,9 +139,9 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     }
 
     component->mem_len = mem_len;
-    component->tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
+    component->bf16_tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
 
-    if (component->tensor == NULL) {
+    if (component->bf16_tensor == NULL) {
         printf("An Error Occurred while allocating memory for the component Tensor\n");
         exit(1);
     }
@@ -149,15 +149,15 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     long offset = (long)8 + (long)STF->header_size + ((long)(data_offsets->child->valuedouble));
 
     fseek(STF->fp, offset, SEEK_SET);
-    size_t num = fread(component->tensor, sizeof(uint16_t), mem_len, STF->fp);
+    size_t num = fread(component->bf16_tensor, sizeof(uint16_t), mem_len, STF->fp);
 
     /*
     printf("-----------------------------------------------------------------\n");
     printf("Memory length: %lu\n", component->mem_len);
-    printf("Last Index: %hu\n", component->tensor[component->mem_len - 1]);
+    printf("Last Index: %hu\n", component->bf16_tensor[component->mem_len - 1]);
     */
 
-    free(component->tensor);
+    return;
 }
 
 int get_llama3_decoder_layer_num(char *layer_key, int index) {
