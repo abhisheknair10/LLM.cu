@@ -15,7 +15,7 @@ chmod +x setup-docker.sh
 ```
 
 ```bash
-# restart terminal
+# Restart terminal and run
 chmod +x run-docker.sh
 ./run-docker.sh
 ```
