@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "Llama3Weight/Llama3Weight.cuh"
+#include "Llama3/Llama3.h"
 #include "cJSON/cJSON.h"
 
 typedef struct {

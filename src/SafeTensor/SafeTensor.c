@@ -1,13 +1,19 @@
-#include <cuda_runtime.h>
+#include "SafeTensor.h"
+
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "Llama3Weight/Llama3Weight.cuh"
-#include "SafeTensor.cuh"
+#include "Llama3/Llama3.h"
 #include "cJSON/cJSON.h"
 
+#define WARN "\033[1;33m"
+#define GREY "\033[2m"
+#define RESET "\033[0m"
+
+// Load SafeTensor entry function
 void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
     SafeTensorFile STF;
     STF.fp = fopen(filename, "rb");
@@ -20,7 +26,6 @@ void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
     safetensor_load_header(&STF);
     safetensor_read_header(&STF, llama3_model);
 
-    // Free the resources
     free_safetensor_handler(&STF);
 
     return;
@@ -62,7 +67,7 @@ void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model) {
             // Check if all three keys exist
             if (dtype && shape && data_offsets) {
                 llama3_load_layer(current_element, STF, llama3_model);
-                printf("Loaded Layer in [CUDA]: %s\n", current_element->string);
+                printf(WARN "CPU " RESET GREY "Loaded: %s\n" RESET, current_element->string);
             }
         }
     }
@@ -146,13 +151,11 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     fseek(STF->fp, offset, SEEK_SET);
     size_t num = fread(component->tensor, sizeof(uint16_t), mem_len, STF->fp);
 
-    cudaMalloc(&component->d_half_tensor, sizeof(uint16_t) * component->mem_len);
-
-    cudaMemcpy(component->d_half_tensor, component->tensor, sizeof(uint16_t) * component->mem_len, cudaMemcpyHostToDevice);
-
-    // printf("Half Tensor: %u\n", component->d_half_tensor[component->mem_len - 1]);
-    // printf("FP16 Tensor: %u\n", component->tensor[component->mem_len - 1]);
-    // printf("Last Index: %ld\n", component->mem_len - 1);
+    /*
+    printf("-----------------------------------------------------------------\n");
+    printf("Memory length: %lu\n", component->mem_len);
+    printf("Last Index: %hu\n", component->tensor[component->mem_len - 1]);
+    */
 
     free(component->tensor);
 }
