@@ -1,9 +1,9 @@
+#include "Llama3.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "Llama3Weight.cuh"
 
 Llama3 *init_LLaMa3(int n_layers) {
     // main llama 3 struct with n layers
@@ -91,9 +91,6 @@ void free_LLaMa3(Llama3 *llama3) {
 
     free(llama3->layers);
     free(llama3);
-}
-
-void bf16_to_fp16(Tensor *t) {
 }
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {
