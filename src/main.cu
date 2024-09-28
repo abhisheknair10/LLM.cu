@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +21,10 @@
 
 const int MODEL_NUM_LAYERS = 32;
 
+__global__ void print_cuda_mem(long *mem_len) {
+    printf("Value on GPU: %lu\n", *mem_len);
+}
+
 int main() {
     Llama3 *llama3_model = init_LLaMa3(MODEL_NUM_LAYERS);
 
@@ -41,9 +46,7 @@ int main() {
 
     to_cuda(llama3_model);
 
-    cudaDeviceSynchronize();
-
-    printf("%lu\n", *(llama3_model->layers[0]->self_attn_k_proj->mem_len));
+    print_cuda_mem<<<1, 1>>>>(llama3_model->layers[0]->self_attn_k_proj->mem_len);
 
     free_LLaMa3(llama3_model);
 
