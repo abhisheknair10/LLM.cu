@@ -37,10 +37,11 @@ int main() {
     load_safetensor_weights(llama3_model, "model_weights/model-00003-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00004-of-00004.safetensors");
 
-    // CLEAR_TERMINAL();
+    CLEAR_TERMINAL();
 
     printf(WARN "[CPU]" RESET " Loaded Model Weights\n");
 
+    printf(WARN "[CPU]" RESET " Moving Model to CUDA\n");
     to_cuda(llama3_model);
 
     printf(GREEN "[CUDA]" RESET " Loaded Model Weights\n");
