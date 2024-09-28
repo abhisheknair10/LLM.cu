@@ -39,6 +39,8 @@ int main() {
 
     printf(WARN "[CPU]" RESET " Loaded Model Weights\n");
 
+    to_cuda(llama3_model);
+
     free_LLaMa3(llama3_model);
 
     return 0;
