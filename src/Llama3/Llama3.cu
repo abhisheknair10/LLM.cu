@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,6 +92,50 @@ void free_LLaMa3(Llama3 *llama3) {
 
     free(llama3->layers);
     free(llama3);
+}
+
+typedef struct {
+    Tensor *embed_tokens;
+    Tensor *lm_head;
+    Tensor *norm;
+    Llama3Layer **layers;
+    int n_layers;
+} Llama3;
+
+/*
+To move the following:
+    - All members in the Tensor struct, will be used for matrix multiplication
+    - Since pointers for higher level functions can be passed very quickly but also seldomly,
+        we keep the rest on the CPU
+*/
+void to_cuda(Llama3 *llama3) {
+    for (int i = 0; i < llama3->n_layers; i++) {
+        helper_move_tensor_to_cuda(llama3->layers[i]->input_layernorm);
+        helper_move_tensor_to_cuda(llama3->layers[i]->mlp_down_proj);
+        helper_move_tensor_to_cuda(llama3->layers[i]->mlp_gate_proj);
+        helper_move_tensor_to_cuda(llama3->layers[i]->mlp_up_proj);
+        helper_move_tensor_to_cuda(llama3->layers[i]->post_attention_layernorm);
+        helper_move_tensor_to_cuda(llama3->layers[i]->self_attn_k_proj);
+        helper_move_tensor_to_cuda(llama3->layers[i]->self_attn_o_proj);
+        helper_move_tensor_to_cuda(llama3->layers[i]->self_attn_q_proj);
+        helper_move_tensor_to_cuda(llama3->layers[i]->self_attn_v_proj);
+    }
+
+    return;
+}
+
+void helper_move_tensor_to_cuda(Tensor *tensor) {
+    int *d_ndim;
+    long *d_mem_len;
+    int **d_shape;
+    uint16_t **d_bf16_tensor;
+    __half **d_fp16_tensor;
+
+    cudaMalloc((void **)&d_ndim, sizeof(int));
+    cudaMalloc((void **)&d_mem_len, sizeof(long));
+
+    cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mem_len, tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
 }
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {
