@@ -119,16 +119,23 @@ void to_cuda(Llama3 *llama3) {
 void helper_move_tensor_to_cuda(Tensor *tensor) {
     int *d_ndim;
     long *d_mem_len;
-    // int **d_shape;
-    // uint16_t **d_bf16_tensor;
-    // __half **d_fp16_tensor;
 
+    // Allocate memory on the GPU for ndim and mem_len
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(long));
 
+    // Copy data from CPU to GPU memory
     cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
+
+    // Now update the tensor to point to the GPU memory
+    tensor->ndim = d_ndim;
+    tensor->mem_len = d_mem_len;
+
+    // If you have other fields like shape or tensor data, you would allocate
+    // and copy them similarly and update the Tensor struct to point to the GPU memory.
 }
+
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {
     int mem_idx = 0;
