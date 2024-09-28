@@ -158,10 +158,6 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     printf("Last Index: %hu\n", component->bf16_tensor[component->mem_len - 1]);
     */
 
-   printf("-----------------------------------------------------------------\n");
-   printf("Dims: %d\n", *(component->ndim));
-   printf("Memory length: %lu\n", *(component->mem_len));
-
     return;
 }
 
