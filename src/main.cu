@@ -40,8 +40,8 @@ int main() {
     CLEAR_TERMINAL();
 
     printf(WARN "[CPU]" RESET " Loaded Model Weights\n");
-
     printf(WARN "[CPU]" RESET " Moving Model to CUDA\n");
+    
     to_cuda(llama3_model);
 
     printf(GREEN "[CUDA]" RESET " Loaded Model Weights\n");
