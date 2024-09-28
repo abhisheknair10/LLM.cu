@@ -46,7 +46,7 @@ int main() {
 
     to_cuda(llama3_model);
 
-    print_cuda_mem<<<1, 1>>>>(llama3_model->layers[0]->self_attn_k_proj->mem_len);
+    print_cuda_mem<<<1, 1>>>(llama3_model->layers[0]->self_attn_k_proj->mem_len);
 
     free_LLaMa3(llama3_model);
 
