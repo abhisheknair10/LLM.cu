@@ -40,7 +40,7 @@ Llama3 *init_LLaMa3(int n_layers) {
             exit(1);
         }
 
-        // Initialize Tensors for the layer if needed
+        // initialize Tensors for the layer if needed
         layer->input_layernorm = (Tensor *)malloc(sizeof(Tensor));
         layer->mlp_down_proj = (Tensor *)malloc(sizeof(Tensor));
         layer->mlp_gate_proj = (Tensor *)malloc(sizeof(Tensor));
@@ -72,11 +72,11 @@ void free_LLaMa3(Llama3 *llama3) {
     free(llama3->embed_tokens);
     free(llama3->lm_head);
 
-    // Free each layer
+    // free each layer
     for (int i = 0; i < llama3->n_layers; i++) {
         Llama3Layer *layer = llama3->layers[i];
 
-        // Free each Tensor within the layer
+        // free each Tensor within the layer
         free(layer->input_layernorm);
         free(layer->mlp_down_proj);
         free(layer->mlp_gate_proj);
@@ -119,23 +119,29 @@ void to_cuda(Llama3 *llama3) {
 void helper_move_tensor_to_cuda(Tensor *tensor) {
     int *d_ndim;
     long *d_mem_len;
+    int *d_shape;
+    uint16_t *d_bf16_tensor;
 
-    // Allocate memory on the GPU for ndim and mem_len
+    // allocate on CUDA device
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(long));
+    cudaMalloc((void **)&d_shape, sizeof(int) * tensor->ndim);
+    cudaMalloc((void **)&d_bf16_tensor, sizeof(uint16_t) * tensor->mem_len);
 
-    // Copy data from CPU to GPU memory
+    // copy to CUDA memory
     cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_shape, tensor->shape, sizeof(int) * tensor->ndim, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_bf16_tensor, tensor->d_bf16_tensor, sizeof(uint16_t) * tensor->ndim, cudaMemcpyHostToDevice);
 
-    // Now update the tensor to point to the GPU memory
+    // UPDATE: the tensor to point to CUDA memory
     tensor->ndim = d_ndim;
     tensor->mem_len = d_mem_len;
+    tensor->shape = d_shape;
+    tensor->bf16_tensor = d_bf16_tensor;
 
-    // If you have other fields like shape or tensor data, you would allocate
-    // and copy them similarly and update the Tensor struct to point to the GPU memory.
+    return;
 }
-
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {
     int mem_idx = 0;
