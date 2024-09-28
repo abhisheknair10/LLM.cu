@@ -44,7 +44,7 @@ int main() {
 
     printf(WARN "[CPU]" RESET " Loaded Model Weights\n");
 
-    to_cuda(llama3_model);
+    // to_cuda(llama3_model);
 
     printf("Launching CUDA kernel...\n");
     print_cuda_mem<<<1, 1>>>(llama3_model->layers[0]->self_attn_k_proj->mem_len);
