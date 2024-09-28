@@ -126,8 +126,8 @@ void helper_move_tensor_to_cuda(Tensor *tensor) {
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(long));
 
-    cudaMemcpy(d_ndim, *(tensor->ndim), sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_mem_len, *(tensor->mem_len), sizeof(long), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mem_len, tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
 }
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {
