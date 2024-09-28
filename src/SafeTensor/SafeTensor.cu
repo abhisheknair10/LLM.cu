@@ -159,8 +159,8 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     */
 
    printf("-----------------------------------------------------------------\n");
-   printf("Dims: %d\n", component->ndim);
-   printf("Memory length: %lu\n", component->mem_len);
+   printf("Dims: %d\n", *(component->ndim));
+   printf("Memory length: %lu\n", *(component->mem_len));
 
     return;
 }
