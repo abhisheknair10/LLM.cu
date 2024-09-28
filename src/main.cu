@@ -8,6 +8,7 @@
 #include "SafeTensor/SafeTensor.cuh"
 
 #define WARN "\033[1;33m"
+#define GREEN "\033[1;32m"
 #define GREY "\033[2m"
 #define RESET "\033[0m"
 
@@ -20,22 +21,6 @@
 #endif
 
 const int MODEL_NUM_LAYERS = 32;
-
-__global__ void print_cuda_mem(uint16_t *b16_tensor) {
-    // Extract the 1st index of the bfloat16 tensor
-    uint16_t bf16_value = b16_tensor[1];
-
-    // Convert bfloat16 to float32
-    // Shift the bfloat16 (16 bits) into the upper 16 bits of a 32-bit float representation
-    uint32_t fp32_value_bits = (uint32_t)bf16_value << 16;
-
-    // Reinterpret the bits as a float
-    float fp32_value = __int_as_float(fp32_value_bits);
-
-    // Print the converted float value
-    printf("Converted fp32 value: %f\n", fp32_value);
-}
-
 
 int main() {
     Llama3 *llama3_model = init_LLaMa3(MODEL_NUM_LAYERS);
@@ -58,8 +43,7 @@ int main() {
 
     to_cuda(llama3_model);
 
-    print_cuda_mem<<<1, 1>>>(llama3_model->layers[0]->self_attn_k_proj->bf16_tensor);
-    cudaDeviceSynchronize();
+    printf(GREEN "[CUDA]" RESET " Loaded Model Weights\n");
 
     free_LLaMa3(llama3_model);
 
