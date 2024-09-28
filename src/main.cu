@@ -22,7 +22,7 @@
 const int MODEL_NUM_LAYERS = 32;
 
 __global__ void print_cuda_mem(int *shape) {
-    printf("Value on GPU: %d\n", *shape[0]);
+    printf("Value on GPU: %d\n", shape[0]);
 }
 
 int main() {
