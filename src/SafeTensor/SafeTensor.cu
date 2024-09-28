@@ -123,7 +123,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     }
 
     component->ndim = (int *)malloc(sizeof(int));
-    component->ndim = ndim;
+    *(component->ndim) = ndim;
     component->shape = (int *)malloc(sizeof(int) * ndim);
     if (component->shape == NULL) {
         printf("An Error Occurred while allocating memory for the component shape\n");
@@ -139,7 +139,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     }
 
     component->mem_len = (long *)malloc(sizeof(long));
-    component->mem_len = mem_len;
+    *(component->mem_len) = mem_len;
     component->bf16_tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
 
     if (component->bf16_tensor == NULL) {
