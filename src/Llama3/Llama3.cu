@@ -125,14 +125,14 @@ void helper_move_tensor_to_cuda(Tensor *tensor) {
     // allocate on CUDA device
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(long));
-    cudaMalloc((void **)&d_shape, sizeof(int) * tensor->ndim);
-    cudaMalloc((void **)&d_bf16_tensor, sizeof(uint16_t) * tensor->mem_len);
+    cudaMalloc((void **)&d_shape, sizeof(int) * (*(tensor->ndim)));
+    cudaMalloc((void **)&d_bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)));
 
     // copy to CUDA memory
     cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_shape, tensor->shape, sizeof(int) * tensor->ndim, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_bf16_tensor, tensor->d_bf16_tensor, sizeof(uint16_t) * tensor->ndim, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_shape, tensor->shape, sizeof(int) * (*(tensor->ndim)), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_bf16_tensor, tensor->bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)), cudaMemcpyHostToDevice);
 
     // UPDATE: the tensor to point to CUDA memory
     tensor->ndim = d_ndim;
