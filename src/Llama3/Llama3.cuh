@@ -4,11 +4,11 @@
 #include <stdint.h>
 
 typedef struct {
-    int ndim;
+    int *ndim;
+    long *mem_len;
     int *shape;
-    long mem_len;
     uint16_t *bf16_tensor;
-    __half *tensor;
+    __half *fp16_tensor;
 } Tensor;
 
 typedef struct {
@@ -35,5 +35,9 @@ typedef struct {
 Llama3 *init_LLaMa3(int n_layers);
 
 void free_LLaMa3(Llama3 *llama3);
+
+void to_cuda(Llama3 *llama3);
+
+void helper_move_tensor_to_cuda(Tensor *tensor);
 
 int arr_to_mem_index(Tensor *t, int n, int *index);
