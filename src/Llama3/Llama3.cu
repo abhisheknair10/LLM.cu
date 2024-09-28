@@ -94,14 +94,6 @@ void free_LLaMa3(Llama3 *llama3) {
     free(llama3);
 }
 
-typedef struct {
-    Tensor *embed_tokens;
-    Tensor *lm_head;
-    Tensor *norm;
-    Llama3Layer **layers;
-    int n_layers;
-} Llama3;
-
 /*
 To move the following:
     - All members in the Tensor struct, will be used for matrix multiplication
