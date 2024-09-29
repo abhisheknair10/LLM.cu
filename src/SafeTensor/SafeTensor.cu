@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Llama3/Llama3.cuh"
-#include "SafeTensor.cuh"
+#include "llama3/llama3.cuh"
+#include "safetensor.cuh"
 #include "cJSON/cJSON.h"
 
 #define WARN "\033[1;33m"

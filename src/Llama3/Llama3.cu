@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Llama3.cuh"
+#include "llama3.cuh"
 
 Llama3 *init_LLaMa3(int n_layers) {
     // Allocate memory for the Llama3 model
