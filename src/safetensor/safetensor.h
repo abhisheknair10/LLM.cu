@@ -21,7 +21,7 @@ typedef struct {
  * @param llama3_model Pointer to the Llama3 model where weights will be loaded.
  * @param filename Path to the SafeTensor file containing the model weights.
  */
-void load_safetensor_weights(Llama3 *llama3_model, char *filename);
+void load_safetensor_weights(Llama3 *llama3_model, const char *filename);
 
 /**
  * @brief Loads the header section of the SafeTensor file.
