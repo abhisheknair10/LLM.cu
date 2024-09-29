@@ -148,6 +148,8 @@ void _cudaMalloc_fp16(Tensor *tensor) {
 
     // Allocate fp16 tensor memory on the GPU
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
+
+    tensor->d_fp16_tensor = d_fp16_tensor;
 }
 
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
