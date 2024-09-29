@@ -102,7 +102,6 @@ void _free_tensor(Tensor *tensor) {
     if (tensor->mem_len) free(tensor->mem_len);
     if (tensor->shape) free(tensor->shape);
     if (tensor->bf16_tensor) free(tensor->bf16_tensor);
-    if (tensor->fp16_tensor) free(tensor->fp16_tensor);
 
     free(tensor);
 }
