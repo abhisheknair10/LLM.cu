@@ -248,7 +248,7 @@ void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
             if (llama3->layers[i]->self_attn_v_proj) _func(llama3->layers[i]->self_attn_v_proj);
         }
         else {
-            print("Error: Error occured during _m_component_tensor_operation execution");
+            printf("Error: Error occured during _m_component_tensor_operation execution");
             exit(1);
         }
     }
