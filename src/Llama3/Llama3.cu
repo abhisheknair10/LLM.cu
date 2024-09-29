@@ -168,7 +168,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     cudaFree(tensor->d_bf16_tensor);
 }
 
-__global__ void convert_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len) {
+__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
     if (idx < *mem_len) {
