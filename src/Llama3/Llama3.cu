@@ -88,7 +88,7 @@ void free_LLaMa3(Llama3 *llama3) {
     }
 
     // Free each tensor inside the layers
-    _m_component_tensor_operation(llama3, _free_tensor);
+    // _m_component_tensor_operation(llama3, _free_tensor);
 
     // Free each layer structure
     for (int i = 0; i < llama3->n_layers; i++) {
