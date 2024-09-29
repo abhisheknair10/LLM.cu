@@ -168,12 +168,17 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     cudaFree(tensor->d_bf16_tensor);
 }
 
-__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len) {
+__global__ void convert_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
     if (idx < *mem_len) {
-        float bf16_as_float = __half2float(__ushort2half_rn(bf16_tensor[idx]));
-        fp16_tensor[idx] = __float2half(bf16_as_float);
+        // BF16 to FP32
+        uint32_t bf16 = (uint32_t)bf16_tensor[idx];
+        uint32_t fp32 = bf16 << 16;
+        float fp32_value = __uint2float_rn(fp32);
+
+        // FP32 to FP16
+        fp16_tensor[idx] = __float2half_rn(fp32_value);
     }
 }
 
