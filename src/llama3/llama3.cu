@@ -1,13 +1,12 @@
-#ifdef __CUDACC__
-#include <cuda_runtime.h>
-#endif
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __CUDACC__
+#include <cuda_runtime.h>
 #include "llama3.cuh"
+#endif
 
 Llama3 *init_LLaMa3(int n_layers) {
     // Allocate memory for the Llama3 model

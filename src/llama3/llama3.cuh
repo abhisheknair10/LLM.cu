@@ -1,10 +1,10 @@
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __CUDACC__
 #include <cuda_fp16.h>
 #endif
-
-#include <stdint.h>
 
 /**
  * @brief Tensor structure representing multidimensional data.

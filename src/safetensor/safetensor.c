@@ -4,9 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "llama3/llama3.cuh"
 #include "safetensor.h"
 #include "cJSON/cJSON.h"
+
+#ifdef __CUDACC__
+#include "llama3/llama3.cuh"
+#endif
 
 #define WARN "\033[1;33m"
 #define GREY "\033[2m"
