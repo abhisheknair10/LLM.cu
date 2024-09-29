@@ -18,7 +18,7 @@ void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
     STF.fp = fopen(filename, "rb");
 
     if (STF.fp == NULL) {
-        printf("An Error Occurred while opening %s\n", filename);
+        printf("Error: An Error Occurred while opening %s\n", filename);
         exit(1);
     }
 
@@ -38,7 +38,7 @@ void safetensor_load_header(SafeTensorFile *STF) {
 
     STF->header = (char *)malloc(STF->header_size);
     if (STF->header == NULL) {
-        printf("An Error Occurred while allocating memory for the safetensor file header data\n");
+        printf("Error: An Error Occurred while allocating memory for the safetensor file header data\n");
         exit(1);
     }
 
@@ -52,7 +52,7 @@ void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model) {
     // printf("%s\n", STF->header);
 
     if (json == NULL) {
-        printf("Error parsing JSON\n");
+        printf("Error: Error parsing JSON\n");
         return;
     }
 
@@ -118,7 +118,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     }
 
     if (component == NULL) {
-        printf("Component not allocated or not initialized properly.\n");
+        printf("Error: Component not allocated or not initialized properly.\n");
         exit(1);
     }
 
@@ -126,7 +126,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     *(component->ndim) = ndim;
     component->shape = (int *)malloc(sizeof(int) * ndim);
     if (component->shape == NULL) {
-        printf("An Error Occurred while allocating memory for the component shape\n");
+        printf("Error: An Error Occurred while allocating memory for the component shape\n");
         exit(1);
     }
 
@@ -143,7 +143,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     component->bf16_tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
 
     if (component->bf16_tensor == NULL) {
-        printf("An Error Occurred while allocating memory for the component Tensor\n");
+        printf("Error: An Error Occurred while allocating memory for the component Tensor\n");
         exit(1);
     }
 
@@ -151,12 +151,6 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
 
     fseek(STF->fp, offset, SEEK_SET);
     size_t num = fread(component->bf16_tensor, sizeof(uint16_t), mem_len, STF->fp);
-
-    /*
-    printf("-----------------------------------------------------------------\n");
-    printf("Memory length: %lu\n", component->mem_len);
-    printf("Last Index: %hu\n", component->bf16_tensor[component->mem_len - 1]);
-    */
 
     return;
 }
@@ -168,7 +162,7 @@ int get_llama3_decoder_layer_num(char *layer_key, int index) {
     // Duplicate the layer_key to avoid modifying the original string
     char *layer_key_copy = strdup(layer_key);
     if (layer_key_copy == NULL) {
-        printf("An Error Occurred while duplicating layer_key\n");
+        printf("Error: An Error Occurred while duplicating layer_key\n");
         exit(1);
     }
 

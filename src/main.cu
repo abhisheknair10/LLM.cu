@@ -42,7 +42,8 @@ int main() {
     printf(WARN "[CPU]" RESET " Moving Model to CUDA\n");
     
     to_cuda(llama3_model);
-    printf(GREEN "[CUDA]" RESET " Loaded Model Weights\n");
+    bf16_to_fp16(llama3_model);
+    printf(GREEN "[CUDA]" RESET " Formatted Parameters to FP16 and Loaded to CUDA Device\n");
 
     free_LLaMa3(llama3_model);
 
