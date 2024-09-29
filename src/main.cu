@@ -43,10 +43,9 @@ int main() {
     load_safetensor_weights(llama3_model, "model_weights/model-00002-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00003-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00004-of-00004.safetensors");
-    printf(WARN "[CPU]" RESET " Loaded model to CPU\n");
-
-    // Clear terminal and move the model to CUDA
     CLEAR_TERMINAL();
+
+    printf(WARN "[CPU]" RESET " Loaded model to CPU\n");
     printf(WARN "[CPU]" RESET " Moving model to CUDA and converting model parameters from BF16 to FP16\n");
 
     to_cuda(llama3_model);
@@ -54,7 +53,6 @@ int main() {
     printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
 
     // Check the 0th index of the k_proj tensor of the first layer
-    printf(GREEN "[CUDA]" RESET " Launching CUDA checker kernel for 0th index of k_proj in first layer\n");
     checker<<<1, 1>>>(llama3_model->layers[0]->self_attn_k_proj->d_fp16_tensor);
     cudaDeviceSynchronize();
 
