@@ -1,7 +1,7 @@
 # Variables
 CC = clang
 NVCC = nvcc
-CFLAGS = -std=gnu17
+CFLAGS = -std=gnu17 -I/usr/local/cuda/include
 NVCCFLAGS = -std=c++11 -I/usr/local/cuda/include
 LDFLAGS = -L/usr/local/cuda/lib64 -lcudart
 SRC_DIR = ./src
@@ -21,28 +21,30 @@ INCLUDES = $(shell find $(SRC_DIR) -type d -exec echo -I{} \;)
 # All object files
 OBJS = $(C_OBJS) $(CU_OBJS)
 
+# Final target
 all: $(OUTPUT_DIR)/output.out
 
+# Run the program
 run: $(OUTPUT_DIR)/output.out
 	clear && ./$(OUTPUT_DIR)/output.out
 
-# Target for the final executable
+# Link the final executable
 $(OUTPUT_DIR)/output.out: $(OBJS)
 	$(NVCC) $(OBJS) $(INCLUDES) $(LDFLAGS) -o $@
 
-# Target for creating object files from .c files
+# Compile .c files to object files
 $(OUTPUT_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)  # Create directories as needed
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
-# Target for creating object files from .cu files
+# Compile .cu files to object files
 $(OUTPUT_DIR)/%.o: $(SRC_DIR)/%.cu
 	@mkdir -p $(dir $@)  # Create directories as needed
 	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -c -o $@ $<
 
-# Target for clean
+# Clean target
 clean:
 	rm -rf $(OUTPUT_DIR)
 
-# Target for .PHONY
+# Define phony targets
 .PHONY: all run clean
