@@ -54,7 +54,7 @@ int main() {
     printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
 
     // Check the 0th index of the k_proj tensor of the first layer
-    checker<<<1, 1>>>(llama3_model->layers[0]->mlp_down_proj->d_mem_len);
+    checker<<<1, 1>>>(llama3_model->embed_tokens->d_mem_len);
     cudaDeviceSynchronize();
 
     // Free the model resources
