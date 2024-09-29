@@ -150,10 +150,6 @@ void _free_tensor(Tensor *tensor) {
         free(tensor->shape);
         tensor->shape = NULL;
     }
-    if (tensor->bf16_tensor) {
-        free(tensor->bf16_tensor);
-        tensor->bf16_tensor = NULL;
-    }
 
     // Finally, free the Tensor structure itself
     free(tensor);
