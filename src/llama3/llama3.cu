@@ -68,6 +68,7 @@ Llama3 *init_LLaMa3(int n_layers) {
     return llama3;
 }
 
+#ifdef __CUDACC__
 void free_LLaMa3(Llama3 *llama3) {
     if (!llama3) return;  // Ensure llama3 is not NULL before proceeding
 
@@ -109,7 +110,9 @@ void free_LLaMa3(Llama3 *llama3) {
         llama3 = NULL;  // Nullify after freeing
     }
 }
+#endif
 
+#ifdef __CUDACC__
 void _free_tensor(Tensor *tensor) {
     if (!tensor) return;  // Check if tensor is NULL before proceeding
 
@@ -148,11 +151,13 @@ void _free_tensor(Tensor *tensor) {
     // Finally, free the Tensor structure itself
     free(tensor);
 }
+#endif
 
 void to_cuda(Llama3 *llama3) {
     _m_component_tensor_operation(llama3, _move_tensor_to_cuda);
 }
 
+#ifdef __CUDACC__
 void _move_tensor_to_cuda(Tensor *tensor) {
     int *d_ndim;
     long *d_mem_len;
@@ -180,12 +185,14 @@ void _move_tensor_to_cuda(Tensor *tensor) {
     tensor->d_shape = d_shape;
     tensor->d_bf16_tensor = d_bf16_tensor;
 }
+#endif
 
 void bf16_to_fp16(Llama3 *llama3) {
     _m_component_tensor_operation(llama3, _cudaMalloc_fp16);
     _m_component_tensor_operation(llama3, _kernel_wrapper_bf16_to_fp16);
 }
 
+#ifdef __CUDACC__
 void _cudaMalloc_fp16(Tensor *tensor) {
     __half *d_fp16_tensor;
 
@@ -194,7 +201,9 @@ void _cudaMalloc_fp16(Tensor *tensor) {
 
     tensor->d_fp16_tensor = d_fp16_tensor;
 }
+#endif
 
+#ifdef __CUDACC__
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     if (tensor->d_bf16_tensor == NULL) {
         printf("Error: Expected BF16 Tensor on Device to be allocated\n");
@@ -210,7 +219,9 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     cudaDeviceSynchronize();
     cudaFree(tensor->d_bf16_tensor);
 }
+#endif
 
+#ifdef __CUDACC__
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len) {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -224,6 +235,7 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
         fp16_tensor[idx] = __float2half_rn(fp32_value);
     }
 }
+#ifdef __CUDACC__
 
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {

@@ -18,7 +18,9 @@ typedef struct {
     long *d_mem_len;
     int *d_shape;
     uint16_t *d_bf16_tensor;
+#ifdef __CUDACC__
     __half *d_fp16_tensor;
+#endif
 } Tensor;
 
 /**
@@ -64,7 +66,9 @@ Llama3 *init_LLaMa3(int n_layers);
  *
  * @param llama3 Pointer to the Llama3 structure to be freed.
  */
+#ifdef __CUDACC__
 void free_LLaMa3(Llama3 *llama3);
+#endif
 
 /**
  * @brief Frees memory allocated for a Tensor structure.
@@ -73,7 +77,9 @@ void free_LLaMa3(Llama3 *llama3);
  *
  * @param tensor Pointer to the Tensor structure to be freed.
  */
+#ifdef __CUDACC__
 void _free_tensor(Tensor *tensor);
+#endif
 
 /**
  * @brief Transfers the Llama3 model's data from CPU to CUDA memory.
@@ -91,7 +97,9 @@ void to_cuda(Llama3 *llama3);
  *
  * @param tensor Pointer to the Tensor structure to transfer to CUDA.
  */
+#ifdef __CUDACC__
 void _move_tensor_to_cuda(Tensor *tensor);
+#endif
 
 /**
  * @brief Converts the bf16 data in the Llama3 model to fp16.
@@ -101,6 +109,7 @@ void _move_tensor_to_cuda(Tensor *tensor);
  *
  * @param llama3 Pointer to the Llama3 structure.
  */
+
 void bf16_to_fp16(Llama3 *llama3);
 
 /**
@@ -110,7 +119,9 @@ void bf16_to_fp16(Llama3 *llama3);
  *
  * @param tensor Pointer to the Tensor structure.
  */
+#ifdef __CUDACC__
 void _cudaMalloc_fp16(Tensor *tensor);
+#endif
 
 /**
  * @brief Wrapper function to launch the bf16 to fp16 conversion kernel.
@@ -120,7 +131,9 @@ void _cudaMalloc_fp16(Tensor *tensor);
  *
  * @param tensor Pointer to the Tensor structure that contains the bf16 data.
  */
+#ifdef __CUDACC__
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor);
+#endif
 
 /**
  * @brief CUDA kernel that converts bfloat16 (bf16) tensor data to float16 (fp16).
@@ -138,7 +151,9 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor);
  *                elements are to be processed by the kernel. The kernel will process up to `*mem_len` elements.
  *                It must reside in device memory.
  */
+#ifdef __CUDACC__
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len);
+#endif
 
 /**
  * @brief Performs an operation on each tensor in the Llama3 model.

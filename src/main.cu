@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "llama3/llama3.cuh"
-#include "safetensor/safetensor.cuh"
+#include "safetensor/safetensor.h"
 
 #define WARN "\033[1;33m"
 #define GREEN "\033[1;32m"
