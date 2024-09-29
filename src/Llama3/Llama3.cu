@@ -69,40 +69,77 @@ Llama3 *init_LLaMa3(int n_layers) {
 }
 
 void free_LLaMa3(Llama3 *llama3) {
-    // Free non-layer tensors
-    free(llama3->embed_tokens);
-    free(llama3->norm);
-    free(llama3->lm_head);
+    // Free non-layer tensors (ensure they are freed in the correct order)
+    if (llama3->embed_tokens) _free_tensor(llama3->embed_tokens);
+    if (llama3->norm) _free_tensor(llama3->norm);
+    if (llama3->lm_head) _free_tensor(llama3->lm_head);
 
     // Free each tensor inside the layers
     _m_component_tensor_operation(llama3, _free_tensor);
 
     // Free each layer structure
     for (int i = 0; i < llama3->n_layers; i++) {
-        free(llama3->layers[i]);
+        if (llama3->layers[i]) {
+            free(llama3->layers[i]);
+            llama3->layers[i] = NULL;  // Nullify after freeing
+        }
     }
 
     // Free the layers array and the Llama3 structure
-    free(llama3->layers);
-    free(llama3);
+    if (llama3->layers) {
+        free(llama3->layers);
+        llama3->layers = NULL;  // Nullify after freeing
+    }
+    if (llama3) {
+        free(llama3);
+        llama3 = NULL;  // Nullify after freeing
+    }
 }
 
 void _free_tensor(Tensor *tensor) {
     if (tensor == NULL) return;
 
-    // CUDA memory
-    if (tensor->d_ndim) cudaFree(tensor->d_ndim);
-    if (tensor->d_mem_len) cudaFree(tensor->d_mem_len);
-    if (tensor->d_shape) cudaFree(tensor->d_shape);
-    if (tensor->d_bf16_tensor) cudaFree(tensor->d_bf16_tensor);
-    if (tensor->d_fp16_tensor) cudaFree(tensor->d_fp16_tensor);
+    // Free CUDA memory (ensure the pointers are valid)
+    if (tensor->d_ndim) {
+        cudaFree(tensor->d_ndim);
+        tensor->d_ndim = NULL;
+    }
+    if (tensor->d_mem_len) {
+        cudaFree(tensor->d_mem_len);
+        tensor->d_mem_len = NULL;
+    }
+    if (tensor->d_shape) {
+        cudaFree(tensor->d_shape);
+        tensor->d_shape = NULL;
+    }
+    if (tensor->d_bf16_tensor) {
+        cudaFree(tensor->d_bf16_tensor);
+        tensor->d_bf16_tensor = NULL;
+    }
+    if (tensor->d_fp16_tensor) {
+        cudaFree(tensor->d_fp16_tensor);
+        tensor->d_fp16_tensor = NULL;
+    }
 
-    // CPU memory
-    if (tensor->ndim) free(tensor->ndim);
-    if (tensor->mem_len) free(tensor->mem_len);
-    if (tensor->shape) free(tensor->shape);
-    if (tensor->bf16_tensor) free(tensor->bf16_tensor);
+    // Free CPU memory (ensure the pointers are valid)
+    if (tensor->ndim) {
+        free(tensor->ndim);
+        tensor->ndim = NULL;
+    }
+    if (tensor->mem_len) {
+        free(tensor->mem_len);
+        tensor->mem_len = NULL;
+    }
+    if (tensor->shape) {
+        free(tensor->shape);
+        tensor->shape = NULL;
+    }
+    if (tensor->bf16_tensor) {
+        free(tensor->bf16_tensor);
+        tensor->bf16_tensor = NULL;
+    }
 
+    // Finally, free the Tensor structure itself
     free(tensor);
 }
 
@@ -181,7 +218,6 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
         fp16_tensor[idx] = __float2half_rn(fp32_value);
     }
 }
-
 
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
