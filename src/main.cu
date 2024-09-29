@@ -32,7 +32,7 @@ int main() {
     Llama3 *llama3_model = init_LLaMa3(MODEL_NUM_LAYERS);
 
     if (llama3_model == NULL) {
-        printf("An Error Occurred while allocating memory for the Llama3 Struct\n");
+        printf("An error occurred while allocating memory for the Llama3 struct\n");
         exit(1);
     } else {
         printf("Model has been allocated with %d layers\n", llama3_model->n_layers);
@@ -43,15 +43,15 @@ int main() {
     load_safetensor_weights(llama3_model, "model_weights/model-00002-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00003-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00004-of-00004.safetensors");
-    printf(WARN "[CPU]" RESET " Loaded Model to CPU\n");
+    printf(WARN "[CPU]" RESET " Loaded model to CPU\n");
 
     // Clear terminal and move the model to CUDA
     CLEAR_TERMINAL();
-    printf(WARN "[CPU]" RESET " Moving Model to CUDA\n");
+    printf(WARN "[CPU]" RESET " Moving model to CUDA and converting model parameters from BF16 to FP16\n");
 
     to_cuda(llama3_model);
     bf16_to_fp16(llama3_model);
-    printf(GREEN "[CUDA]" RESET " Formatted Parameters to FP16 and Loaded to CUDA Device\n");
+    printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
 
     // Check the 0th index of the k_proj tensor of the first layer
     printf(GREEN "[CUDA]" RESET " Launching CUDA checker kernel for 0th index of k_proj in first layer\n");
