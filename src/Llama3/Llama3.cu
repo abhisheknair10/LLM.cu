@@ -10,7 +10,7 @@ Llama3 *init_LLaMa3(int n_layers) {
     // Allocate memory for the Llama3 model
     Llama3 *llama3 = (Llama3 *)malloc(sizeof(Llama3));
     if (llama3 == NULL) {
-        printf("Error: Memory allocation failed for Llama3 structure.\n");
+        printf("Error: Memory allocation failed for Llama3 structure\n");
         exit(1);
     }
 
@@ -21,21 +21,21 @@ Llama3 *init_LLaMa3(int n_layers) {
     llama3->norm = (Tensor *)malloc(sizeof(Tensor));
     llama3->lm_head = (Tensor *)malloc(sizeof(Tensor));
     if (llama3->embed_tokens == NULL || llama3->norm == NULL || llama3->lm_head == NULL) {
-        printf("Error: Memory allocation failed for embed, norm, or lm_head tensors.\n");
+        printf("Error: Memory allocation failed for embed, norm, or lm_head tensors\n");
         exit(1);
     }
 
     // Allocate and initialize each layer
     llama3->layers = (Llama3Layer **)malloc(sizeof(Llama3Layer *) * n_layers);
     if (llama3->layers == NULL) {
-        printf("Error: Memory allocation failed for layers array.\n");
+        printf("Error: Memory allocation failed for layers array\n");
         exit(1);
     }
 
     for (int i = 0; i < n_layers; i++) {
         Llama3Layer *layer = (Llama3Layer *)malloc(sizeof(Llama3Layer));
         if (layer == NULL) {
-            printf("Error: Memory allocation failed for layer %d.\n", i);
+            printf("Error: Memory allocation failed for layer %d\n", i);
             exit(1);
         }
 
@@ -58,7 +58,7 @@ Llama3 *init_LLaMa3(int n_layers) {
             layer->post_attention_layernorm == NULL || layer->self_attn_k_proj == NULL ||
             layer->self_attn_o_proj == NULL || layer->self_attn_q_proj == NULL ||
             layer->self_attn_v_proj == NULL) {
-            printf("Error: Memory allocation failed for tensors in layer %d.\n", i);
+            printf("Error: Memory allocation failed for tensors in layer %d\n", i);
             exit(1);
         }
 
