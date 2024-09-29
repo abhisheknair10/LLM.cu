@@ -13,7 +13,7 @@
 #define RESET "\033[0m"
 
 // Load SafeTensor entry function
-void load_safetensor_weights(Llama3 *llama3_model, char const *filename) {
+void load_safetensor_weights(Llama3 *llama3_model, char *filename) {
     SafeTensorFile STF;
     STF.fp = fopen(filename, "rb");
 
