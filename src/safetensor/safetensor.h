@@ -4,7 +4,10 @@
 #include <stdio.h>
 
 #include "cJSON/cJSON.h"
+
+#ifdef __CUDACC__
 #include "llama3/llama3.cuh"
+#endif
 
 /**
  * @brief Struct representing a SafeTensor file for loading model weights.
