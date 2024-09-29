@@ -123,15 +123,22 @@ void _cudaMalloc_fp16(Tensor *tensor);
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor);
 
 /**
- * @brief CUDA kernel that converts bf16 tensor data to fp16.
+ * @brief CUDA kernel that converts bfloat16 (bf16) tensor data to float16 (fp16).
  *
- * This kernel converts each element of the input bf16 tensor to an fp16 tensor.
+ * This kernel processes each element of the input tensor, converting it from bf16 (bfloat16) format
+ * to fp16 (float16) format. Each thread handles the conversion of one element, up to the total number
+ * of elements specified by the `mem_len` parameter.
  *
- * @param bf16_tensor The input tensor data in bf16 format (16-bit unsigned integers).
- * @param fp16_tensor The output tensor data in fp16 format (__half).
- * @param mem_len The number of elements in the tensor.
+ * @param bf16_tensor Pointer to the input tensor data in bf16 format (16-bit unsigned integers, uint16_t).
+ *                    This must reside in device (CUDA) memory and be properly allocated.
+ * @param fp16_tensor Pointer to the output tensor data in fp16 format (__half). The converted data will
+ *                    be stored in this array. This must also reside in device (CUDA) memory and be allocated
+ *                    to match the size of `bf16_tensor`.
+ * @param mem_len Pointer to the number of elements in the input/output tensors. This value indicates how many
+ *                elements are to be processed by the kernel. The kernel will process up to `*mem_len` elements.
+ *                It must reside in device memory.
  */
-__global__ void _kernel_bf16_to_fp16(uint16_t bf16_tensor, __half fp16_tensor, long *mem_len);
+__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len);
 
 /**
  * @brief Performs an operation on each tensor in the Llama3 model.
