@@ -235,7 +235,7 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
         fp16_tensor[idx] = __float2half_rn(fp32_value);
     }
 }
-#ifdef __CUDACC__
+#endif
 
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
