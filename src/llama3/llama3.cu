@@ -1,4 +1,7 @@
+#ifdef __CUDACC__
 #include <cuda_runtime.h>
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
