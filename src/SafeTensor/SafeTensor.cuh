@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "Llama3/Llama3.cuh"
+#include "llama3/llama3.cuh"
 #include "cJSON/cJSON.h"
 
 /**

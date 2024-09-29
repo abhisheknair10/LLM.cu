@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Llama3/Llama3.cuh"
-#include "SafeTensor/SafeTensor.cuh"
+#include "llama3/llama3.cuh"
+#include "safetensor/safetensor.cuh"
 
 #define WARN "\033[1;33m"
 #define GREEN "\033[1;32m"
