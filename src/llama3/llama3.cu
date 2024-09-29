@@ -227,6 +227,10 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
 
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
+    _func(llama3->embed_tokens);
+    _func(llama3->lm_head);
+    _func(llama3->norm);
+
     for (int i = 0; i < llama3->n_layers; i++) {
         _func(llama3->layers[i]->input_layernorm);
         _func(llama3->layers[i]->mlp_down_proj);
