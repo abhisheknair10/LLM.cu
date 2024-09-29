@@ -69,7 +69,7 @@ Llama3 *init_LLaMa3(int n_layers) {
 }
 
 void free_LLaMa3(Llama3 *llama3) {
-    // Free non-layer tensors (ensure they are freed in the correct order)
+    // Free non-layer tensors
     if (llama3->embed_tokens) _free_tensor(llama3->embed_tokens);
     if (llama3->norm) _free_tensor(llama3->norm);
     if (llama3->lm_head) _free_tensor(llama3->lm_head);
@@ -81,25 +81,23 @@ void free_LLaMa3(Llama3 *llama3) {
     for (int i = 0; i < llama3->n_layers; i++) {
         if (llama3->layers[i]) {
             free(llama3->layers[i]);
-            llama3->layers[i] = NULL;  // Nullify after freeing
+            llama3->layers[i] = NULL;
         }
     }
 
-    // Free the layers array and the Llama3 structure
     if (llama3->layers) {
         free(llama3->layers);
-        llama3->layers = NULL;  // Nullify after freeing
+        llama3->layers = NULL;
     }
     if (llama3) {
         free(llama3);
-        llama3 = NULL;  // Nullify after freeing
+        llama3 = NULL;
     }
 }
 
 void _free_tensor(Tensor *tensor) {
     if (tensor == NULL) return;
 
-    // Free CUDA memory (ensure the pointers are valid)
     if (tensor->d_ndim) {
         cudaFree(tensor->d_ndim);
         tensor->d_ndim = NULL;
@@ -121,7 +119,6 @@ void _free_tensor(Tensor *tensor) {
         tensor->d_fp16_tensor = NULL;
     }
 
-    // Free CPU memory (ensure the pointers are valid)
     if (tensor->ndim) {
         free(tensor->ndim);
         tensor->ndim = NULL;
@@ -139,7 +136,6 @@ void _free_tensor(Tensor *tensor) {
         tensor->bf16_tensor = NULL;
     }
 
-    // Finally, free the Tensor structure itself
     free(tensor);
 }
 
@@ -198,10 +194,20 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     int threads_per_block = 1024;
     int num_blocks = ((*(tensor->mem_len)) + threads_per_block - 1) / threads_per_block;
 
-    _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
-        tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
+    _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
 
-    cudaDeviceSynchronize();
+    // Check for kernel launch errors
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("Kernel launch error: %s\n", cudaGetErrorString(err));
+    }
+
+    // Synchronize and check for runtime errors
+    err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        printf("CUDA runtime error: %s\n", cudaGetErrorString(err));
+    }
+
     cudaFree(tensor->d_bf16_tensor);
 }
 
