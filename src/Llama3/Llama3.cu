@@ -113,7 +113,6 @@ void free_LLaMa3(Llama3 *llama3) {
 void _free_tensor(Tensor *tensor) {
     if (!tensor) return;  // Check if tensor is NULL before proceeding
 
-    /*
     // Free CUDA memory, ensuring pointers are valid
     if (tensor->d_ndim) {
         cudaFree(tensor->d_ndim);
@@ -127,15 +126,10 @@ void _free_tensor(Tensor *tensor) {
         cudaFree(tensor->d_shape);
         tensor->d_shape = NULL;
     }
-    if (tensor->d_bf16_tensor) {
-        cudaFree(tensor->d_bf16_tensor);
-        tensor->d_bf16_tensor = NULL;
-    }
     if (tensor->d_fp16_tensor) {
         cudaFree(tensor->d_fp16_tensor);
         tensor->d_fp16_tensor = NULL;
     }
-    */
 
     // Free CPU memory
     if (tensor->ndim) {
