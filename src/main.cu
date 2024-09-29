@@ -23,8 +23,8 @@
 const int MODEL_NUM_LAYERS = 32;
 
 // CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
-__global__ void checker(long *mem_len) {
-    // printf("The 0th index of the fp16_tensor (self_attn_k_proj): %f\n", __half2float(fp16_tensor[0]));
+__global__ void checker(__half *fp16_tensor, long *mem_len) {
+    printf("The 0th index of the fp16_tensor (self_attn_k_proj): %f\n", __half2float(fp16_tensor[0]));
     printf("Mem Len: %lu\n", *mem_len);
 }
 
@@ -54,7 +54,8 @@ int main() {
     printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
 
     // Check the 0th index of the k_proj tensor of the first layer
-    checker<<<1, 1>>>(llama3_model->embed_tokens->d_mem_len);
+    checker<<<1, 1>>>(
+        llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
     cudaDeviceSynchronize();
 
     // Free the model resources
