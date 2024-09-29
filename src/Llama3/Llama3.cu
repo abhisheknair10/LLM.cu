@@ -69,10 +69,23 @@ Llama3 *init_LLaMa3(int n_layers) {
 }
 
 void free_LLaMa3(Llama3 *llama3) {
+    if (!llama3) return;  // Ensure llama3 is not NULL before proceeding
+
     // Free non-layer tensors
-    if (llama3->embed_tokens) _free_tensor(llama3->embed_tokens);
-    if (llama3->norm) _free_tensor(llama3->norm);
-    if (llama3->lm_head) _free_tensor(llama3->lm_head);
+    if (llama3->embed_tokens) {
+        _free_tensor(llama3->embed_tokens);
+        llama3->embed_tokens = NULL;
+    }
+
+    if (llama3->norm) {
+        _free_tensor(llama3->norm);
+        llama3->norm = NULL;
+    }
+
+    if (llama3->lm_head) {
+        _free_tensor(llama3->lm_head);
+        llama3->lm_head = NULL;
+    }
 
     // Free each tensor inside the layers
     _m_component_tensor_operation(llama3, _free_tensor);
@@ -81,32 +94,66 @@ void free_LLaMa3(Llama3 *llama3) {
     for (int i = 0; i < llama3->n_layers; i++) {
         if (llama3->layers[i]) {
             free(llama3->layers[i]);
+            llama3->layers[i] = NULL;  // Nullify after freeing
         }
     }
 
+    // Free the layers array and the Llama3 structure
     if (llama3->layers) {
         free(llama3->layers);
+        llama3->layers = NULL;  // Nullify after freeing
     }
+
     if (llama3) {
         free(llama3);
-        llama3 = NULL;
+        llama3 = NULL;  // Nullify after freeing
     }
 }
 
 void _free_tensor(Tensor *tensor) {
-    if (tensor == NULL) return;
+    if (!tensor) return;  // Check if tensor is NULL before proceeding
 
-    if (tensor->d_ndim)cudaFree(tensor->d_ndim);
-    if (tensor->d_mem_len)cudaFree(tensor->d_mem_len);
-    if (tensor->d_shape)cudaFree(tensor->d_shape);
-    if (tensor->d_bf16_tensor)cudaFree(tensor->d_bf16_tensor);
-    if (tensor->d_fp16_tensor)cudaFree(tensor->d_fp16_tensor);
+    // Free CUDA memory, ensuring pointers are valid
+    if (tensor->d_ndim) {
+        cudaFree(tensor->d_ndim);
+        tensor->d_ndim = NULL;
+    }
+    if (tensor->d_mem_len) {
+        cudaFree(tensor->d_mem_len);
+        tensor->d_mem_len = NULL;
+    }
+    if (tensor->d_shape) {
+        cudaFree(tensor->d_shape);
+        tensor->d_shape = NULL;
+    }
+    if (tensor->d_bf16_tensor) {
+        cudaFree(tensor->d_bf16_tensor);
+        tensor->d_bf16_tensor = NULL;
+    }
+    if (tensor->d_fp16_tensor) {
+        cudaFree(tensor->d_fp16_tensor);
+        tensor->d_fp16_tensor = NULL;
+    }
 
-    if (tensor->ndim) free(tensor->ndim);
-    if (tensor->mem_len) free(tensor->mem_len);
-    if (tensor->shape) free(tensor->shape);
-    if (tensor->bf16_tensor) free(tensor->bf16_tensor);
+    // Free CPU memory
+    if (tensor->ndim) {
+        free(tensor->ndim);
+        tensor->ndim = NULL;
+    }
+    if (tensor->mem_len) {
+        free(tensor->mem_len);
+        tensor->mem_len = NULL;
+    }
+    if (tensor->shape) {
+        free(tensor->shape);
+        tensor->shape = NULL;
+    }
+    if (tensor->bf16_tensor) {
+        free(tensor->bf16_tensor);
+        tensor->bf16_tensor = NULL;
+    }
 
+    // Finally, free the Tensor structure itself
     free(tensor);
 }
 
