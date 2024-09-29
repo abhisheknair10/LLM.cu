@@ -113,6 +113,7 @@ void free_LLaMa3(Llama3 *llama3) {
 void _free_tensor(Tensor *tensor) {
     if (!tensor) return;  // Check if tensor is NULL before proceeding
 
+    /*
     // Free CUDA memory, ensuring pointers are valid
     if (tensor->d_ndim) {
         cudaFree(tensor->d_ndim);
@@ -134,6 +135,7 @@ void _free_tensor(Tensor *tensor) {
         cudaFree(tensor->d_fp16_tensor);
         tensor->d_fp16_tensor = NULL;
     }
+    */
 
     // Free CPU memory
     if (tensor->ndim) {
@@ -236,24 +238,17 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
     for (int i = 0; i < llama3->n_layers; i++) {
-        if (llama3->layers[i]) {
-            if (llama3->layers[i]->input_layernorm) _func(llama3->layers[i]->input_layernorm);
-            if (llama3->layers[i]->mlp_down_proj) _func(llama3->layers[i]->mlp_down_proj);
-            if (llama3->layers[i]->mlp_gate_proj) _func(llama3->layers[i]->mlp_gate_proj);
-            if (llama3->layers[i]->mlp_up_proj) _func(llama3->layers[i]->mlp_up_proj);
-            if (llama3->layers[i]->post_attention_layernorm) _func(llama3->layers[i]->post_attention_layernorm);
-            if (llama3->layers[i]->self_attn_k_proj) _func(llama3->layers[i]->self_attn_k_proj);
-            if (llama3->layers[i]->self_attn_o_proj) _func(llama3->layers[i]->self_attn_o_proj);
-            if (llama3->layers[i]->self_attn_q_proj) _func(llama3->layers[i]->self_attn_q_proj);
-            if (llama3->layers[i]->self_attn_v_proj) _func(llama3->layers[i]->self_attn_v_proj);
-        }
-        else {
-            printf("Error: Error occured during _m_component_tensor_operation execution");
-            exit(1);
-        }
+        _func(llama3->layers[i]->input_layernorm);
+        _func(llama3->layers[i]->mlp_down_proj);
+        _func(llama3->layers[i]->mlp_gate_proj);
+        _func(llama3->layers[i]->mlp_up_proj);
+        _func(llama3->layers[i]->post_attention_layernorm);
+        _func(llama3->layers[i]->self_attn_k_proj);
+        _func(llama3->layers[i]->self_attn_o_proj);
+        _func(llama3->layers[i]->self_attn_q_proj);
+        _func(llama3->layers[i]->self_attn_v_proj);
     }
 }
-
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {
     int mem_idx = 0;
