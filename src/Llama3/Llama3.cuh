@@ -141,7 +141,7 @@ __global__ void _kernel_bf16_to_fp16(uint16_t bf16_tensor, __half fp16_tensor, l
  * @param llama3 Pointer to the Llama3 structure.
  * @param _func Function to apply to each tensor in the model.
  */
-void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor));
+void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *));
 
 /**
  * @brief Converts an array of indices to a memory index in a tensor.
