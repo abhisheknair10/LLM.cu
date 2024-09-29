@@ -59,80 +59,87 @@ Llama3 *init_LLaMa3(int n_layers);
 /**
  * @brief Frees the memory allocated for the Llama3 model and its components.
  *
+ * This function deallocates all the memory used by the Llama3 structure,
+ * including all layers and tensors.
+ *
  * @param llama3 Pointer to the Llama3 structure to be freed.
  */
 void free_LLaMa3(Llama3 *llama3);
 
 /**
- * @brief Transfers the Llama3 model data to CUDA memory.
+ * @brief Frees memory allocated for a Tensor structure.
  *
- * This function transfers each tensor in the model to CUDA memory.
+ * This function frees both the CPU and CUDA memory associated with the Tensor structure.
  *
- * @param llama3 Pointer to the Llama3 structure to be transferred to CUDA memory.
+ * @param tensor Pointer to the Tensor structure to be freed.
+ */
+void _free_tensor(Tensor *tensor);
+
+/**
+ * @brief Transfers the Llama3 model's data from CPU to CUDA memory.
+ *
+ * This function transfers all tensors in the model to CUDA memory.
+ *
+ * @param llama3 Pointer to the Llama3 structure to transfer to CUDA.
  */
 void to_cuda(Llama3 *llama3);
 
 /**
- * @brief Moves a tensor's data to CUDA memory.
+ * @brief Transfers a Tensor's data from CPU to CUDA memory.
  *
- * This helper function transfers the tensor data from CPU memory to GPU memory.
+ * This function transfers the specified tensor's data (dimensions, shape, and values) to CUDA memory.
  *
- * @param tensor Pointer to the Tensor structure to be moved to CUDA memory.
+ * @param tensor Pointer to the Tensor structure to transfer to CUDA.
  */
 void _move_tensor_to_cuda(Tensor *tensor);
 
 /**
- * @brief Allocates fp16 data for the Llama3 model in CUDA memory.
+ * @brief Converts the bf16 data in the Llama3 model to fp16.
  *
- * This function allocates fp16 (__half) data for each tensor in the model.
+ * This function allocates memory for fp16 data and launches the necessary kernels
+ * to convert bf16 data to fp16 for each tensor in the Llama3 model.
  *
- * @param llama3 Pointer to the Llama3 structure for which fp16 data will be allocated.
+ * @param llama3 Pointer to the Llama3 structure.
  */
 void bf16_to_fp16(Llama3 *llama3);
 
 /**
- * @brief Allocates fp16 data for a specific tensor in CUDA memory.
+ * @brief Allocates fp16 memory for a specific tensor in CUDA memory.
  *
- * @param tensor Pointer to the Tensor structure for which fp16 data will be allocated.
+ * This function allocates memory on the GPU for storing fp16 data (__half) for a specific tensor.
+ *
+ * @param tensor Pointer to the Tensor structure.
  */
 void _cudaMalloc_fp16(Tensor *tensor);
 
 /**
- * @brief A wrapper function to invoke the CUDA kernel that converts bfloat16 (bf16) tensor data to float16 (fp16).
+ * @brief Wrapper function to launch the bf16 to fp16 conversion kernel.
  *
- * This function wraps the CUDA kernel that performs the conversion of tensor data from bf16 format
- * (stored in the Tensor struct) to fp16 format, utilizing the GPU for parallel computation.
+ * This function launches the CUDA kernel to convert the bf16 tensor to fp16 on the device.
+ * It ensures that all elements in the tensor are processed by calculating appropriate thread and block dimensions.
  *
- * @param tensor Pointer to the Tensor structure containing the bf16 data that needs to be converted to fp16.
- *               The function assumes that the tensor's `bf16_tensor` field contains the data to be converted,
- *               and the `fp16_tensor` field will be allocated and populated with the converted fp16 data.
+ * @param tensor Pointer to the Tensor structure that contains the bf16 data.
  */
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor);
 
 /**
- * @brief CUDA kernel that converts an input bfloat16 (bf16) tensor to float16 (fp16) format.
+ * @brief CUDA kernel that converts bf16 tensor data to fp16.
  *
- * This kernel is responsible for converting each element of the input tensor from bf16 (bfloat16) format
- * to fp16 (float16) format. It processes the input tensor up to the size specified by the `mem_len` parameter.
- * Each element of the input bf16 tensor is converted and stored in the corresponding position of the
- * output fp16 tensor.
+ * This kernel converts each element of the input bf16 tensor to an fp16 tensor.
  *
- * @param bf16_tensor The input tensor data in bf16 (bfloat16) format. The data is represented as 16-bit
- *                    unsigned integers (uint16_t). This must be allocated in the device memory before
- *                    the kernel is launched.
- * @param fp16_tensor The output tensor data in fp16 (float16) format. The data is represented as half-precision
- *                    floating-point values (__half). This must be allocated in the device memory before
- *                    the kernel is launched.
- * @param mem_len Pointer to a long integer specifying the number of elements in the bf16 and fp16 tensors.
- *                This value determines how many elements the kernel will process.
+ * @param bf16_tensor The input tensor data in bf16 format (16-bit unsigned integers).
+ * @param fp16_tensor The output tensor data in fp16 format (__half).
+ * @param mem_len The number of elements in the tensor.
  */
 __global__ void _kernel_bf16_to_fp16(uint16_t bf16_tensor, __half fp16_tensor, long *mem_len);
 
 /**
- * @brief Performs a component-wise operation on each tensor in the Llama3 model.
+ * @brief Performs an operation on each tensor in the Llama3 model.
+ *
+ * This function applies a user-defined function to each tensor within the layers of the Llama3 model.
  *
  * @param llama3 Pointer to the Llama3 structure.
- * @param _func Pointer to the function to be applied to each tensor in the model.
+ * @param _func Function to apply to each tensor in the model.
  */
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor));
 
@@ -140,12 +147,11 @@ void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor));
  * @brief Converts an array of indices to a memory index in a tensor.
  *
  * This function computes the memory index corresponding to a set of indices (idx)
- * in a tensor with shape stored in the Tensor struct. It converts multi-dimensional
- * array indices to a flat memory index.
+ * in a tensor based on its shape. It converts multi-dimensional array indices to a flat memory index.
  *
  * @param t Pointer to the Tensor structure.
- * @param n The number of dimensions in the tensor.
- * @param index Array of indices for which to calculate the memory index.
- * @return The calculated memory index.
+ * @param n Number of dimensions in the tensor.
+ * @param idx Array of indices to convert to a memory index.
+ * @return The computed memory index.
  */
-int arr_to_mem_index(Tensor *t, int n, int *index);
+int arr_to_mem_index(Tensor *t, int n, int *idx);
