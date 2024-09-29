@@ -174,13 +174,8 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
     if (idx < *mem_len) {
         // Convert BF16 to FP32
         uint32_t bf16 = (uint32_t)bf16_tensor[idx];
-        uint32_t fp32_bits = bf16 << 16; // Shift BF16 to the upper 16 bits of FP32
-        float fp32_value = __int_as_float(fp32_bits); // Convert to FP32
-
-        // Check for invalid FP32 values
-        if (isnan(fp32_value) || isinf(fp32_value)) {
-            printf("Invalid FP32 value detected at index %d: %f\n", idx, fp32_value);
-        }
+        uint32_t fp32_bits = bf16 << 16;
+        float fp32_value = __int_as_float(fp32_bits);
 
         // Convert FP32 to FP16
         fp16_tensor[idx] = __float2half_rn(fp32_value);
