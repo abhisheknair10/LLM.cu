@@ -6,7 +6,7 @@
 
 #include "cJSON/cJSON.h"
 #include "llama3/llama3.cuh"
-#include "safetensor.h"
+#include "safetensor.cuh"
 
 #define WARN "\033[1;33m"
 #define GREY "\033[2m"
