@@ -55,8 +55,8 @@ int main() {
 
     // Check the 0th index of the k_proj tensor of the first layer
     printf(GREEN "[CUDA]" RESET " Launching CUDA checker kernel for 0th index of k_proj in first layer\n");
-    // checker<<<1, 1>>>(llama3_model->layers[0]->self_attn_k_proj->d_fp16_tensor);
-    // cudaDeviceSynchronize();
+    checker<<<1, 1>>>(llama3_model->layers[0]->self_attn_k_proj->d_fp16_tensor);
+    cudaDeviceSynchronize();
 
     // Free the model resources
     // free_LLaMa3(llama3_model);
