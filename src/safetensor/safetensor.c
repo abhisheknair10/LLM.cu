@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "llama3/llama3.cuh"
-#include "safetensor.cuh"
+#include "safetensor.h"
 #include "cJSON/cJSON.h"
 
 #define WARN "\033[1;33m"
