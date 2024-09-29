@@ -5,4 +5,4 @@
 #include <string.h>
 
 #include "llama3/llama3.cuh"
-#include "safetensor/safetensor.cuh"
+#include "safetensor/safetensor.h"
