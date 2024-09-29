@@ -59,7 +59,7 @@ int main() {
     cudaDeviceSynchronize();
 
     // Free the model resources
-    // free_LLaMa3(llama3_model);
+    free_LLaMa3(llama3_model);
 
     return 0;
 }
