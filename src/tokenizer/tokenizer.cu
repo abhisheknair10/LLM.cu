@@ -1,10 +1,11 @@
+#include "tokenizer.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "cJSON/cJSON.h"
-#include "tokenizer.cuh"
 
 Llama3Tokenizer *load_tokenizer() {
     // Allocate memory for the tokenizer
@@ -66,6 +67,9 @@ Llama3Tokenizer *load_tokenizer() {
 }
 
 int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
+    // 1st and 2nd index reserved for
+    //  - Number of tokens
+    //  - begin token
     const int max_tokens = 2048 + 1;
 
     TrieNode *curr;
@@ -77,9 +81,10 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
         exit(1);
     }
 
-    int token_count = 0;
-    int i = 0;
+    int token_count = 1;
+    tokens[1] = 128000;
 
+    int i = 0;
     while (i < input_len && token_count < 2048) {
         curr = tokenizer->root;
         int last_token = -1;
@@ -107,7 +112,7 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
         i += last_token_len;
     }
 
-    tokens = (int *)realloc(tokens, sizeof(int) * (token_count + 1));
+    tokens = (int *)realloc(tokens, sizeof(int) * (token_count + 2));
     if (tokens == NULL) {
         printf("Error: Memory reallocation failed for tokens\n");
         exit(1);
