@@ -67,7 +67,6 @@ int main() {
         return 1;
     }
 
-    int token_count = 0;
     printf("Number of Tokens: %d\n", tokens[0]);
     for (int i = 1; i < tokens[0]; i++) {
         printf("%d, ", tokens[i]);
