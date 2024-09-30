@@ -25,7 +25,7 @@ __global__ void checker(__half *fp16_tensor, long *mem_len) {
 
 int main() {
     // Initialize the Llama3 model
-    Llama3 *llama3_model = init_LLaMa3(MODEL_NUM_LAYERS);
+    Llama3 *llama3_model = init_llama3(MODEL_NUM_LAYERS);
 
     if (llama3_model == NULL) {
         printf("An error occurred while allocating memory for the Llama3 struct\n");
@@ -75,7 +75,7 @@ int main() {
     printf("\n");
 
     // Free the model resources
-    free_LLaMa3(llama3_model);
+    free_llama3(llama3_model);
 
     return 0;
 }
