@@ -6,6 +6,7 @@
 # dirs
 /model_weights/*
 /venv/
+/src/main.c
 
 # compiled files
 /output/*
