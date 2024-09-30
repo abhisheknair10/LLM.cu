@@ -13,13 +13,7 @@
 #define GREY "\033[2m"
 #define RESET "\033[0m"
 
-#ifdef _WIN32
-#define CLEAR_TERMINAL() system("cls")
-#elif __linux__ || __APPLE__
 #define CLEAR_TERMINAL() system("clear")
-#else
-#define CLEAR_TERMINAL() printf("\n")
-#endif
 
 const int MODEL_NUM_LAYERS = 32;
 
