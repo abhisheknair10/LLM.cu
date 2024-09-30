@@ -6,7 +6,7 @@
 
 #include "llama3/llama3.cuh"
 #include "safetensor/safetensor.cuh"
-#include "tokenizer/tokenizer.h"
+#include "tokenizer/tokenizer.cuh"
 
 #define WARN "\033[1;33m"
 #define GREEN "\033[1;32m"
@@ -67,6 +67,7 @@ int main() {
         return 1;
     }
 
+    int token_count = 0;
     printf("Number of Tokens: %d\n", tokens[0]);
     for (int i = 1; i < tokens[0]; i++) {
         printf("%d, ", tokens[i]);
