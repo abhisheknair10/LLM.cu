@@ -31,6 +31,7 @@ void load_safetensor_weights(Llama3 *llama3_model, const char *filename) {
 }
 
 void safetensor_load_header(SafeTensorFile *STF) {
+    // read into header size
     uint64_t header_size;
     fread(&header_size, sizeof(uint64_t), 1, STF->fp);
 
@@ -41,7 +42,8 @@ void safetensor_load_header(SafeTensorFile *STF) {
         printf("Error: An Error Occurred while allocating memory for the safetensor file header data\n");
         exit(1);
     }
-
+    
+    // Read into header buffer
     fread(STF->header, 1, STF->header_size, STF->fp);
 
     return;
@@ -57,6 +59,8 @@ void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model) {
     }
 
     cJSON *current_element = NULL;
+    
+    // Load tensor for each layer and component
     cJSON_ArrayForEach(current_element, json) {
         if (cJSON_IsObject(current_element)) {
             cJSON *dtype = cJSON_GetObjectItemCaseSensitive(current_element, "dtype");
@@ -78,6 +82,7 @@ void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model) {
 void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_model) {
     int layer_num = get_llama3_decoder_layer_num(curr_element->string, 2);
 
+    // Extract keys from JSON object
     cJSON *dtype = cJSON_GetObjectItemCaseSensitive(curr_element, "dtype");
     cJSON *shape = cJSON_GetObjectItemCaseSensitive(curr_element, "shape");
     cJSON *data_offsets = cJSON_GetObjectItemCaseSensitive(curr_element, "data_offsets");
@@ -89,8 +94,8 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
         shape_curr = shape_curr->next;
     }
 
+    // Assign component being operated
     Tensor *component = NULL;
-
     if (strstr(curr_element->string, "input_layernorm")) {
         component = llama3_model->layers[layer_num]->input_layernorm;
     } else if (strstr(curr_element->string, "down_proj")) {
@@ -122,6 +127,7 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
         exit(1);
     }
 
+    // Allocate(?)/assign metadata and data
     component->ndim = (int *)malloc(sizeof(int));
     *(component->ndim) = ndim;
     component->shape = (int *)malloc(sizeof(int) * ndim);

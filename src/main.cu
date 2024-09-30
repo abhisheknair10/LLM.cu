@@ -6,6 +6,7 @@
 
 #include "llama3/llama3.cuh"
 #include "safetensor/safetensor.cuh"
+#include "tokenizer/tokenizer.h"
 
 #define WARN "\033[1;33m"
 #define GREEN "\033[1;32m"
@@ -57,6 +58,27 @@ int main() {
     checker<<<1, 1>>>(
         llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
     cudaDeviceSynchronize();
+
+    // Load the tokenizer (this function should load the trie from the tokenizer's JSON)
+    Llama3Tokenizer *llama3_tokenizer = load_tokenizer();
+    if (llama3_tokenizer == NULL) {
+        printf("Error: Failed to load the tokenizer\n");
+        return 1;
+    }
+
+    char *input_str = "If you are reading the data from the Internet instead, the same techniques can generally be used with the response you get from your HTTP API (it will be a file-like object); however, it is heavily recommended to use the third-party Requests library instead, which includes built-in support for JSON requests.";
+    int *tokens = tokenize(llama3_tokenizer, input_str);
+    if (tokens == NULL) {
+        printf("Error: Tokenization failed\n");
+        return 1;
+    }
+
+    int token_count = 0;
+    printf("Number of Tokens: %d\n", tokens[0]);
+    for (int i = 1; i < tokens[0]; i++) {
+        printf("%d, ", tokens[i]);
+    }
+    printf("\n");
 
     // Free the model resources
     free_LLaMa3(llama3_model);

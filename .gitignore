@@ -5,6 +5,7 @@
 
 # dirs
 /model_weights/*
+/venv/
 
 # compiled files
 /output/*

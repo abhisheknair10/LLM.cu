@@ -6,7 +6,7 @@
 
 #include "llama3.cuh"
 
-Llama3 *init_LLaMa3(int n_layers) {
+Llama3 *init_llama3(int n_layers) {
     // Allocate memory for the Llama3 model
     Llama3 *llama3 = (Llama3 *)malloc(sizeof(Llama3));
     if (llama3 == NULL) {
@@ -68,7 +68,7 @@ Llama3 *init_LLaMa3(int n_layers) {
     return llama3;
 }
 
-void free_LLaMa3(Llama3 *llama3) {
+void free_llama3(Llama3 *llama3) {
     if (!llama3) return;  // Ensure llama3 is not NULL before proceeding
 
     // Free non-layer tensors
@@ -191,7 +191,6 @@ void _cudaMalloc_fp16(Tensor *tensor) {
 
     // Allocate fp16 tensor memory on the GPU
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
-
     tensor->d_fp16_tensor = d_fp16_tensor;
 }
 
@@ -201,6 +200,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
         exit(1);
     }
 
+    // assign number of threads per block and blocks per grid
     int threads_per_block = 1024;
     int num_blocks = ((*(tensor->mem_len)) + threads_per_block - 1) / threads_per_block;
 
@@ -208,6 +208,8 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
         tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
 
     cudaDeviceSynchronize();
+
+    // free unnnecessay tensor array after usage
     cudaFree(tensor->d_bf16_tensor);
 }
 
@@ -227,6 +229,8 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
 
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
+    // perform singular function on all Tensors
+    
     _func(llama3->embed_tokens);
     _func(llama3->lm_head);
     _func(llama3->norm);
