@@ -1,11 +1,10 @@
-#include "tokenizer.h"
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "cJSON/cJSON.h"
+#include "tokenizer.cuh"
 
 Llama3Tokenizer *load_tokenizer() {
     // Allocate memory for the tokenizer
