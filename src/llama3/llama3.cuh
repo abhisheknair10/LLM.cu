@@ -54,7 +54,7 @@ typedef struct {
  * @param n_layers Number of layers in the model.
  * @return Pointer to the initialized Llama3 structure.
  */
-Llama3 *init_LLaMa3(int n_layers);
+Llama3 *init_llama3(int n_layers);
 
 /**
  * @brief Frees the memory allocated for the Llama3 model and its components.
@@ -64,7 +64,7 @@ Llama3 *init_LLaMa3(int n_layers);
  *
  * @param llama3 Pointer to the Llama3 structure to be freed.
  */
-void free_LLaMa3(Llama3 *llama3);
+void free_llama3(Llama3 *llama3);
 
 /**
  * @brief Frees memory allocated for a Tensor structure.
