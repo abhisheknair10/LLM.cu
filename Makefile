@@ -26,6 +26,7 @@ all: $(OUTPUT_DIR)/output.out
 
 # Run the program
 run: $(OUTPUT_DIR)/output.out
+	python3 setup-tokenizer.py
 	clear && ./$(OUTPUT_DIR)/output.out
 
 # Link the final executable
