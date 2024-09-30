@@ -60,14 +60,13 @@ int main() {
         return 1;
     }
 
-    char *input_str = "If you are reading the data from the Internet instead, the same techniques can generally be used with the response you get from your HTTP API (it will be a file-like object); however, it is heavily recommended to use the third-party Requests library instead, which includes built-in support for JSON requests.";
+    char *input_str = strdup("If you are reading the data from the Internet instead, the same techniques can generally be used with the response you get from your HTTP API (it will be a file-like object); however, it is heavily recommended to use the third-party Requests library instead, which includes built-in support for JSON requests.");
     int *tokens = tokenize(llama3_tokenizer, input_str);
     if (tokens == NULL) {
         printf("Error: Tokenization failed\n");
         return 1;
     }
 
-    int token_count = 0;
     printf("Number of Tokens: %d\n", tokens[0]);
     for (int i = 1; i < tokens[0]; i++) {
         printf("%d, ", tokens[i]);
