@@ -8,6 +8,16 @@
 #include "inference.cuh"
 #include "llama3/llama3.cuh"
 
+#define CHECK_CUDA_ERROR()                                       \
+    {                                                            \
+        cudaError_t err = cudaGetLastError();                    \
+        if (err != cudaSuccess) {                                \
+            printf("CUDA error: %s in file '%s' in line %i\n",   \
+                   cudaGetErrorString(err), __FILE__, __LINE__); \
+            exit(EXIT_FAILURE);                                  \
+        }                                                        \
+    }
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -40,11 +50,15 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
         llama3_model->embed_tokens->d_fp16_tensor, X->d_fp16_tensor, d_tokens);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     // Launch the check_embedding kernel to print the embeddings
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 }
 
 __global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
