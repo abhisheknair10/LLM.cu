@@ -143,6 +143,8 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     token_tensor->mem_len = (long *)malloc(sizeof(long));
     *(token_tensor->mem_len) = embed_size * (tokens[0] - 1);
 
+    printf("Memlen allocation: %lu\n", *(token_tensor->mem_len));
+
     token_tensor->shape = (int *)malloc(sizeof(int) * (*(token_tensor->ndim)));
     token_tensor->shape[0] = embed_size;
     token_tensor->shape[1] = tokens[1];
@@ -169,14 +171,10 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     free(token_tensor->mem_len);
     free(token_tensor->shape);
 
-    CHECK_CUDA_ERROR();
-
     // SPECIAL: fp16 tensor being allocated but only used later
     __half *d_fp16_tensor;
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(token_tensor->mem_len)));
     token_tensor->d_fp16_tensor = d_fp16_tensor;
-
-    CHECK_CUDA_ERROR();
 
     /* *************** Move Actual Tensor to CUDA *************** */
     // Copy over tokens
