@@ -62,8 +62,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     free(h_tokens);
 
-    CHECK_CUDA_ERROR();
-
     printCudaMemoryInfo();
 
     // Order threads into blocks
