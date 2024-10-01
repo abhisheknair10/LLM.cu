@@ -37,7 +37,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *tokens) {
 
     // Launch the token to embedding conversion kernel
     tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
-        llama3_model->embed_tokens->fp16_tensor, X->d_fp16_tensor, tokens);
+        llama3_model->embed_tokens->d_fp16_tensor, X->d_fp16_tensor, tokens);
     cudaDeviceSynchronize();
 
     // Launch the check_embedding kernel to print the embeddings
