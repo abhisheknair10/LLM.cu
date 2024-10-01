@@ -59,8 +59,10 @@ void printCudaMemoryInfo() {
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
+    CHECK_CUDA_ERROR();
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     free(h_tokens);
+    CHECK_CUDA_ERROR();
 
     printCudaMemoryInfo();
 
