@@ -62,6 +62,8 @@ int main() {
         return 1;
     }
 
+    CHECK_CUDA_ERROR();
+
     Tensor *X = (Tensor *)malloc(sizeof(Tensor));
     int *d_tokens = tokens_to_cuda(tokens, 4096, X);
 
