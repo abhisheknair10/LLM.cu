@@ -8,6 +8,16 @@
 #include "llama3/llama3.cuh"
 #include "tokenizer.cuh"
 
+#define CHECK_CUDA_ERROR()                                       \
+    {                                                            \
+        cudaError_t err = cudaGetLastError();                    \
+        if (err != cudaSuccess) {                                \
+            printf("CUDA error: %s in file '%s' in line %i\n",   \
+                   cudaGetErrorString(err), __FILE__, __LINE__); \
+            exit(EXIT_FAILURE);                                  \
+        }                                                        \
+    }
+
 Llama3Tokenizer *load_tokenizer() {
     // Allocate memory for the tokenizer
     Llama3Tokenizer *llama3_tokenizer = (Llama3Tokenizer *)malloc(sizeof(Llama3Tokenizer));
@@ -159,10 +169,14 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     free(token_tensor->mem_len);
     free(token_tensor->shape);
 
+    CHECK_CUDA_ERROR();
+
     // SPECIAL: fp16 tensor being allocated but only used later
     __half *d_fp16_tensor;
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(token_tensor->mem_len)));
     token_tensor->d_fp16_tensor = d_fp16_tensor;
+
+    CHECK_CUDA_ERROR();
 
     /* *************** Move Actual Tensor to CUDA *************** */
     // Copy over tokens
