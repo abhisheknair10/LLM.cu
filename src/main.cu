@@ -19,15 +19,6 @@
 
 const int MODEL_NUM_LAYERS = 32;
 const bool TEST = true;
-#define CHECK_CUDA_ERROR()                                       \
-    {                                                            \
-        cudaError_t err = cudaGetLastError();                    \
-        if (err != cudaSuccess) {                                \
-            printf("CUDA error: %s in file '%s' in line %i\n",   \
-                   cudaGetErrorString(err), __FILE__, __LINE__); \
-            exit(EXIT_FAILURE);                                  \
-        }                                                        \
-    }
 
 __global__ void model_param_checker(__half *fp16_tensor, long *mem_len);
 __global__ void tokens_checker(int *tokens);
@@ -73,8 +64,6 @@ int main() {
 
     Tensor *X = (Tensor *)malloc(sizeof(Tensor));
     int *d_tokens = tokens_to_cuda(tokens, 4096, X);
-
-    CHECK_CUDA_ERROR();
 
     inference(llama3_model, X, d_tokens, tokens);
 
