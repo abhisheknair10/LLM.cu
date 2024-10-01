@@ -15,7 +15,7 @@ class TrieNode:
 
 
 # Load the tokenizer from JSON
-with open('../model_weights/tokenizer.json') as f:
+with open('model_weights/tokenizer.json') as f:
     tokenizer = json.load(f)
     print(len(str(tokenizer)))
 
