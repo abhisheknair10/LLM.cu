@@ -17,7 +17,6 @@
 #define CLEAR_TERMINAL() system("clear")
 
 const int MODEL_NUM_LAYERS = 32;
-const int EMBED_SIZE = 100;
 const bool TEST = true;
 
 __global__ void model_param_checker(__half *fp16_tensor, long *mem_len);
@@ -62,8 +61,10 @@ int main() {
         return 1;
     }
 
-    Tensor *token_tensor = (Tensor *)malloc(sizeof(Tensor));
-    int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
+    Tensor *X = (Tensor *)malloc(sizeof(Tensor));
+    int *d_tokens = tokens_to_cuda(tokens, 4096, X);
+
+    inference(llama3_model, X, d_tokens);
 
     if (TEST) {
         // Check the 0th index of the k_proj tensor of the first layer
