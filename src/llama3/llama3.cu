@@ -182,7 +182,6 @@ void _move_tensor_to_cuda(Tensor *tensor) {
 }
 
 void bf16_to_fp16(Llama3 *llama3) {
-    _m_component_tensor_operation(llama3, _cudaMalloc_fp16);
     _m_component_tensor_operation(llama3, _kernel_wrapper_bf16_to_fp16);
 }
 
@@ -200,14 +199,20 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
         exit(1);
     }
 
+    _cudaMalloc_fp16(tensor);
+
     // assign number of threads per block and blocks per grid
     int threads_per_block = 1024;
     int num_blocks = ((*(tensor->mem_len)) + threads_per_block - 1) / threads_per_block;
 
     _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
         tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
-
     cudaDeviceSynchronize();
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
 
     // free unnnecessay tensor array after usage
     cudaFree(tensor->d_bf16_tensor);
@@ -230,7 +235,7 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
 // Applies a user-defined function to each tensor in the Llama3 model.
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
     // perform singular function on all Tensors
-    
+
     _func(llama3->embed_tokens);
     _func(llama3->lm_head);
     _func(llama3->norm);
