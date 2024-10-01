@@ -17,7 +17,7 @@
 #define CLEAR_TERMINAL() system("clear")
 
 const int MODEL_NUM_LAYERS = 32;
-// const int EMBED_SIZE = 100;
+const int EMBED_SIZE = 100;
 const bool TEST = true;
 
 __global__ void model_param_checker(__half *fp16_tensor, long *mem_len);
@@ -62,28 +62,18 @@ int main() {
         return 1;
     }
 
-    // Tensor *token_tensor;
-    // int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
+    Tensor *token_tensor;
+    int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
 
     if (TEST) {
         // Check the 0th index of the k_proj tensor of the first layer
         model_param_checker<<<1, 1>>>(
             llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
-        cudaError_t error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(error));
-            exit(-1);
-        }
         cudaDeviceSynchronize();
-        error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(error));
-            exit(-1);
-        }
 
         // Check if tokens have been stored in CUDA
-        // tokens_checker<<<1, 1>>>(d_tokens);
-        // cudaDeviceSynchronize();
+        tokens_checker<<<1, 1>>>(d_tokens);
+        cudaDeviceSynchronize();
     }
 
     // Free the model resources
@@ -94,7 +84,7 @@ int main() {
 
 // CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
 __global__ void model_param_checker(__half *fp16_tensor, long *mem_len) {
-    printf("The 0th index of the fp16_tensor (self_attn_k_proj): %f\n", __half2float(fp16_tensor[0]));
+    printf("The 0th index of the fp16_tensor (embed tokens): %f\n", __half2float(fp16_tensor[0]));
     printf("Mem Len: %lu\n", *mem_len);
 }
 
