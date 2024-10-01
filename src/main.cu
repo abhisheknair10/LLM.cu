@@ -20,8 +20,19 @@ const int MODEL_NUM_LAYERS = 32;
 const int EMBED_SIZE = 100;
 const bool TEST = true;
 
-__global__ void model_param_checker(__half *fp16_tensor, long *mem_len);
-__global__ void tokens_checker(int *tokens);
+// CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
+__global__ void model_param_checker(__half *fp16_tensor, long *mem_len) {
+    printf("Mem Len: %lu\n", mem_len);
+}
+
+// CUDA kernel to check the tokens
+__global__ void tokens_checker(int *tokens) {
+    printf("Number of Tokens: %d\n", tokens[0]);
+    for (int i = 1; i < tokens[0]; i++) {
+        printf("%d, ", tokens[i]);
+    }
+    printf("\n");
+}
 
 int main() {
     // Initialize the Llama3 model
@@ -69,7 +80,17 @@ int main() {
         // Check the 0th index of the k_proj tensor of the first layer
         model_param_checker<<<1, 1>>>(
             llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
+        cudaError_t error = cudaGetLastError();
+        if (error != cudaSuccess) {
+            fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(error));
+            exit(-1);
+        }
         cudaDeviceSynchronize();
+        error = cudaGetLastError();
+        if (error != cudaSuccess) {
+            fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(error));
+            exit(-1);
+        }
 
         // Check if tokens have been stored in CUDA
         // tokens_checker<<<1, 1>>>(d_tokens);
@@ -80,19 +101,4 @@ int main() {
     free_llama3(llama3_model);
 
     return 0;
-}
-
-// CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
-__global__ void model_param_checker(__half *fp16_tensor, long *mem_len) {
-    printf("The 0th index of the fp16_tensor (self_attn_k_proj): %f\n", __half2float(fp16_tensor[0]));
-    printf("Mem Len: %lu\n", *mem_len);
-}
-
-// CUDA kernel to check the tokens
-__global__ void tokens_checker(int *tokens) {
-    printf("Number of Tokens: %d\n", tokens[0]);
-    for (int i = 1; i < tokens[0]; i++) {
-        printf("%d, ", tokens[i]);
-    }
-    printf("\n");
 }
