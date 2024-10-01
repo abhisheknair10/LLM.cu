@@ -199,7 +199,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
         exit(1);
     }
 
-    _cudaMalloc_fp16(tensor);
+    _cudaMalloc_fp16(tensor);m
 
     // assign number of threads per block and blocks per grid
     int threads_per_block = 1024;
@@ -210,7 +210,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     cudaDeviceSynchronize();
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
-        fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(error));
+        fprintf(stderr, "CUDA error during BF16->FP16: %s\n", cudaGetErrorString(error));
         exit(-1);
     }
 
