@@ -65,7 +65,7 @@ int main() {
     Tensor *X = (Tensor *)malloc(sizeof(Tensor));
     int *d_tokens = tokens_to_cuda(tokens, 4096, X);
 
-    inference(llama3_model, X, d_tokens, tokens[0]);
+    inference(llama3_model, X, d_tokens, tokens);
 
     if (TEST) {
         // Check the 0th index of the k_proj tensor of the first layer
