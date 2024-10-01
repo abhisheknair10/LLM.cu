@@ -173,9 +173,6 @@ void _move_tensor_to_cuda(Tensor *tensor) {
 
     // Free the CPU memory after transfer
     free(tensor->bf16_tensor);
-    free(tensor->ndim);
-    free(tensor->mem_len);
-    free(tensor->shape);
 
     // Update tensor pointers to CUDA memory
     tensor->d_ndim = d_ndim;
