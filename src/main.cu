@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "inference/inference.cuh"
 #include "llama3/llama3.cuh"
 #include "safetensor/safetensor.cuh"
 #include "tokenizer/tokenizer.cuh"
