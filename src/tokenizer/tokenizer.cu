@@ -170,8 +170,6 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     cudaMalloc((void **)&d_tokens, sizeof(int) * tokens[0]);
     cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
 
-    free(tokens);
-
     return d_tokens;
 }
 

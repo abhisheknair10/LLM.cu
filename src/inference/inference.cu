@@ -28,10 +28,11 @@ __global__ void check_embedding(__half *fp16_tensor, int num_tokens) {
     }
 }
 
-void inference(Llama3 *llama3_model, Tensor *X, int *tokens) {
+void inference(Llama3 *llama3_model, Tensor *X, int *tokens, int *h_tokens) {
     // Set NUM_TOKENS value in device memory
-    int h_num_tokens = tokens[0] - 1;
+    int h_num_tokens = h_tokens[0] - 1;
     cudaMemcpyToSymbol(NUM_TOKENS, &h_num_tokens, sizeof(int));
+    free(h_tokens);
 
     int blocks = (tokens[0] + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
