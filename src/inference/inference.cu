@@ -33,7 +33,7 @@ __global__ void check_embedding(__half *fp16_tensor) {
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
-    cudaMemcpy(&d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     free(h_tokens);
 
     // Order threads into blocks
