@@ -8,6 +8,6 @@
 
 #include "llama3/llama3.cuh"
 
-void inference(Llama3 *llama3_model, Tensor *X, int *tokens, int *h_tokens);
+void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens);
 
 __global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens);
