@@ -40,11 +40,29 @@ __global__ void check_embedding(__half *fp16_tensor) {
     }
 }
 
+void printCudaMemoryInfo() {
+    size_t free_memory = 0;
+    size_t total_memory = 0;
+
+    // Get the amount of free and total memory on the GPU
+    cudaError_t err = cudaMemGetInfo(&free_memory, &total_memory);
+
+    if (err == cudaSuccess) {
+        // Convert memory sizes from bytes to megabytes (MB)
+        printf("Free GPU Memory: %.2f MB\n", (float)free_memory / (1024 * 1024));
+        printf("Total GPU Memory: %.2f MB\n", (float)total_memory / (1024 * 1024));
+    } else {
+        printf("Failed to get CUDA memory info: %s\n", cudaGetErrorString(err));
+    }
+}
+
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     free(h_tokens);
+
+    printCudaMemoryInfo();
 
     // Order threads into blocks
     int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
