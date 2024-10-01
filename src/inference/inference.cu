@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "inference.cuh"
 #include "llama3/llama3.cuh"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
