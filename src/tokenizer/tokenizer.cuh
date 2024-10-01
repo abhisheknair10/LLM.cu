@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "cJSON/cJSON.h"
+#include "llama3/llama3.cuh"
 
 /**
  * @brief Structure representing a node in a Trie data structure.
@@ -46,6 +47,22 @@ Llama3Tokenizer *load_tokenizer();
  * @return int* Array of integer tokens corresponding to the input string.
  */
 int *tokenize(Llama3Tokenizer *tokenizer, char *input_str);
+
+/**
+ * @brief Transfers token data to CUDA memory and initializes the corresponding tensor.
+ *
+ * This function takes an array of integer tokens, initializes the tensor into which it will be stored,
+ * and transfers the tensor data and metadata to CUDA device memory for processing.
+ *
+ * @param tokens Pointer to the array of integer tokens. The first element of the array
+ *               should contain the number of tokens.
+ * @param embed_size The embedding size of the model, used for setting tensor dimensions.
+ * @param token_tensor Pointer to a Tensor structure, which will hold metadata and
+ *                     CUDA device memory references after the transfer.
+ *
+ * @return int* Pointer to the array of tokens stored in CUDA device memory.
+ */
+int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor);
 
 /**
  * @brief Reads the tokenizer rules from a JSON file and constructs the Trie structure.

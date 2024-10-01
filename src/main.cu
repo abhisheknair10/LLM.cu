@@ -1,4 +1,5 @@
 #include <cuda_runtime.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,12 +17,11 @@
 #define CLEAR_TERMINAL() system("clear")
 
 const int MODEL_NUM_LAYERS = 32;
+const int EMBED_SIZE = 100;
+const bool TEST = true;
 
-// CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
-__global__ void checker(__half *fp16_tensor, long *mem_len) {
-    printf("The 0th index of the fp16_tensor (self_attn_k_proj): %f\n", __half2float(fp16_tensor[0]));
-    printf("Mem Len: %lu\n", *mem_len);
-}
+__global__ void model_param_checker(__half *fp16_tensor, long *mem_len);
+__global__ void tokens_checker(int *tokens);
 
 int main() {
     // Initialize the Llama3 model
@@ -48,11 +48,6 @@ int main() {
     bf16_to_fp16(llama3_model);
     printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
 
-    // Check the 0th index of the k_proj tensor of the first layer
-    checker<<<1, 1>>>(
-        llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
-    cudaDeviceSynchronize();
-
     // Load the tokenizer (this function should load the trie from the tokenizer's JSON)
     Llama3Tokenizer *llama3_tokenizer = load_tokenizer();
     if (llama3_tokenizer == NULL) {
@@ -67,14 +62,37 @@ int main() {
         return 1;
     }
 
-    printf("Number of Tokens: %d\n", tokens[0]);
-    for (int i = 1; i < tokens[0]; i++) {
-        printf("%d, ", tokens[i]);
+    Tensor *token_tensor;
+    int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
+
+    if (TEST) {
+        // Check the 0th index of the k_proj tensor of the first layer
+        model_param_checker<<<1, 1>>>(
+            llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
+        cudaDeviceSynchronize();
+
+        // Check if tokens have been stored in CUDA
+        tokens_checker<<<1, 1>>>(d_tokens);
+        cudaDeviceSynchronize();
     }
-    printf("\n");
 
     // Free the model resources
     free_llama3(llama3_model);
 
     return 0;
+}
+
+// CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
+__global__ void model_param_checker(__half *fp16_tensor, long *mem_len) {
+    printf("The 0th index of the fp16_tensor (self_attn_k_proj): %f\n", __half2float(fp16_tensor[0]));
+    printf("Mem Len: %lu\n", *mem_len);
+}
+
+// CUDA kernel to check the tokens
+__global__ void tokens_checker(int *tokens) {
+    printf("Number of Tokens: %d\n", tokens[0]);
+    for (int i = 1; i < tokens[0]; i++) {
+        printf("%d, ", tokens[i]);
+    }
+    printf("\n");
 }

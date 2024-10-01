@@ -1,11 +1,12 @@
-#include "tokenizer.cuh"
-
+#include <cuda_fp16.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "cJSON/cJSON.h"
+#include "llama3/llama3.cuh"
+#include "tokenizer.cuh"
 
 Llama3Tokenizer *load_tokenizer() {
     // Allocate memory for the tokenizer
@@ -121,6 +122,57 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
     tokens[0] = token_count + 1;
 
     return tokens;
+}
+
+int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
+    /* *************** Token Tensor Init *************** */
+    // Set metadata in CPU
+    token_tensor->ndim = (int *)malloc(sizeof(int));
+    *(token_tensor->ndim) = 2;
+
+    token_tensor->mem_len = (long *)malloc(sizeof(long));
+    *(token_tensor->mem_len) = embed_size * (tokens[0] - 1);
+
+    token_tensor->shape = (int *)malloc(sizeof(int) * (*(token_tensor->ndim)));
+    token_tensor->shape[0] = embed_size;
+    token_tensor->shape[1] = tokens[1];
+
+    /* *************** Token Tensor Init CUDA *************** */
+    int *d_ndim;
+    long *d_mem_len;
+    int *d_shape;
+
+    cudaMalloc((void **)&d_ndim, sizeof(int));
+    cudaMalloc((void **)&d_mem_len, sizeof(long));
+    cudaMalloc((void **)&d_shape, sizeof(int) * (*(token_tensor->ndim)));
+
+    cudaMemcpy(d_ndim, token_tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mem_len, token_tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_shape, token_tensor->shape, sizeof(int) * (*(token_tensor->ndim)), cudaMemcpyHostToDevice);
+
+    // Set pointers to CUDA pointers
+    token_tensor->d_ndim = d_ndim;
+    token_tensor->d_mem_len = d_mem_len;
+    token_tensor->d_shape = d_shape;
+
+    free(token_tensor->ndim);
+    free(token_tensor->mem_len);
+    free(token_tensor->shape);
+
+    // SPECIAL: fp16 tensor being allocated but only used later
+    __half *d_fp16_tensor;
+    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(token_tensor->mem_len)));
+    token_tensor->d_fp16_tensor = d_fp16_tensor;
+
+    /* *************** Move Actual Tensor to CUDA *************** */
+    // Copy over tokens
+    int *d_tokens;
+    cudaMalloc((void **)&d_tokens, sizeof(int) * tokens[0]);
+    cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
+
+    free(tokens);
+
+    return d_tokens;
 }
 
 char *read_tokenizer_json(Llama3Tokenizer *tokenizer, const char *filename) {
