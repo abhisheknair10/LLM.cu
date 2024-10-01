@@ -62,7 +62,7 @@ int main() {
         return 1;
     }
 
-    Tensor *token_tensor;
+    Tensor *token_tensor = (Tensor *)malloc(sizeof(Tensor));
     int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
 
     if (TEST) {
