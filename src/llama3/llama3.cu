@@ -207,24 +207,14 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
 
     _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
         tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
-    cudaError_t error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        fprintf(stderr, "CUDA error during BF16->FP16: %s\n", cudaGetErrorString(error));
-        exit(-1);
-    }
     cudaDeviceSynchronize();
-    error = cudaGetLastError();
-    if (error != cudaSuccess) {
-        fprintf(stderr, "CUDA error during BF16->FP16: %s\n", cudaGetErrorString(error));
-        exit(-1);
-    }
 
     // free unnnecessay tensor array after usage
     cudaFree(tensor->d_bf16_tensor);
 }
 
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < *mem_len) {
         // Convert BF16 to FP32
