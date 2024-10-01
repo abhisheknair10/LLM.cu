@@ -63,7 +63,7 @@ int main() {
     }
 
     Tensor *token_tensor;
-    int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
+    // int *d_tokens = tokens_to_cuda(tokens, EMBED_SIZE, token_tensor);
 
     if (TEST) {
         // Check the 0th index of the k_proj tensor of the first layer
@@ -72,8 +72,8 @@ int main() {
         cudaDeviceSynchronize();
 
         // Check if tokens have been stored in CUDA
-        tokens_checker<<<1, 1>>>(d_tokens);
-        cudaDeviceSynchronize();
+        // tokens_checker<<<1, 1>>>(d_tokens);
+        // cudaDeviceSynchronize();
     }
 
     // Free the model resources
