@@ -56,20 +56,16 @@ __global__ void check_embedding(__half *fp16_tensor) {
     }
 }
 
-void _setup(int *h_tokens) {
+void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     free(h_tokens);
+
+    tokens_to_embeddings(llama3_model, d_tokens, X);
 }
 
-void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
-    _setup(h_tokens);
-
-    tokens_to_embeddings(llama3_model, X, d_tokens);
-}
-
-void tokens_to_embeddings(Llama3 *llama3_model, Tensor *X, int *d_tokens) {
+void tokens_to_embeddings(Llama3 *llama3_model, int *d_tokens, Tensor *X) {
     // Order threads into blocks
     int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
@@ -80,8 +76,8 @@ void tokens_to_embeddings(Llama3 *llama3_model, Tensor *X, int *d_tokens) {
     cudaFree(llama3_model->embed_tokens->d_fp16_tensor);
     CHECK_CUDA_ERROR();
 
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    // cudaDeviceSynchronize();
 }
 
 __global__ void kernel_tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
