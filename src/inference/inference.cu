@@ -68,9 +68,10 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
         llama3_model->embed_tokens->d_fp16_tensor, X->d_fp16_tensor, d_tokens);
-    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
+
+    cudaFree(llama3_model->embed_tokens->d_fp16_tensor);
+    printCudaMemoryInfo();
 
     // Launch the check_embedding kernel to print the embeddings
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
