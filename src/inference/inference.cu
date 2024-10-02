@@ -62,8 +62,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     free(h_tokens);
 
-    printCudaMemoryInfo();
-
     // Order threads into blocks
     int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
@@ -78,16 +76,18 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     cudaDeviceSynchronize();
 }
 
-__global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
+__global__ void tokens_to_embeddings_transposed(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     // tokens[0] consists of the length of the entire tokens array
     if (idx > 0 && idx < tokens[0]) {
         int managed_offset = idx - 1;
 
+        // Now, we transpose the access pattern for embed_tokens
         for (int i = 0; i < EMBED_SIZE; i++) {
+            // Transpose the indexing here
             fp16_tensor[(managed_offset * EMBED_SIZE) + i] =
-                embed_tokens[(tokens[managed_offset] * EMBED_SIZE) + i];
+                embed_tokens[(i * tokens[0]) + tokens[managed_offset]];
         }
     }
 }
