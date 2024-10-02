@@ -70,7 +70,7 @@ int main() {
     if (TEST) {
         // Check the 0th index of the k_proj tensor of the first layer
         model_param_checker<<<1, 1>>>(
-            llama3_model->embed_tokens->d_fp16_tensor, llama3_model->embed_tokens->d_mem_len);
+            llama3_model->layers[0]->mlp_down_proj->d_fp16_tensor, llama3_model->layers[0]->mlp_down_proj->d_mem_len);
         cudaDeviceSynchronize();
 
         // Check if tokens have been stored in CUDA
