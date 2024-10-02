@@ -143,8 +143,6 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     token_tensor->mem_len = (long *)malloc(sizeof(long));
     *(token_tensor->mem_len) = embed_size * (tokens[0] - 1);
 
-    printf("Memlen allocation: %lu\n", *(token_tensor->mem_len));
-
     token_tensor->shape = (int *)malloc(sizeof(int) * (*(token_tensor->ndim)));
     token_tensor->shape[0] = embed_size;
     token_tensor->shape[1] = tokens[1];
