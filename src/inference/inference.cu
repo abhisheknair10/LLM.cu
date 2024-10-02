@@ -84,7 +84,7 @@ __global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, 
         int managed_offset = idx - 1;
         for (int i = 0; i < EMBED_SIZE; i++) {
             fp16_tensor[(managed_offset * EMBED_SIZE) + i] =
-                embed_tokens[(tokens[managed_offset] * EMBED_SIZE) + i];
+                embed_tokens[(tokens[idx] * EMBED_SIZE) + i];
         }
     }
 }
