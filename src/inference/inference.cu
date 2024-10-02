@@ -61,7 +61,7 @@ void tokens_to_embeddings(Llama3 *llama3_model, Tensor *X, int *d_tokens) {
     // Order threads into blocks
     int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
-    tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
+    kernel_tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
         llama3_model->embed_tokens->d_fp16_tensor, X->d_fp16_tensor, d_tokens);
 
     cudaDeviceSynchronize();
