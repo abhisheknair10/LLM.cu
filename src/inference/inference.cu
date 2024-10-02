@@ -76,7 +76,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     cudaDeviceSynchronize();
 }
 
-__global__ void tokens_to_embeddings_transposed(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
+__global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     // tokens[0] consists of the length of the entire tokens array
