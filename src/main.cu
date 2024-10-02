@@ -63,7 +63,7 @@ int main() {
     }
 
     Tensor *X = (Tensor *)malloc(sizeof(Tensor));
-    int *d_tokens = tokens_to_cuda(tokens, 1, X);
+    int *d_tokens = tokens_to_cuda(tokens, 4096, X);
 
     inference(llama3_model, X, d_tokens, tokens);
 
