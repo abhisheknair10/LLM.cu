@@ -83,11 +83,9 @@ __global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, 
     if (idx > 0 && idx < tokens[0]) {
         int managed_offset = idx - 1;
 
-        // Now, we transpose the access pattern for embed_tokens
         for (int i = 0; i < EMBED_SIZE; i++) {
-            // Transpose the indexing here
             fp16_tensor[(managed_offset * EMBED_SIZE) + i] =
-                embed_tokens[(i * tokens[0]) + tokens[managed_offset]];
+                embed_tokens[(tokens[managed_offset] * EMBED_SIZE) + i];
         }
     }
 }
