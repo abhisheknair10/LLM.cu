@@ -80,7 +80,7 @@ __global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     // tokens[0] consists of the length of the entire tokens array
-    if (idx > 0 && idx < d_NUM_TOKENS) {
+    if (idx > 0 && idx <= d_NUM_TOKENS) {
         int managed_offset = idx - 1;
         for (int i = 0; i < EMBED_SIZE; i++) {
             fp16_tensor[(managed_offset * EMBED_SIZE) + i] =
