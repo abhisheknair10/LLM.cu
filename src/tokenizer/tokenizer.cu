@@ -155,12 +155,10 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(long));
     cudaMalloc((void **)&d_shape, sizeof(int) * (*(token_tensor->ndim)));
-    CHECK_CUDA_ERROR();
 
     cudaMemcpy(d_ndim, token_tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, token_tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
     cudaMemcpy(d_shape, token_tensor->shape, sizeof(int) * (*(token_tensor->ndim)), cudaMemcpyHostToDevice);
-    CHECK_CUDA_ERROR();
 
     // Set pointers to CUDA pointers
     token_tensor->d_ndim = d_ndim;
@@ -181,9 +179,7 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     // Copy over tokens
     int *d_tokens;
     cudaMalloc((void **)&d_tokens, sizeof(int) * tokens[0]);
-    CHECK_CUDA_ERROR();
     cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
-    CHECK_CUDA_ERROR();
 
     return d_tokens;
 }
