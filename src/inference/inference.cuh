@@ -10,4 +10,5 @@
 
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens);
 
-__global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens);
+void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens);
+__global__ void kernel_tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens);
