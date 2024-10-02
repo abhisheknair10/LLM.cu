@@ -76,8 +76,8 @@ void tokens_to_embeddings(Llama3 *llama3_model, int *d_tokens, Tensor *X) {
     cudaFree(llama3_model->embed_tokens->d_fp16_tensor);
     CHECK_CUDA_ERROR();
 
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    cudaDeviceSynchronize();
 }
 
 __global__ void kernel_tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
