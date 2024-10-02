@@ -135,9 +135,6 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
 }
 
 int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
-    // SPECIAL: fp16 tensor being allocated but only used later
-    _cudaMalloc_fp16(token_tensor);
-
     /* *************** Token Tensor Init *************** */
     // Set metadata in CPU
     token_tensor->ndim = (int *)malloc(sizeof(int));
@@ -146,15 +143,14 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     token_tensor->mem_len = (long *)malloc(sizeof(long));
     *(token_tensor->mem_len) = embed_size * (tokens[0] - 1);
 
-    printf("Tokens: %d\n", tokens[0] - 1);
-    printf("Embed Size: %d\n", embed_size);
-    printf("Mem Len: %lu\n", *(token_tensor->mem_len));
-
     token_tensor->shape = (int *)malloc(sizeof(int) * (*(token_tensor->ndim)));
     token_tensor->shape[0] = embed_size;
     token_tensor->shape[1] = tokens[0];
 
     /* *************** Token Tensor Init CUDA *************** */
+    // SPECIAL: fp16 tensor being allocated but only used later
+    _cudaMalloc_fp16(token_tensor);
+
     int *d_ndim;
     long *d_mem_len;
     int *d_shape;
