@@ -44,6 +44,18 @@ void printCudaMemoryInfo() {
     }
 }
 
+// Kernel to check and print the embeddings
+__global__ void check_embedding(__half *fp16_tensor) {
+    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
+        printf("Token %d embeddings:\n", token_idx + 1);
+        for (int i = 0; i < EMBED_SIZE; i++) {
+            float embedding = __half2float(fp16_tensor[token_idx * EMBED_SIZE + i]);
+            printf("%f ", embedding);
+        }
+        printf("\n\n\n\n\n");
+    }
+}
+
 void _setup(int *h_tokens) {
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
@@ -67,6 +79,9 @@ void tokens_to_embeddings(Llama3 *llama3_model, Tensor *X, int *d_tokens) {
     cudaDeviceSynchronize();
     cudaFree(llama3_model->embed_tokens->d_fp16_tensor);
     CHECK_CUDA_ERROR();
+
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    cudaDeviceSynchronize();
 }
 
 __global__ void kernel_tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
