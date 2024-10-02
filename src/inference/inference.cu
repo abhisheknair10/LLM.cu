@@ -74,9 +74,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
 
     // Launch the check_embedding kernel to print the embeddings
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 }
 
 __global__ void tokens_to_embeddings(__half *embed_tokens, __half *fp16_tensor, int *tokens) {
