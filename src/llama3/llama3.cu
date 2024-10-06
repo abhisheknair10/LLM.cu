@@ -6,16 +6,6 @@
 
 #include "llama3.cuh"
 
-#define CHECK_CUDA_ERROR()                                       \
-    {                                                            \
-        cudaError_t err = cudaGetLastError();                    \
-        if (err != cudaSuccess) {                                \
-            printf("CUDA error: %s in file '%s' in line %i\n",   \
-                   cudaGetErrorString(err), __FILE__, __LINE__); \
-            exit(EXIT_FAILURE);                                  \
-        }                                                        \
-    }
-
 Llama3 *init_llama3(int n_layers) {
     // Allocate memory for the Llama3 model
     Llama3 *llama3 = (Llama3 *)malloc(sizeof(Llama3));
@@ -215,37 +205,28 @@ void _move_tensor_to_cuda(Tensor *tensor) {
 }
 
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
-    printf("1\n");
     if (tensor->d_bf16_tensor == NULL) {
         printf("Error: Expected BF16 Tensor on Device to be allocated\n");
         exit(1);
     }
-    printf("2\n");
 
     // assign number of threads per block and blocks per grid
     int threads_per_block = 1024;
-    printf("3\n");
     int num_blocks = ((*(tensor->mem_len)) + threads_per_block - 1) / threads_per_block;
-    printf("4\n");
 
     _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
-        tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
-    CHECK_CUDA_ERROR();
+        tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->mem_len);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
-    printf("6\n");
 
     // free unnnecessay tensor array after usage
     cudaFree(tensor->d_bf16_tensor);
-    printf("7\n");
     tensor->d_bf16_tensor = NULL;
-    printf("8\n");
 }
 
-__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int *mem_len) {
+__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int mem_len) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (idx < *mem_len) {
+    if (idx < mem_len) {
         // Convert BF16 to FP32
         uint32_t bf16 = (uint32_t)bf16_tensor[idx];
         uint32_t fp32_bits = bf16 << 16;
