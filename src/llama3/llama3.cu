@@ -191,7 +191,7 @@ void _move_tensor_to_cuda(Tensor *tensor) {
     free(tensor->bf16_tensor);
 
     // Update tensor pointers to CUDA memory
-    _kernel_wrapper_bf16_to_fp16(Tensor * tensor);
+    _kernel_wrapper_bf16_to_fp16(tensor);
 }
 
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
