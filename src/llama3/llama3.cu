@@ -195,6 +195,8 @@ void _move_tensor_to_cuda(Tensor *tensor) {
     // Copy data from CPU to GPU
     cudaMemcpy(d_bf16_tensor, tensor->bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)), cudaMemcpyHostToDevice);
 
+    tensor->d_bf16_tensor = d_bf16_tensor;
+
     // Free the CPU memory after transfer
     free(tensor->bf16_tensor);
 
