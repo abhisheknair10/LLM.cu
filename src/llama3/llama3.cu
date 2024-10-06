@@ -154,6 +154,14 @@ void to_cuda(Llama3 *llama3) {
     _m_component_tensor_operation(llama3, _move_tensor_to_cuda);
 }
 
+void _cudaMalloc_fp16(Tensor *tensor) {
+    __half *d_fp16_tensor;
+
+    // Allocate fp16 tensor memory on the GPU
+    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
+    tensor->d_fp16_tensor = d_fp16_tensor;
+}
+
 void _preallocate_model_mem(Tensor *tensor) {
     int *d_ndim;
     int *d_mem_len;
