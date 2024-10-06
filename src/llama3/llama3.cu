@@ -150,11 +150,8 @@ void _free_tensor(Tensor *tensor) {
 }
 
 void to_cuda(Llama3 *llama3) {
-    printf("1\n");
     _m_component_tensor_operation(llama3, _preallocate_model_mem);
-    printf("2\n");
     _m_component_tensor_operation(llama3, _move_tensor_to_cuda);
-    printf("3\n");
 }
 
 void _cudaMalloc_fp16(Tensor *tensor) {
@@ -172,10 +169,10 @@ void _preallocate_model_mem(Tensor *tensor) {
     __half *d_fp16_tensor;
 
     // Allocate GPU memory
+    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(int));
     cudaMalloc((void **)&d_shape, sizeof(int) * (*(tensor->ndim)));
-    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
 
     // Copy data from CPU to GPU
     cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
@@ -190,28 +187,21 @@ void _preallocate_model_mem(Tensor *tensor) {
 }
 
 void _move_tensor_to_cuda(Tensor *tensor) {
-    printf("0\n");
     uint16_t *d_bf16_tensor;
-    printf("1\n");
 
     // Allocate GPU memory
     cudaMalloc((void **)&d_bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)));
-    printf("2\n");
 
     // Copy data from CPU to GPU
     cudaMemcpy(d_bf16_tensor, tensor->bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)), cudaMemcpyHostToDevice);
-    printf("3\n");
 
     tensor->d_bf16_tensor = d_bf16_tensor;
-    printf("5\n");
 
     // Free the CPU memory after transfer
     free(tensor->bf16_tensor);
-    printf("6\n");
 
     // Update tensor pointers to CUDA memory
     _kernel_wrapper_bf16_to_fp16(tensor);
-    printf("7\n");
 }
 
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
