@@ -41,10 +41,12 @@ int main() {
     load_safetensor_weights(llama3_model, "model_weights/model-00004-of-00004.safetensors");
 
     printf(WARN "[CPU]" RESET " Loaded model to CPU\n");
-    printf(WARN "[CPU]" RESET " Moving model to CUDA and converting model parameters from BF16 to FP16\n");
+    printf(WARN "[CPU]" RESET " Moving model to CUDA\n");
+    printf(WARN "[CPU]" RESET " Converting from BF16 to FP16\n");
 
     to_cuda(llama3_model);
-    printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
+    printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device\n");
+    printf(GREEN "[CUDA]" RESET " Formatted Parameters to FP16\n");
 
     // Load the tokenizer (this function should load the trie from the tokenizer's JSON)
     Llama3Tokenizer *llama3_tokenizer = load_tokenizer();
@@ -62,6 +64,7 @@ int main() {
 
     Tensor *X = (Tensor *)malloc(sizeof(Tensor));
     int *d_tokens = tokens_to_cuda(tokens, 4096, X);
+    printf(GREEN "[CUDA]" RESET " Tokenized input and moved to CUDA Device\n");
 
     inference(llama3_model, X, d_tokens, tokens);
 
