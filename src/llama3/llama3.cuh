@@ -85,6 +85,8 @@ void _free_tensor(Tensor *tensor);
  */
 void to_cuda(Llama3 *llama3);
 
+void _preallocate_model_mem(Tensor *tensor);
+
 /**
  * @brief Transfers a Tensor's data from CPU to CUDA memory.
  *

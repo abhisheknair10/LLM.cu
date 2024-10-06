@@ -44,7 +44,6 @@ int main() {
     printf(WARN "[CPU]" RESET " Moving model to CUDA and converting model parameters from BF16 to FP16\n");
 
     to_cuda(llama3_model);
-    bf16_to_fp16(llama3_model);
     printf(GREEN "[CUDA]" RESET " Loaded to CUDA Device and formatted Parameters to FP16\n");
 
     // Load the tokenizer (this function should load the trie from the tokenizer's JSON)
