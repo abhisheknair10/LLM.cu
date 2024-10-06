@@ -143,11 +143,11 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor);
  * @param fp16_tensor Pointer to the output tensor data in fp16 format (__half). The converted data will
  *                    be stored in this array. This must also reside in device (CUDA) memory and be allocated
  *                    to match the size of `bf16_tensor`.
- * @param mem_len Pointer to the number of elements in the input/output tensors. This value indicates how many
+ * @param mem_len Value of the number of elements in the input/output tensors. This value indicates how many
  *                elements are to be processed by the kernel. The kernel will process up to `*mem_len` elements.
  *                It must reside in device memory.
  */
-__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int *mem_len);
+__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int mem_len);
 
 /**
  * @brief Performs an operation on each tensor in the Llama3 model.
