@@ -150,11 +150,11 @@ void _free_tensor(Tensor *tensor) {
 }
 
 void to_cuda(Llama3 *llama3) {
-    print("1\n");
+    printf("1\n");
     _m_component_tensor_operation(llama3, _preallocate_model_mem);
-    print("2\n");
+    printf("2\n");
     _m_component_tensor_operation(llama3, _move_tensor_to_cuda);
-    print("3\n");
+    printf("3\n");
 }
 
 void _cudaMalloc_fp16(Tensor *tensor) {
