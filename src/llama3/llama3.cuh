@@ -113,17 +113,6 @@ void _preallocate_model_mem(Tensor *tensor);
 void _move_tensor_to_cuda(Tensor *tensor);
 
 /**
- * @brief Converts the bf16 data in the Llama3 model to fp16.
- *
- * This function allocates memory for fp16 data and launches the necessary kernels
- * to convert bf16 data to fp16 for each tensor in the Llama3 model.
- *
- * @param llama3 Pointer to the Llama3 structure.
- */
-
-void bf16_to_fp16(Llama3 *llama3);
-
-/**
  * @brief Allocates fp16 memory for a specific tensor in CUDA memory.
  *
  * This function allocates memory on the GPU for storing fp16 data (__half) for a specific tensor.
