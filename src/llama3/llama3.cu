@@ -205,22 +205,30 @@ void _move_tensor_to_cuda(Tensor *tensor) {
 }
 
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
+    printf("1\n");
     if (tensor->d_bf16_tensor == NULL) {
         printf("Error: Expected BF16 Tensor on Device to be allocated\n");
         exit(1);
     }
+    printf("2\n");
 
     // assign number of threads per block and blocks per grid
     int threads_per_block = 1024;
+    printf("3\n");
     int num_blocks = ((*(tensor->mem_len)) + threads_per_block - 1) / threads_per_block;
+    printf("4\n");
 
     _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
         tensor->d_bf16_tensor, tensor->d_fp16_tensor, *(tensor->d_mem_len));
+    printf("5\n");
     cudaDeviceSynchronize();
+    printf("6\n");
 
     // free unnnecessay tensor array after usage
     cudaFree(tensor->d_bf16_tensor);
+    printf("7\n");
     tensor->d_bf16_tensor = NULL;
+    printf("8\n");
 }
 
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int mem_len) {
