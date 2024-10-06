@@ -85,6 +85,22 @@ void _free_tensor(Tensor *tensor);
  */
 void to_cuda(Llama3 *llama3);
 
+/**
+ * @brief Preallocates memory for the given tensor structure.
+ *
+ * This function prepares the memory space needed for a Tensor structure. It allocates both the host (CPU) and
+ * device (CUDA) memory for various tensor attributes such as dimensions (`ndim`), shape (`shape`), memory length
+ * (`mem_len`), and data (`bf16_tensor`). Additionally, it prepares memory for storing the `fp16_tensor` on the
+ * GPU if required by the model.
+ *
+ * The preallocation process ensures that sufficient memory is reserved before further operations like copying
+ * data or converting between formats (e.g., bf16 to fp16). Preallocating memory is critical for preventing
+ * out-of-memory errors and optimizing the GPU performance by ensuring all necessary memory is available before
+ * performing GPU computations.
+ *
+ * @param tensor Pointer to the Tensor structure for which memory is to be preallocated. The function handles both
+ * CPU and CUDA memory allocation for the tensor's attributes.
+ */
 void _preallocate_model_mem(Tensor *tensor);
 
 /**
