@@ -137,14 +137,14 @@ void llama3_load_layer(cJSON *curr_element, SafeTensorFile *STF, Llama3 *llama3_
     }
 
     shape_curr = shape->child;
-    long mem_len = 1;
+    int mem_len = 1;
     for (int i = 0; i < ndim; i++) {
         component->shape[i] = shape_curr->valueint;
-        mem_len *= (long)shape_curr->valueint;
+        mem_len *= (int)shape_curr->valueint;
         shape_curr = shape_curr->next;
     }
 
-    component->mem_len = (long *)malloc(sizeof(long));
+    component->mem_len = (int *)malloc(sizeof(int));
     *(component->mem_len) = mem_len;
     component->bf16_tensor = (uint16_t *)malloc(sizeof(uint16_t) * mem_len);
 

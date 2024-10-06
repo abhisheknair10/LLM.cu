@@ -10,13 +10,13 @@
 typedef struct {
     // Host members
     int *ndim;
-    long *mem_len;
+    int *mem_len;
     int *shape;
     uint16_t *bf16_tensor;
 
     // CUDA device members
     int *d_ndim;
-    long *d_mem_len;
+    int *d_mem_len;
     int *d_shape;
     uint16_t *d_bf16_tensor;
     __half *d_fp16_tensor;
@@ -140,7 +140,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor);
  *                elements are to be processed by the kernel. The kernel will process up to `*mem_len` elements.
  *                It must reside in device memory.
  */
-__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, long *mem_len);
+__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int *mem_len);
 
 /**
  * @brief Performs an operation on each tensor in the Llama3 model.
