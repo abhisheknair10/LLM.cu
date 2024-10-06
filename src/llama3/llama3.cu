@@ -6,6 +6,16 @@
 
 #include "llama3.cuh"
 
+#define CHECK_CUDA_ERROR()                                       \
+    {                                                            \
+        cudaError_t err = cudaGetLastError();                    \
+        if (err != cudaSuccess) {                                \
+            printf("CUDA error: %s in file '%s' in line %i\n",   \
+                   cudaGetErrorString(err), __FILE__, __LINE__); \
+            exit(EXIT_FAILURE);                                  \
+        }                                                        \
+    }
+
 Llama3 *init_llama3(int n_layers) {
     // Allocate memory for the Llama3 model
     Llama3 *llama3 = (Llama3 *)malloc(sizeof(Llama3));
@@ -221,7 +231,9 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
         tensor->d_bf16_tensor, tensor->d_fp16_tensor, *(tensor->d_mem_len));
     printf("5\n");
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
     printf("6\n");
 
     // free unnnecessay tensor array after usage
