@@ -39,7 +39,6 @@ int main() {
     load_safetensor_weights(llama3_model, "model_weights/model-00002-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00003-of-00004.safetensors");
     load_safetensor_weights(llama3_model, "model_weights/model-00004-of-00004.safetensors");
-    CLEAR_TERMINAL();
 
     printf(WARN "[CPU]" RESET " Loaded model to CPU\n");
     printf(WARN "[CPU]" RESET " Moving model to CUDA and converting model parameters from BF16 to FP16\n");
