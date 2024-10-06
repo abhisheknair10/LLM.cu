@@ -86,7 +86,7 @@ int main() {
 
 // CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
 __global__ void model_param_checker(__half *fp16_tensor, long *mem_len) {
-    printf("The 0th index of the fp16_tensor (embed tokens): %f\n", __half2float(fp16_tensor[0]));
+    printf("The 0th index of the fp16_tensor (mlp_down_proj): %f\n", __half2float(fp16_tensor[0]));
     printf("Mem Len: %lu\n", *mem_len);
 }
 
