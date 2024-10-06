@@ -204,7 +204,6 @@ void _move_tensor_to_cuda(Tensor *tensor) {
 
     // Copy data from CPU to GPU
     cudaMemcpy(d_bf16_tensor, tensor->bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)), cudaMemcpyHostToDevice);
-    cudaMemcpy(tensor->d_fp16_tensor, tensor->bf16_tensor, sizeof(__half) * (*(tensor->mem_len)), cudaMemcpyHostToDevice);
 
     tensor->d_bf16_tensor = d_bf16_tensor;
 
@@ -230,8 +229,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     printf("4\n");
 
     _kernel_bf16_to_fp16<<<num_blocks, threads_per_block>>>(
-        tensor->d_bf16_tensor, tensor->d_fp16_tensor, *(tensor->d_mem_len));
-    printf("5\n");
+        tensor->d_bf16_tensor, tensor->d_fp16_tensor, tensor->d_mem_len);
     CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
@@ -244,7 +242,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     printf("8\n");
 }
 
-__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int mem_len) {
+__global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int *mem_len) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < mem_len) {
