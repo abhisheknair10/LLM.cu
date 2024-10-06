@@ -65,6 +65,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     free(h_tokens);
 
     tokens_to_embeddings(llama3_model, d_tokens, X);
+
+    printCudaMemoryInfo();
 }
 
 void tokens_to_embeddings(Llama3 *llama3_model, int *d_tokens, Tensor *X) {
@@ -76,7 +78,6 @@ void tokens_to_embeddings(Llama3 *llama3_model, int *d_tokens, Tensor *X) {
 
     cudaDeviceSynchronize();
     cudaFree(llama3_model->embed_tokens->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
 
     // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
     // cudaDeviceSynchronize();
