@@ -140,7 +140,7 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     token_tensor->ndim = (int *)malloc(sizeof(int));
     *(token_tensor->ndim) = 2;
 
-    token_tensor->mem_len = (long *)malloc(sizeof(long));
+    token_tensor->mem_len = (int *)malloc(sizeof(int));
     *(token_tensor->mem_len) = embed_size * (tokens[0] - 1);
 
     token_tensor->shape = (int *)malloc(sizeof(int) * (*(token_tensor->ndim)));
@@ -152,15 +152,15 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     _cudaMalloc_fp16(token_tensor);
 
     int *d_ndim;
-    long *d_mem_len;
+    int *d_mem_len;
     int *d_shape;
 
     cudaMalloc((void **)&d_ndim, sizeof(int));
-    cudaMalloc((void **)&d_mem_len, sizeof(long));
+    cudaMalloc((void **)&d_mem_len, sizeof(int));
     cudaMalloc((void **)&d_shape, sizeof(int) * (*(token_tensor->ndim)));
 
     cudaMemcpy(d_ndim, token_tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_mem_len, token_tensor->mem_len, sizeof(long), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mem_len, token_tensor->mem_len, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_shape, token_tensor->shape, sizeof(int) * (*(token_tensor->ndim)), cudaMemcpyHostToDevice);
 
     // Set pointers to CUDA pointers
