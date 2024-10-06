@@ -20,7 +20,7 @@
 const int MODEL_NUM_LAYERS = 32;
 const bool TEST = true;
 
-__global__ void model_param_checker(__half *fp16_tensor, long *mem_len);
+__global__ void model_param_checker(__half *fp16_tensor, int *mem_len);
 __global__ void tokens_checker(int *tokens);
 
 int main() {
@@ -83,7 +83,7 @@ int main() {
 }
 
 // CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
-__global__ void model_param_checker(__half *fp16_tensor, long *mem_len) {
+__global__ void model_param_checker(__half *fp16_tensor, int *mem_len) {
     printf("The 0th index of the fp16_tensor (mlp_down_proj): %f\n", __half2float(fp16_tensor[0]));
     printf("Mem Len: %lu\n", *mem_len);
 }
