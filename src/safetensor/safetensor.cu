@@ -70,7 +70,7 @@ void safetensor_read_header(SafeTensorFile *STF, Llama3 *llama3_model) {
             // Check if all three keys exist
             if (dtype && shape && data_offsets) {
                 llama3_load_layer(current_element, STF, llama3_model);
-                printf(WARN "CPU " RESET GREY "Loaded: %s\n" RESET, current_element->string);
+                printf(WARN "[CPU]" RESET GREY " Loaded: %s\n" RESET, current_element->string);
             }
         }
     }
