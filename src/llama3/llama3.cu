@@ -245,7 +245,7 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int *mem_len) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (idx < mem_len) {
+    if (idx < *mem_len) {
         // Convert BF16 to FP32
         uint32_t bf16 = (uint32_t)bf16_tensor[idx];
         uint32_t fp32_bits = bf16 << 16;
