@@ -15,6 +15,6 @@ tokenizer = replace_char_in_json(tokenizer, "\u0120", " ")
 
 # Save the modified JSON back to the file
 with open('model_weights/modified_tokenizer.json', 'w') as f:
-    f.write(tokenizer)
+    f.write(json.dumps(tokenizer, ensure_ascii=False, indent=None))
 
 print("Modified JSON has been saved.")
