@@ -80,7 +80,7 @@ Llama3Tokenizer *load_tokenizer() {
 int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
     // 1st and 2nd index reserved for
     //  - Number of tokens
-    //  - begin token
+    //  - array formatter
     const int max_tokens = 2048 + 1;
 
     TrieNode *curr;
