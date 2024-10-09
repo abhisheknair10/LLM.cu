@@ -23,6 +23,24 @@ const bool TEST = true;
 __global__ void model_param_checker(__half *fp16_tensor, int *mem_len);
 __global__ void tokens_checker(int *tokens);
 
+void replace_escaped_newline(char *str) {
+    char *read_pos = str;   // Position to read from
+    char *write_pos = str;  // Position to write to
+
+    // Loop through the string, looking for occurrences of "\\n"
+    while (*read_pos) {
+        if (*read_pos == '\\' && *(read_pos + 1) == 'n') {
+            *write_pos = '\n';  // Replace \\n with actual newline
+            read_pos += 2;      // Skip over the two characters \ and n
+        } else {
+            *write_pos = *read_pos;  // Copy the character as is
+            read_pos++;
+        }
+        write_pos++;
+    }
+    *write_pos = '\0';  // Null terminate the modified string
+}
+
 int main() {
     // Initialize the Llama3 model
     Llama3 *llama3_model = init_llama3(MODEL_NUM_LAYERS);
@@ -59,6 +77,7 @@ int main() {
 
     char *input_str = (char *)malloc(sizeof(char) * 2048);
     fgets(input_str, 2048, stdin);
+    replace_escaped_newline(input_str);
     printf("%s\n", input_str);
 
     int *tokens = tokenize(llama3_tokenizer, input_str);
