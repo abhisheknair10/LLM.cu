@@ -59,7 +59,6 @@ int main() {
 
     char *input_str = (char *)malloc(sizeof(char) * 2048);
     fgets(input_str, 2048, stdin);
-    input_str[strlen(*input_str)] = "a";
 
     int *tokens = tokenize(llama3_tokenizer, input_str);
     if (tokens == NULL) {
