@@ -86,6 +86,8 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
     TrieNode *curr;
     int input_len = strlen(input_str) - 1;
 
+    printf("%d", input_len);
+
     int *tokens = (int *)malloc(sizeof(int) * max_tokens);
     if (tokens == NULL) {
         printf("Error: Memory allocation failed for tokens\n");
