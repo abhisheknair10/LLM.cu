@@ -84,7 +84,7 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
     const int max_tokens = 2048 + 1;
 
     TrieNode *curr;
-    int input_len = strlen(input_str);
+    int input_len = strlen(input_str) - 1;
 
     int *tokens = (int *)malloc(sizeof(int) * max_tokens);
     if (tokens == NULL) {
