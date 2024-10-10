@@ -174,6 +174,6 @@ __global__ void kernel_compute_attention_tensors(Tensor *O, __half *Linear, __ha
     // idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     for (int i = 0; i < (*(O->d_ndim)); i++) {
-        printf("%d, \n", O->shape[i]);
+        printf("%d, \n", O->d_shape[i]);
     }
 }
