@@ -132,21 +132,14 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 
     // Allocate CUDA memory
     cudaMalloc((void **)&d_ndim, sizeof(int));
-    CHECK_CUDA_ERROR();
     cudaMalloc((void **)&d_mem_len, sizeof(int));
-    CHECK_CUDA_ERROR();
     cudaMalloc((void **)&d_shape, sizeof(int) * (*(Attention_Tensor->ndim)));
-    CHECK_CUDA_ERROR();
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
-    CHECK_CUDA_ERROR();
 
     // Copy data to device
     cudaMemcpy(d_ndim, Attention_Tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
-    CHECK_CUDA_ERROR();
     cudaMemcpy(d_mem_len, Attention_Tensor->mem_len, sizeof(int), cudaMemcpyHostToDevice);
-    CHECK_CUDA_ERROR();
     cudaMemcpy(d_shape, Attention_Tensor->shape, sizeof(int) * (*(Attention_Tensor->ndim)), cudaMemcpyHostToDevice);
-    CHECK_CUDA_ERROR();
 
     // Assign device pointers
     Attention_Tensor->d_ndim = d_ndim;
@@ -161,29 +154,26 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
     // Compute Queries
     kernel_compute_attention_tensors<<<1, 1>>>(
         Q, L3_Layer->self_attn_q_proj->d_fp16_tensor, X->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
+    
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 
     // Compute Keys
     kernel_compute_attention_tensors<<<1, 1>>>(
         K, L3_Layer->self_attn_k_proj->d_fp16_tensor, X->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
+    
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 
     // Compute Values
     kernel_compute_attention_tensors<<<1, 1>>>(
         V, L3_Layer->self_attn_v_proj->d_fp16_tensor, X->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
+    
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 }
 
 __global__ void kernel_compute_attention_tensors(Tensor *O, __half *Linear, __half *X) {
     // idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    for (int i = 0; i < (*(O->ndim)); i++) {
+    for (int i = 0; i < (*(O->d_ndim)); i++) {
         printf("%d, \n", O->shape[i]);
     }
 }
