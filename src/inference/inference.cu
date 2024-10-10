@@ -174,9 +174,9 @@ __global__ void kernel_compute_attention_tensors(
     // [4096][1024, 4096]
 
     if (idx < dim) {
-        int sum = 0;
+        __half sum = 0;
         for (int i = 0; i < EMBED_SIZE; i++) {
-            sum += (X_tensor[i] * Linear_tensor[dim * i]);
+            sum += (X_tensor[i] * Linear_tensor[EMBED_SIZE * i]);
         }
 
         O_tensor[idx] = sum;
