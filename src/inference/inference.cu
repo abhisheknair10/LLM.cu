@@ -156,8 +156,9 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
     // Compute Queries
     kernel_compute_attention_tensors<<<1, 1>>>(
         Q, L3_Layer->self_attn_q_proj, X);
-
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 }
 
 /*
@@ -169,7 +170,7 @@ __global__ void kernel_compute_attention_tensors(__half *O_tensor, int *O_ndim, 
 */
 
 __global__ void kernel_compute_attention_tensors(Tensor *O_tensor, Tensor *Linear, Tensor *X) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    // int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     printf("%d\n", *(O_tensor->d_ndim));
 }
