@@ -172,5 +172,5 @@ __global__ void kernel_compute_attention_tensors(__half *O_tensor, int *O_ndim, 
 __global__ void kernel_compute_attention_tensors(Tensor *O_tensor, Tensor *Linear, Tensor *X) {
     // int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    printf("%d\n", *(O_tensor->d_ndim));
+    printf("%d\n", O_tensor->d_ndim);
 }
