@@ -108,6 +108,8 @@ void free_llama3(Llama3 *llama3) {
         free(llama3);
         llama3 = NULL;  // Nullify after freeing
     }
+
+    return;
 }
 
 void _free_tensor(Tensor *tensor) {
@@ -147,11 +149,15 @@ void _free_tensor(Tensor *tensor) {
 
     // Finally, free the Tensor structure itself
     free(tensor);
+
+    return;
 }
 
 void to_cuda(Llama3 *llama3) {
     _m_component_tensor_operation(llama3, _preallocate_model_mem);
     _m_component_tensor_operation(llama3, _move_tensor_to_cuda);
+
+    return;
 }
 
 void _cudaMalloc_fp16(Tensor *tensor) {
@@ -160,6 +166,8 @@ void _cudaMalloc_fp16(Tensor *tensor) {
     // Allocate fp16 tensor memory on the GPU
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
     tensor->d_fp16_tensor = d_fp16_tensor;
+
+    return;
 }
 
 void _preallocate_model_mem(Tensor *tensor) {
@@ -184,6 +192,8 @@ void _preallocate_model_mem(Tensor *tensor) {
     tensor->d_mem_len = d_mem_len;
     tensor->d_shape = d_shape;
     tensor->d_fp16_tensor = d_fp16_tensor;
+
+    return;
 }
 
 void _move_tensor_to_cuda(Tensor *tensor) {
@@ -202,6 +212,8 @@ void _move_tensor_to_cuda(Tensor *tensor) {
 
     // Update tensor pointers to CUDA memory
     _kernel_wrapper_bf16_to_fp16(tensor);
+
+    return;
 }
 
 void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
@@ -221,6 +233,8 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
     // free unnnecessay tensor array after usage
     cudaFree(tensor->d_bf16_tensor);
     tensor->d_bf16_tensor = NULL;
+
+    return;
 }
 
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int mem_len) {
@@ -235,6 +249,8 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
         // Convert FP32 to FP16
         fp16_tensor[idx] = __float2half_rn(fp32_value);
     }
+
+    return;
 }
 
 // Applies a user-defined function to each tensor in the Llama3 model.
@@ -256,6 +272,8 @@ void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
         _func(llama3->layers[i]->self_attn_q_proj);
         _func(llama3->layers[i]->self_attn_v_proj);
     }
+
+    return;
 }
 
 int arr_to_mem_index(Tensor *t, int n, int *idx) {

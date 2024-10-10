@@ -311,4 +311,6 @@ void _memexpand_child_nodes(TrieNode *node) {
         exit(1);
     }
     node->child_node = new_child_node;
+
+    return;
 }
