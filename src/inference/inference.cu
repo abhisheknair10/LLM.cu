@@ -171,7 +171,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
     cudaDeviceSynchronize();
 }
 
-__global__ void kernel_compute_attention_tensors(__half *O, __half *Linear, __half *X) {
+__global__ void kernel_compute_attention_tensors(Tensor *O, __half *Linear, __half *X) {
     // idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     for (int i = 0; i < (*(O->ndim)); i++) {
