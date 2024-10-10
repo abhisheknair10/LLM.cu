@@ -71,9 +71,9 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Ahead Of Time memory allocations
     // Allocate once, use everywhere
     Tensor *Q, *K, *V;
-    _create_intermediary_attention_tensor(Q, llama3_model->layers[0]->self_attn_q_proj);
-    _create_intermediary_attention_tensor(K, llama3_model->layers[0]->self_attn_k_proj);
-    _create_intermediary_attention_tensor(V, llama3_model->layers[0]->self_attn_v_proj);
+    _create_intermediary_attention_tensor(&Q, llama3_model->layers[0]->self_attn_q_proj);
+    _create_intermediary_attention_tensor(&K, llama3_model->layers[0]->self_attn_k_proj);
+    _create_intermediary_attention_tensor(&V, llama3_model->layers[0]->self_attn_v_proj);
 
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
@@ -111,9 +111,9 @@ __global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, 
     return;
 }
 
-void _create_intermediary_attention_tensor(Tensor **Attention_Tensor, Tensor *Linear) {
+void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Linear) {
     // Allocate the Tensor struct
-    *Attention_Tensor = (Tensor *)malloc(sizeof(Tensor));
+    Attention_Tensor = (Tensor *)malloc(sizeof(Tensor));
 
     int *d_ndim;
     int *d_mem_len;
