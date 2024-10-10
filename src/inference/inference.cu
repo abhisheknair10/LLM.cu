@@ -80,6 +80,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
         compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X);
+
+        break;
     }
 
     printCudaMemoryInfo();
