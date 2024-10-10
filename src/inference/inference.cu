@@ -155,36 +155,21 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer, Tensor *X) {
     // Compute Queries
     kernel_compute_attention_tensors<<<1, 1>>>(
-        Q, L3_Layer->self_attn_q_proj->d_fp16_tensor, X->d_fp16_tensor, Q->d_ndim, Q->d_shape);
-    
+        Q, L3_Layer->self_attn_q_proj, X);
+
     cudaDeviceSynchronize();
-    
-    printf("====\n");
-
-    // Compute Keys
-    kernel_compute_attention_tensors<<<1, 1>>>(
-        K, L3_Layer->self_attn_k_proj->d_fp16_tensor, X->d_fp16_tensor, K->d_ndim, K->d_shape);
-    
-    cudaDeviceSynchronize();
-
-    printf("====\n");
-
-    // Compute Values
-    kernel_compute_attention_tensors<<<1, 1>>>(
-        V, L3_Layer->self_attn_v_proj->d_fp16_tensor, X->d_fp16_tensor, V->d_ndim, V->d_shape);
-    
-    cudaDeviceSynchronize();
-
-    printf("====\n");
 }
 
-__global__ void kernel_compute_attention_tensors(Tensor *O, __half *Linear, __half *X, int *ndim, int *shape) {
-    // idx = blockIdx.x * blockDim.x + threadIdx.x;
+/*
+__global__ void kernel_compute_attention_tensors(__half *O_tensor, int *O_ndim, int *O_shape,
+                                                 __half *Linear, int *Linear_ndim, int *Linear_shape,
+                                                 __half *X, int *X_ndim, int *X_shape) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+}
+*/
 
-    printf(":%d: \n", *ndim);
+__global__ void kernel_compute_attention_tensors(Tensor *O_tensor, Tensor *Linear, Tensor *X) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    for (int i = 0; i < *ndim; i++) {
-        printf("%d, \n", shape[i]);
-    }
-    printf("\n");
+    printf("%d\n", *(O_tensor->d_ndim))
 }
