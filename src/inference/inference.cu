@@ -173,7 +173,10 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
 __global__ void kernel_compute_attention_tensors(Tensor *O, __half *Linear, __half *X, int *ndim, int *shape) {
     // idx = blockIdx.x * blockDim.x + threadIdx.x;
 
+    printf(":%d: \n", *ndim);
+
     for (int i = 0; i < *ndim; i++) {
         printf("%d, \n", shape[i]);
     }
+    printf("\n");
 }
