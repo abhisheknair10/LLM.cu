@@ -158,17 +158,3 @@ __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor,
  * @param _func Function to apply to each tensor in the model.
  */
 void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *));
-
-/**
- * @brief Computes the linear memory index for a tensor from multi-dimensional indices.
- *
- * This function calculates the corresponding memory index in a flattened tensor representation
- * from a set of multi-dimensional indices (idx) based on the tensor's shape. It effectively
- * maps n-dimensional coordinates to a 1D memory layout.
- *
- * @param t Pointer to the Tensor structure, which contains the tensor's shape and data.
- * @param n The number of dimensions in the tensor.
- * @param idx Array of indices representing the coordinates in each dimension of the tensor.
- * @return The computed linear memory index in the flattened tensor.
- */
-__device__ int arr_to_mem_index(Tensor *t, int n, int idx[n]);
