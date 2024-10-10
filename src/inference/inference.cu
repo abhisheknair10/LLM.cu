@@ -154,19 +154,19 @@ void _create_intermediary_attention_tensor(Tensor **Attention_Tensor, Tensor *Li
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer, Tensor *X) {
     // Compute Queries
     kernel_compute_attention_tensors<<<1, 1>>>(
-        Q, L3_Layer->self_attn_q_proj, X);
+        Q, L3_Layer->self_attn_q_proj, X->d_fp16_tensor);
 
     cudaDeviceSynchronize();
 
     // Compute Keys
     kernel_compute_attention_tensors<<<1, 1>>>(
-        K, L3_Layer->self_attn_k_proj, X);
+        K, L3_Layer->self_attn_k_proj, X->d_fp16_tensor);
 
     cudaDeviceSynchronize();
 
     // Compute Values
     kernel_compute_attention_tensors<<<1, 1>>>(
-        V, L3_Layer->self_attn_v_proj, X);
+        V, L3_Layer->self_attn_v_proj, X->d_fp16_tensor);
 
     cudaDeviceSynchronize();
 }
