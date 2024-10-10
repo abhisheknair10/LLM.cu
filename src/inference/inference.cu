@@ -125,8 +125,8 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     Attention_Tensor->mem_len = (int *)malloc(sizeof(int));
     *(Attention_Tensor->mem_len) = *(Linear->mem_len);
 
-    (*Attention_Tensor)->shape = (int *)malloc(sizeof(int) * (*(Attention_Tensor->ndim)));
-    for (int i = 0; i < *(*Attention_Tensor)->ndim; i++) {
+    Attention_Tensor->shape = (int *)malloc(sizeof(int) * (*(Attention_Tensor->ndim)));
+    for (int i = 0; i < *(Attention_Tensor->ndim); i++) {
         Attention_Tensor->shape[i] = Linear->shape[i];
     }
 
