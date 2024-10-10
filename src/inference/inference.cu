@@ -156,18 +156,24 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
         Q, L3_Layer->self_attn_q_proj->d_fp16_tensor, X->d_fp16_tensor, Q->d_ndim, Q->d_shape);
     
     cudaDeviceSynchronize();
+    
+    printf("====\n");
 
     // Compute Keys
     kernel_compute_attention_tensors<<<1, 1>>>(
-        K, L3_Layer->self_attn_k_proj->d_fp16_tensor, X->d_fp16_tensor, Q->d_ndim, Q->d_shape);
+        K, L3_Layer->self_attn_k_proj->d_fp16_tensor, X->d_fp16_tensor, K->d_ndim, K->d_shape);
     
     cudaDeviceSynchronize();
 
+    printf("====\n");
+
     // Compute Values
     kernel_compute_attention_tensors<<<1, 1>>>(
-        V, L3_Layer->self_attn_v_proj->d_fp16_tensor, X->d_fp16_tensor, Q->d_ndim, Q->d_shape);
+        V, L3_Layer->self_attn_v_proj->d_fp16_tensor, X->d_fp16_tensor, V->d_ndim, V->d_shape);
     
     cudaDeviceSynchronize();
+
+    printf("====\n");
 }
 
 __global__ void kernel_compute_attention_tensors(Tensor *O, __half *Linear, __half *X, int *ndim, int *shape) {
