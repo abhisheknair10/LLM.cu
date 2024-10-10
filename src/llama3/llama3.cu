@@ -275,16 +275,3 @@ void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
 
     return;
 }
-
-__device__ int arr_to_mem_index(__half *fp16_tensor, int n, int idx[n]) {
-    int mem_idx = 0;
-    int stride = 1;
-
-    // Compute the memory index using the tensor shape
-    for (int i = n - 1; i >= 0; i--) {
-        mem_idx += (idx[i] * stride);
-        stride *= t->shape[i];
-    }
-
-    return mem_idx;
-}
