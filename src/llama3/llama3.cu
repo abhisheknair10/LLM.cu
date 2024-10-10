@@ -276,7 +276,7 @@ void _m_component_tensor_operation(Llama3 *llama3, void (*_func)(Tensor *)) {
     return;
 }
 
-int arr_to_mem_index(Tensor *t, int n, int *idx) {
+__device__ int arr_to_mem_index(__half *fp16_tensor, int n, int idx[n]) {
     int mem_idx = 0;
     int stride = 1;
 

@@ -23,7 +23,7 @@
 
 const int THREADS_PER_BLOCK = 1024;
 
-__constant__ int EMBED_SIZE = 4096;
+__constant__ int EMBED_SIZE;
 
 __device__ int d_NUM_TOKENS;
 int h_NUM_TOKENS;
@@ -61,6 +61,9 @@ __global__ void check_embedding(__half *fp16_tensor) {
 /* ******************************** Inference Code ******************************** */
 
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
+    int embed_size = 4096;
+    cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
+
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
@@ -122,26 +125,24 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     __half *d_fp16_tensor;
 
     Attention_Tensor->ndim = (int *)malloc(sizeof(int));
-    *(Attention_Tensor->ndim) = *(Linear->ndim);
+    *(Attention_Tensor->ndim) = 1;
 
     Attention_Tensor->mem_len = (int *)malloc(sizeof(int));
-    *(Attention_Tensor->mem_len) = *(Linear->mem_len);
+    *(Attention_Tensor->mem_len) = Linear->shape[0];
 
-    Attention_Tensor->shape = (int *)malloc(sizeof(int) * (*(Attention_Tensor->ndim)));
-    for (int i = 0; i < *(Attention_Tensor->ndim); i++) {
-        Attention_Tensor->shape[i] = Linear->shape[i];
-    }
+    Attention_Tensor->shape = (int *)malloc(sizeof(int));
+    Attention_Tensor->shape[0] = Linear->shape[0];
 
     // Allocate CUDA memory
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(int));
-    cudaMalloc((void **)&d_shape, sizeof(int) * (*(Attention_Tensor->ndim)));
+    cudaMalloc((void **)&d_shape, sizeof(int));
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
 
     // Copy data to device
     cudaMemcpy(d_ndim, Attention_Tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, Attention_Tensor->mem_len, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_shape, Attention_Tensor->shape, sizeof(int) * (*(Attention_Tensor->ndim)), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_shape, Attention_Tensor->shape, sizeof(int), cudaMemcpyHostToDevice);
 
     // Assign device pointers
     Attention_Tensor->d_ndim = d_ndim;
@@ -154,23 +155,31 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer, Tensor *X) {
     // Compute Queries
-    kernel_compute_attention_tensors<<<1, 1>>>(
-        Q, L3_Layer->self_attn_q_proj, X);
-    CHECK_CUDA_ERROR();
+    kernel_compute_attention_tensors<<<4, 1024>>>(
+        Q->d_fp16_tensor, Q->d_ndim, Q->d_shape,
+        L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_ndim, L3_Layer->self_attn_q_proj->d_shape,
+        X->d_fp16_tensor, X->d_ndim, X->d_shape);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 }
 
-/*
-__global__ void kernel_compute_attention_tensors(__half *O_tensor, int *O_ndim, int *O_shape,
-                                                 __half *Linear, int *Linear_ndim, int *Linear_shape,
-                                                 __half *X, int *X_ndim, int *X_shape) {
+__global__ void kernel_compute_attention_tensors(
+    __half *O_tensor, int *O_ndim, int *O_shape,
+    __half *Linear_tensor, int *Linear_ndim, int *Linear_shape,
+    __half *X_tensor, int *X_ndim, int *X_shape) {
+    // Start of kernel
+
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-}
-*/
+    int dim = gridDim.x * blockDim.x;
 
-__global__ void kernel_compute_attention_tensors(Tensor *O_tensor, Tensor *Linear, Tensor *X) {
-    // int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    // [4096][1024, 4096]
 
-    printf("%d\n", O_tensor->d_ndim);
+    if (idx < dim) {
+        int sum = 0;
+        for (int i = 0; i < dim; i++) {
+            sum += (X_tensor[i] * Linear_tensor[dim * i]);
+        }
+
+        O_tensor[idx] = sum;
+        printf("%d\n", idx);
+    }
 }
