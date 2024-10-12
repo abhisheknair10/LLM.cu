@@ -99,8 +99,8 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    // cudaDeviceSynchronize();
 }
 
 __global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, int *tokens) {
@@ -128,10 +128,11 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     *(Attention_Tensor->ndim) = 1;
 
     Attention_Tensor->mem_len = (int *)malloc(sizeof(int));
-    *(Attention_Tensor->mem_len) = Linear->shape[0];
+    *(Attention_Tensor->mem_len) = Linear->shape[0] * h_NUM_TOKENS;
 
     Attention_Tensor->shape = (int *)malloc(sizeof(int));
-    Attention_Tensor->shape[0] = Linear->shape[0];
+    Attention_Tensor->shape[0] = h_NUM_TOKENS;
+    Attention_Tensor->shape[1] = Linear->shape[0];
 
     // Allocate CUDA memory
     cudaMalloc((void **)&d_ndim, sizeof(int));
