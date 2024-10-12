@@ -125,7 +125,7 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     __half *d_fp16_tensor;
 
     Attention_Tensor->ndim = (int *)malloc(sizeof(int));
-    *(Attention_Tensor->ndim) = 1;
+    *(Attention_Tensor->ndim) = 2;
 
     Attention_Tensor->mem_len = (int *)malloc(sizeof(int));
     *(Attention_Tensor->mem_len) = Linear->shape[0] * h_NUM_TOKENS;
@@ -137,13 +137,13 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     // Allocate CUDA memory
     cudaMalloc((void **)&d_ndim, sizeof(int));
     cudaMalloc((void **)&d_mem_len, sizeof(int));
-    cudaMalloc((void **)&d_shape, sizeof(int));
+    cudaMalloc((void **)&d_shape, sizeof(int) * 2);
     cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
 
     // Copy data to device
     cudaMemcpy(d_ndim, Attention_Tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, Attention_Tensor->mem_len, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_shape, Attention_Tensor->shape, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_shape, Attention_Tensor->shape, sizeof(int) * 2, cudaMemcpyHostToDevice);
 
     // Assign device pointers
     Attention_Tensor->d_ndim = d_ndim;
