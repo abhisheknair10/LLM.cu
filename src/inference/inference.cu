@@ -154,12 +154,14 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 }
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer, Tensor *X) {
+    /*
     // Compute Queries
     kernel_compute_attention_tensors<<<4, 1024>>>(
         Q->d_fp16_tensor, Q->d_ndim, Q->d_shape,
         L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_ndim, L3_Layer->self_attn_q_proj->d_shape,
         X->d_fp16_tensor, X->d_ndim, X->d_shape);
     cudaDeviceSynchronize();
+    */
 }
 
 __global__ void kernel_compute_attention_tensors(
@@ -180,6 +182,5 @@ __global__ void kernel_compute_attention_tensors(
         }
 
         O_tensor[idx] = sum;
-        printf("%d\n", idx);
     }
 }
