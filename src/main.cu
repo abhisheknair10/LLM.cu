@@ -100,7 +100,7 @@ __global__ void model_param_checker(__half *fp16_tensor, int *mem_len) {
 // CUDA kernel to check the tokens
 __global__ void tokens_checker(int *tokens) {
     printf("Number of Tokens: %d\n", tokens[0]);
-    for (int i = 1; i <= tokens[0]; i++) {
+    for (int i = 1; i < tokens[0]; i++) {
         printf("%d, ", tokens[i]);
     }
     printf("\n");

@@ -99,8 +99,8 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    cudaDeviceSynchronize();
 }
 
 __global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, int *tokens) {
