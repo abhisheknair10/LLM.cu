@@ -109,6 +109,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
         copy_fp16_tensor(PN_X, X);
+        printf("Invoked\n");
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gcache);
 
         // Attention computation
@@ -210,7 +211,6 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
 }
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
-    printf("Invoked\n");
     int total_threads = *(X->mem_len);
     dim3 blocks(1, h_NUM_TOKENS, total_threads / (h_NUM_TOKENS * THREADS_PER_BLOCK));
 
