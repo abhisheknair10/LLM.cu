@@ -37,6 +37,15 @@ __half *create_gmemcache(size_t mem_len, size_t type_size) {
     return d_gcache;
 }
 
+void free_tensor_cuda(Tensor *t) {
+    cudaFree(t->d_ndim);
+    cudaFree(t->d_mem_len);
+    cudaFree(t->d_shape);
+    cudaFree(t->d_fp16_tensor);
+
+    return;
+}
+
 // Print CUDA memory info
 void printCudaMemoryInfo() {
     size_t free_memory = 0;
@@ -109,6 +118,12 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     }
 
     printCudaMemoryInfo();
+
+    free_tensor_cuda(PN_X);
+    free_tensor_cuda(Q);
+    free_tensor_cuda(K);
+    free_tensor_cuda(V);
+    cudaFree(d_gcache);
 
     return;
 }
