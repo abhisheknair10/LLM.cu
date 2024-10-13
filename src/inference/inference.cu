@@ -94,6 +94,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     // Ahead Of Time memory allocations
     // Allocate once, use everywhere
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
+    printf("Invoked6\n");
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
     printf("Invoked4\n");
