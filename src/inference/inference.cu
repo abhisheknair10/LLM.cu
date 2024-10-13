@@ -260,13 +260,13 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     __half rms = 0;
     __half eps = 1e-6;
 
-    if (threadIdx.x == 0) {
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
         for (int i = 0; i < gridDim.x; i++) {
             rms = __hadd(rms, d_gcache[gridDim.x * blockIdx.y + i]);
         }
         rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
-        d_gcache[blockIdx.y * gridDim.x] = rms;
-        printf("%d, %f\n", blockIdx.y * gridDim.x, __half2float(rms));
+        d_gcache[gridDim.x] = rms;
+        printf("%d, %f\n", gridDim.x, __half2float(rms));
     }
     __syncthreads();
 
