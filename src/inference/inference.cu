@@ -254,7 +254,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
 
     if (threadIdx.x == 0) {
         d_gcache[blockIdx.y * gridDim.x + blockIdx.x] = shared_mem[0];
-        printf("%d", blockIdx.y * gridDim.x + blockIdx.x);
+        printf("%d\n", blockIdx.y * gridDim.x + blockIdx.x);
     }
     __syncthreads();
 
@@ -265,7 +265,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
         for (int i = 0; i < gridDim.x; i++) {
             rms = __hadd(rms, d_gcache[gridDim.x * blockIdx.y + i]);
         }
-        rms = hsqrt(__hadd(__hdiv(rms, __float2half(EMBED_SIZE)), eps));
+        rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
         d_gcache[blockIdx.y] = rms;
     }
     __syncthreads();
