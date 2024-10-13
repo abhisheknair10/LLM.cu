@@ -145,7 +145,7 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     return;
 }
 
-__global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, int *tokens) {
+__global__ void kernel_tokens_to_embeddings(__half *X_tensor, __half *Embed, int *tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     int total_elements = d_NUM_TOKENS * EMBED_SIZE;
@@ -155,7 +155,7 @@ __global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, 
     int token_idx = idx / EMBED_SIZE;
     int embed_idx = idx % EMBED_SIZE;
 
-    fp16_tensor[(token_idx * EMBED_SIZE) + embed_idx] =
+    X_tensor[(token_idx * EMBED_SIZE) + embed_idx] =
         Embed[(tokens[token_idx + 1] * EMBED_SIZE) + embed_idx];
 
     return;
