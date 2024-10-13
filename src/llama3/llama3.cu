@@ -164,7 +164,7 @@ void _cudaMalloc_fp16(Tensor *tensor) {
     __half *d_fp16_tensor;
 
     // Allocate fp16 tensor memory on the GPU
-    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
+    cudaMalloc(&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
     tensor->d_fp16_tensor = d_fp16_tensor;
 
     return;
@@ -177,10 +177,10 @@ void _preallocate_model_mem(Tensor *tensor) {
     __half *d_fp16_tensor;
 
     // Allocate GPU memory
-    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
-    cudaMalloc((void **)&d_ndim, sizeof(int));
-    cudaMalloc((void **)&d_mem_len, sizeof(int));
-    cudaMalloc((void **)&d_shape, sizeof(int) * (*(tensor->ndim)));
+    cudaMalloc(&d_fp16_tensor, sizeof(__half) * (*(tensor->mem_len)));
+    cudaMalloc(&d_ndim, sizeof(int));
+    cudaMalloc(&d_mem_len, sizeof(int));
+    cudaMalloc(&d_shape, sizeof(int) * (*(tensor->ndim)));
 
     // Copy data from CPU to GPU
     cudaMemcpy(d_ndim, tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
@@ -200,7 +200,7 @@ void _move_tensor_to_cuda(Tensor *tensor) {
     uint16_t *d_bf16_tensor;
 
     // Allocate GPU memory
-    cudaMalloc((void **)&d_bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)));
+    cudaMalloc(&d_bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)));
 
     // Copy data from CPU to GPU
     cudaMemcpy(d_bf16_tensor, tensor->bf16_tensor, sizeof(uint16_t) * (*(tensor->mem_len)), cudaMemcpyHostToDevice);
@@ -240,15 +240,15 @@ void _kernel_wrapper_bf16_to_fp16(Tensor *tensor) {
 __global__ void _kernel_bf16_to_fp16(uint16_t *bf16_tensor, __half *fp16_tensor, int mem_len) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (idx < mem_len) {
-        // Convert BF16 to FP32
-        uint32_t bf16 = (uint32_t)bf16_tensor[idx];
-        uint32_t fp32_bits = bf16 << 16;
-        float fp32_value = __int_as_float(fp32_bits);
+    if (idx >= mem_len) return;
 
-        // Convert FP32 to FP16
-        fp16_tensor[idx] = __float2half_rn(fp32_value);
-    }
+    // Convert BF16 to FP32
+    uint32_t bf16 = (uint32_t)bf16_tensor[idx];
+    uint32_t fp32_bits = bf16 << 16;
+    float fp32_value = __int_as_float(fp32_bits);
+
+    // Convert FP32 to FP16
+    fp16_tensor[idx] = __float2half_rn(fp32_value);
 
     return;
 }

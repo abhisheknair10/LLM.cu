@@ -28,6 +28,16 @@ __constant__ int EMBED_SIZE;
 __device__ int d_NUM_TOKENS;
 int h_NUM_TOKENS;
 
+// Allocate global mem cache on device
+__half *create_gmemcache(size_t mem_len, size_t type_size) {
+    __half *d_gcache;
+
+    cudaMalloc(&d_gcache, mem_len * type_size);
+
+    return d_gcache;
+}
+
+// Print CUDA memory info
 void printCudaMemoryInfo() {
     size_t free_memory = 0;
     size_t total_memory = 0;
@@ -42,6 +52,8 @@ void printCudaMemoryInfo() {
     } else {
         printf("Failed to get CUDA memory info: %s\n", cudaGetErrorString(err));
     }
+
+    return;
 }
 
 // Kernel to check and print the embeddings
@@ -59,7 +71,6 @@ __global__ void check_embedding(__half *fp16_tensor) {
 }
 
 /* ******************************** Inference Code ******************************** */
-
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     int embed_size = 4096;
     cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
@@ -73,6 +84,11 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
 
     // Ahead Of Time memory allocations
     // Allocate once, use everywhere
+    Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
+    _create_intermediary_prenorm_tensor_copy(PN_X, X);
+
+    __half *d_gcache = create_gmemcache(10000, sizeof(__half));
+
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
     Tensor *V = (Tensor *)malloc(sizeof(Tensor));
@@ -82,17 +98,26 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
 
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
+        // Pre-attention normalization
+        copy_fp16_tensor(PN_X, X);
+        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gcache);
+
+        // Attention computation
         compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X);
 
         break;
     }
 
     printCudaMemoryInfo();
+
+    return;
 }
 
+/* *************************** Convert Tokens to Embeddings *************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     // Order threads into blocks
-    int blocks = (h_NUM_TOKENS + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    int total_threads = X->mem_len;
+    int blocks = (total_threads + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     kernel_tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
         X->d_fp16_tensor, llama3_model->embed_tokens->d_fp16_tensor, d_tokens);
@@ -101,23 +126,131 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
     // cudaDeviceSynchronize();
+
+    return;
 }
 
 __global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, int *tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // tokens[0] consists of the length of the entire tokens array
-    if (idx > 0 && idx <= d_NUM_TOKENS) {
-        int managed_offset = idx - 1;
-        for (int i = 0; i < EMBED_SIZE; i++) {
-            fp16_tensor[(managed_offset * EMBED_SIZE) + i] =
-                Embed[(tokens[idx] * EMBED_SIZE) + i];
-        }
-    }
+    int total_elements = d_NUM_TOKENS * EMBED_SIZE;
+
+    if (idx >= total_elements) return;
+
+    int token_idx = idx / EMBED_SIZE;
+    int embed_idx = idx % EMBED_SIZE;
+
+    fp16_tensor[(token_idx * EMBED_SIZE) + embed_idx] =
+        Embed[(tokens[token_idx + 1] * EMBED_SIZE) + embed_idx];
 
     return;
 }
 
+/* ******************************* Layer Normalization ******************************* */
+void _create_intermediary_prenorm_tensor_copy(Tensor *Y, Tensor *X) {
+    int *d_ndim;
+    int *d_mem_len;
+    int *d_shape;
+    __half *d_fp16_tensor;
+
+    Y->ndim = (int *)malloc(sizeof(int));
+    *(Y->ndim) = *(X->ndim);
+
+    Y->mem_len = (int *)malloc(sizeof(int));
+    *(Y->mem_len) = *(X->mem_len);
+
+    Y->shape = (int *)malloc(sizeof(int) * (*(X->ndim)));
+    for (int i = 0; i < (*(X->ndim)); i++) {
+        Y->shape[i] = X->shape[i];
+    }
+
+    // Allocate CUDA memory
+    cudaMalloc(&d_ndim, sizeof(int));
+    cudaMalloc(&d_mem_len, sizeof(int));
+    cudaMalloc(&d_shape, sizeof(int) * (*(Y->ndim)));
+    cudaMalloc(&d_fp16_tensor, sizeof(__half) * (*(Y->mem_len)));
+
+    // Copy data to device
+    cudaMemcpy(d_ndim, Y->ndim, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mem_len, Y->mem_len, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_shape, Y->shape, sizeof(int) * (*(Y->ndim)), cudaMemcpyHostToDevice);
+
+    // Assign device pointers
+    Y->d_ndim = d_ndim;
+    Y->d_mem_len = d_mem_len;
+    Y->d_shape = d_shape;
+    Y->d_fp16_tensor = d_fp16_tensor;
+
+    return;
+}
+
+void copy_fp16_tensor(Tensor *Y, Tensor *X) {
+    cudaMemcpy(
+        Y->d_fp16_tensor,
+        X->d_fp16_tensor,
+        sizeof(__half) * (*(Y->mem_len)),
+        cudaMemcpyDeviceToDevice);
+
+    return;
+}
+
+void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
+    int total_threads = X->mem_len;
+    dim3 blocks(1, h_NUM_TOKENS, total_threads / (h_NUM_TOKENS * THREADS_PER_BLOCK));
+
+    size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
+
+    kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
+        X_tensor->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
+
+    cudaDeviceSynchronize();
+}
+
+__global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
+    extern __shared__ __half shared_mem[];
+
+    int token_idx = blockIdx.y;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (token_idx >= d_NUM_TOKENS) return;
+    if (embed_idx >= EMBED_SIZE) return;
+
+    // Load the input into shared memory and square values
+    shared_mem[threadIdx.x] = hpow(X_tensor[(token_idx * EMBED_SIZE) + embed_idx], 2);
+    __syncthreads();
+
+    // Perform parallel reduction in shared memory
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) {
+            shared_mem[threadIdx.x] = __hadd(
+                shared_mem[threadIdx.x],
+                shared_mem[threadIdx.x + stride]);
+        }
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0) {
+        d_gcache[blockIdx.y * blockDim.x + blockIdx.x] = shared_mem[0];
+    }
+    __syncthreads();
+
+    __half rms = 0;
+    __half eps = 1e-6;
+    for (int i = 0; i < blockDim.x; i++) {
+        rms += d_gcache[blockDim.x * blockIdx.y + i];
+    }
+    rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
+
+    X_tensor[(token_ids * EMBED_SIZE) + embed_idx] = __hmul(
+        __hdiv(
+            X_tensor[(token_ids * EMBED_SIZE) + embed_idx],
+            rms),
+        RMSNorm_tensor[embed_idx]);
+
+    return;
+}
+
+/* ******************************* Attention Computation ******************************* */
 void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Linear) {
     int *d_ndim;
     int *d_mem_len;
@@ -135,10 +268,10 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     Attention_Tensor->shape[1] = Linear->shape[0];
 
     // Allocate CUDA memory
-    cudaMalloc((void **)&d_ndim, sizeof(int));
-    cudaMalloc((void **)&d_mem_len, sizeof(int));
-    cudaMalloc((void **)&d_shape, sizeof(int) * 2);
-    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
+    cudaMalloc(&d_ndim, sizeof(int));
+    cudaMalloc(&d_mem_len, sizeof(int));
+    cudaMalloc(&d_shape, sizeof(int) * 2);
+    cudaMalloc(&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
 
     // Copy data to device
     cudaMemcpy(d_ndim, Attention_Tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
@@ -163,6 +296,8 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
         X->d_fp16_tensor, X->d_ndim, X->d_shape);
     cudaDeviceSynchronize();
     */
+
+    return;
 }
 
 __global__ void kernel_compute_attention_tensors(
@@ -176,12 +311,14 @@ __global__ void kernel_compute_attention_tensors(
 
     // [4096][1024, 4096]
 
-    if (idx < dim) {
-        __half sum = 0;
-        for (int i = 0; i < EMBED_SIZE; i++) {
-            sum += (X_tensor[i] * Linear_tensor[EMBED_SIZE * i]);
-        }
+    if (idx >= dim) return;
 
-        O_tensor[idx] = sum;
+    __half sum = 0;
+    for (int i = 0; i < EMBED_SIZE; i++) {
+        sum += (X_tensor[i] * Linear_tensor[EMBED_SIZE * i]);
     }
+
+    O_tensor[idx] = sum;
+
+    return;
 }
