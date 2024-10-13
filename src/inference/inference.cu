@@ -139,8 +139,8 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    cudaDeviceSynchronize();
 
     return;
 }
@@ -222,8 +222,8 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
-    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    // cudaDeviceSynchronize();
 }
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
