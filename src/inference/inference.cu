@@ -210,11 +210,8 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
 }
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
-    int total_threads = *(X->mem_len);
-    
-    // Calculate grid and block dimensions
     int blocks_x = (4096 + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-    int blocks_y = h_NUM_TOKENS;  // One block per token
+    int blocks_y = h_NUM_TOKENS;
 
     dim3 blocks(blocks_x, blocks_y);
     int threads_per_block = THREADS_PER_BLOCK;
@@ -228,7 +225,6 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
     cudaDeviceSynchronize();
 }
-
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
     extern __shared__ __half shared_mem[];
@@ -270,6 +266,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
         }
         rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
         d_gcache[blockIdx.y] = rms;
+        printf("Written to %d", blockIdx.y);
     }
     __syncthreads();
 
