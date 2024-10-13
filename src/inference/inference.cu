@@ -266,11 +266,10 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
         }
         rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
         d_gcache[blockIdx.y] = rms;
-        printf("%d, %f\n", blockIdx.y, __half2float(rms));
     }
     __syncthreads();
 
-    rms = d_gcache[blockIdx.y * gridDim.x];
+    rms = d_gcache[blockIdx.y];
     X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __hmul(
         __hdiv(
             X_tensor[(token_idx * EMBED_SIZE) + embed_idx],
