@@ -255,7 +255,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     __syncthreads();
 
     float rms = 0.0f;
-    float eps = 1e-6f;
+    float eps = 1e-5f;
 
     // Compute the RMS value
     if (threadIdx.x == 0 && blockIdx.x == 0) {
