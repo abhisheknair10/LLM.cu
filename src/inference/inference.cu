@@ -216,7 +216,7 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     dim3 blocks(blocks_x, blocks_y);
     int threads_per_block = THREADS_PER_BLOCK;
 
-    size_t shared_mem_size = threads_per_block * sizeof(__half);
+    size_t shared_mem_size = threads_per_block * sizeof(float);
 
     kernel_compute_rms_norm<<<blocks, threads_per_block, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
@@ -226,8 +226,8 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     cudaDeviceSynchronize();
 }
 
-__global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
-    extern __shared__ __half shared_mem[];
+__global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache) {
+    extern __shared__ float shared_mem[];
 
     int token_idx = blockIdx.y;
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -235,48 +235,43 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     if (token_idx >= d_NUM_TOKENS) return;
     if (embed_idx >= EMBED_SIZE) return;
 
-    // Load the input into shared memory and square values
-    shared_mem[threadIdx.x] = X_tensor[(token_idx * EMBED_SIZE) + embed_idx];
-    shared_mem[threadIdx.x] = __hmul(
-        shared_mem[threadIdx.x],
-        shared_mem[threadIdx.x]);
+    // Convert __half to float and square
+    float x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
+    shared_mem[threadIdx.x] = x * x;
     __syncthreads();
 
     // Perform parallel reduction in shared memory
     for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
         if (threadIdx.x < stride) {
-            shared_mem[threadIdx.x] = __hadd(
-                shared_mem[threadIdx.x],
-                shared_mem[threadIdx.x + stride]);
+            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
         }
         __syncthreads();
     }
 
+    // Store partial sums in d_gcache
     if (threadIdx.x == 0) {
         d_gcache[blockIdx.y * gridDim.x + blockIdx.x] = shared_mem[0];
     }
     __syncthreads();
 
-    __half rms = 0;
-    __half eps = 2e-5;
+    float rms = 0.0f;
+    float eps = 1e-6f;
 
+    // Compute the RMS value
     if (threadIdx.x == 0 && blockIdx.x == 0) {
         for (int i = 0; i < gridDim.x; i++) {
-            rms = __hadd(rms, d_gcache[gridDim.x * blockIdx.y + i]);
+            rms += d_gcache[gridDim.x * blockIdx.y + i];
         }
-        rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
-        d_gcache[token_idx] = rms;
+        rms = sqrtf((rms + eps) / (float)EMBED_SIZE);
+        d_gcache[blockIdx.y] = rms;
     }
     __syncthreads();
 
-    rms = d_gcache[token_idx];
-    X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __hmul(
-        __hdiv(
-            X_tensor[(token_idx * EMBED_SIZE) + embed_idx],
-            rms),
-        RMSNorm_tensor[embed_idx]);
-
-    return;
+    // Normalize the input and write back
+    rms = d_gcache[blockIdx.y];
+    x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
+    float res = (x / rms) * __half2float(RMSNorm_tensor[embed_idx]);
+    X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __float2half(res);
 }
 
 /* ******************************* Attention Computation ******************************* */
