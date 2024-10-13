@@ -22,7 +22,7 @@ void _create_intermediary_prenorm_tensor_copy(Tensor *Y, Tensor *X);
 
 void copy_fp16_tensor(Tensor *Y, Tensor *X);
 
-void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache);
+void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache);
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache);
 
