@@ -232,16 +232,12 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     if (token_idx >= d_NUM_TOKENS) return;
     if (embed_idx >= EMBED_SIZE) return;
 
-    printf("1\n");
-
     // Load the input into shared memory and square values
     shared_mem[threadIdx.x] = X_tensor[(token_idx * EMBED_SIZE) + embed_idx];
     shared_mem[threadIdx.x] = __hmul(
         shared_mem[threadIdx.x],
         shared_mem[threadIdx.x]);
     __syncthreads();
-
-    printf("2\n");
 
     // Perform parallel reduction in shared memory
     for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
