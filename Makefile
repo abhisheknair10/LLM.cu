@@ -22,11 +22,13 @@ INCLUDES = $(shell find $(SRC_DIR) -type d -exec echo -I{} \;)
 OBJS = $(C_OBJS) $(CU_OBJS)
 
 # Final target
-all: $(OUTPUT_DIR)/output.out
+all: clean $(OUTPUT_DIR)/output.out
 
 # Run the program
-run: $(OUTPUT_DIR)/output.out
-	python3 setup-tokenizer.py
+run: all $(OUTPUT_DIR)/output.out
+	if [ ! -f model_weights/tokenizer_modified.json ]; then \
+		python3 setup-tokenizer.py; \
+	fi
 	clear && ./$(OUTPUT_DIR)/output.out
 
 # Link the final executable
