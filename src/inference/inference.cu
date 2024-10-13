@@ -210,17 +210,17 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
 }
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
-    int blocks_x = (4096 + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    int blocks_x = 4096 / THREADS_PER_BLOCK;
     int blocks_y = h_NUM_TOKENS;
 
     dim3 blocks(blocks_x, blocks_y);
-    int threads_per_block = THREADS_PER_BLOCK;
+    size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(float);
 
-    size_t shared_mem_size = threads_per_block * sizeof(float);
-
-    kernel_compute_rms_norm<<<blocks, threads_per_block, shared_mem_size>>>(
+    kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
     cudaDeviceSynchronize();
@@ -255,12 +255,12 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     __syncthreads();
 
     float rms = 0.0f;
-    float eps = 1e-3f;
+    float eps = 1e-6f;
 
     // Compute the RMS value
     if (threadIdx.x == 0 && blockIdx.x == 0) {
         for (int i = 0; i < gridDim.x; i++) {
-            rms += d_gcache[gridDim.x * blockIdx.y + i];
+            rms += d_gcache[blockIdx.y * gridDim.x + i];
         }
         rms = sqrtf((rms + eps) / (float)EMBED_SIZE);
         d_gcache[blockIdx.y] = rms;
