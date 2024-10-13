@@ -171,10 +171,6 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     token_tensor->d_mem_len = d_mem_len;
     token_tensor->d_shape = d_shape;
 
-    free(token_tensor->ndim);
-    free(token_tensor->mem_len);
-    free(token_tensor->shape);
-
     /* *************** Move Actual Tensor to CUDA *************** */
     // Copy over tokens
     int *d_tokens;
