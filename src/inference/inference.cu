@@ -251,7 +251,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     }
 
     if (threadIdx.x == 0) {
-        d_gcache[blockIdx.y * blockDim.x + blockIdx.x] = shared_mem[0];
+        d_gcache[blockIdx.y * gridDim.x + blockIdx.x] = shared_mem[0];
     }
     __syncthreads();
 
