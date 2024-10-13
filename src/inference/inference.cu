@@ -269,6 +269,12 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
 }
 
 __global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache) {
+    int token_idx = blockIdx.y;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (token_idx >= d_NUM_TOKENS) return;
+    if (embed_idx >= EMBED_SIZE) return;
+
     // Normalize the input and write back
     rms = d_gcache[blockIdx.y];
     float x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
