@@ -220,7 +220,8 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
 
-    kernel_compute_norm_tensor<<<blocks, THREADS_PER_BLOCK>>>();
+    kernel_compute_norm_tensor<<<blocks, THREADS_PER_BLOCK>>>(
+        X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
