@@ -25,7 +25,7 @@ OBJS = $(C_OBJS) $(CU_OBJS)
 all: clean $(OUTPUT_DIR)/output.out
 
 # Run the program
-run: all
+run: all $(OUTPUT_DIR)/output.out
 	if [ ! -f model_weights/tokenizer_modified.json ]; then \
 		python3 setup-tokenizer.py; \
 	fi
