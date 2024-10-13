@@ -211,18 +211,24 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     int total_threads = *(X->mem_len);
-    dim3 blocks(1, h_NUM_TOKENS, total_threads / (h_NUM_TOKENS * THREADS_PER_BLOCK));
+    
+    // Calculate grid and block dimensions
+    int blocks_x = (4096 + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    int blocks_y = h_NUM_TOKENS;  // One block per token
 
-    size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
+    dim3 blocks(blocks_x, blocks_y);
+    int threads_per_block = THREADS_PER_BLOCK;
 
-    kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
+    size_t shared_mem_size = threads_per_block * sizeof(__half);
+
+    kernel_compute_rms_norm<<<blocks, threads_per_block, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
     cudaDeviceSynchronize();
 }
+
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
     extern __shared__ __half shared_mem[];
