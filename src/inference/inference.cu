@@ -258,7 +258,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     __syncthreads();
 
     __half rms = 0;
-    __half eps = 1e-6;
+    __half eps = 1e-5;
 
     if (threadIdx.x == 0 && blockIdx.x == 0) {
         for (int i = 0; i < gridDim.x; i++) {
