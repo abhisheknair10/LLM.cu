@@ -214,11 +214,12 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     dim3 blocks(1, h_NUM_TOKENS, total_threads / (h_NUM_TOKENS * THREADS_PER_BLOCK));
 
     size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
-
+    CHECK_CUDA_ERROR();
     kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
         X_tensor->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
-
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 }
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
