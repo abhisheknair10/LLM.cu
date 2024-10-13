@@ -96,7 +96,11 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
+    printf("Invoked4\n");
+
     __half *d_gcache = create_gmemcache(10000, sizeof(__half));
+
+    printf("Invoked3\n");
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
@@ -105,11 +109,14 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     _create_intermediary_attention_tensor(K, llama3_model->layers[0]->self_attn_k_proj);
     _create_intermediary_attention_tensor(V, llama3_model->layers[0]->self_attn_v_proj);
 
+    printf("Invoked5\n");
+
     // Run Inference
+    printf("Invoked2\n");
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
+        printf("Invoked1\n");
         copy_fp16_tensor(PN_X, X);
-        printf("Invoked\n");
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gcache);
 
         // Attention computation
