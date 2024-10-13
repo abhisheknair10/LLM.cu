@@ -215,12 +215,13 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
 
     size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
 
-    CHECK_CUDA_ERROR();
     kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
-    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
+
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    cudaDeviceSynchronize();
 }
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, __half *d_gcache) {
@@ -234,9 +235,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
 
     // Load the input into shared memory and square values
     shared_mem[threadIdx.x] = X_tensor[(token_idx * EMBED_SIZE) + embed_idx];
-    shared_mem[threadIdx.x] = __hmul(
-        shared_mem[threadIdx.x],
-        shared_mem[threadIdx.x]);
+    shared_mem[threadIdx.x] = __hmul(shared_mem[threadIdx.x], shared_mem[threadIdx.x]);
     __syncthreads();
 
     // Perform parallel reduction in shared memory
@@ -250,21 +249,29 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     }
 
     if (threadIdx.x == 0) {
-        d_gcache[blockIdx.y * blockDim.x + blockIdx.x] = shared_mem[0];
+        d_gcache[blockIdx.y * gridDim.x + blockIdx.x] = shared_mem[0];  // Store the reduced value in global cache
     }
     __syncthreads();
 
+    // Compute RMS
     __half rms = 0;
     __half eps = 1e-6;
-    for (int i = 0; i < blockDim.x; i++) {
-        rms += d_gcache[blockDim.x * blockIdx.y + i];
-    }
-    rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
 
+    if (threadIdx.x == 0) {  // Only thread 0 of each block does this
+        for (int i = 0; i < gridDim.x; i++) {
+            rms = __hadd(rms, d_gcache[gridDim.x * blockIdx.y + i]);
+        }
+        rms = hsqrt(__hdiv(__hadd(rms, eps), __float2half(EMBED_SIZE)));
+        d_gcache[blockIdx.y] = rms;  // Store RMS value back in cache for this token
+    }
+    __syncthreads();
+
+    // Broadcast the RMS value from cache to all threads in the block
+    rms = d_gcache[blockIdx.y];
+
+    // Normalize the input tensor with the computed RMS value and apply RMSNorm
     X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __hmul(
-        __hdiv(
-            X_tensor[(token_idx * EMBED_SIZE) + embed_idx],
-            rms),
+        __hdiv(X_tensor[(token_idx * EMBED_SIZE) + embed_idx], rms),
         RMSNorm_tensor[embed_idx]);
 
     return;
