@@ -96,7 +96,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    __half *d_gcache = create_gmemcache(10000, sizeof(__half));
+    __half *d_gcache = create_gmemcache(10000, sizeof(float));
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
@@ -209,7 +209,7 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
     return;
 }
 
-void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
+void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
     int blocks_x = (4096 + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
     int blocks_y = h_NUM_TOKENS;
 
