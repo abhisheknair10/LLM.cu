@@ -216,7 +216,7 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
     CHECK_CUDA_ERROR();
     kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
-        X_tensor->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
+        X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
@@ -232,7 +232,10 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     if (embed_idx >= EMBED_SIZE) return;
 
     // Load the input into shared memory and square values
-    shared_mem[threadIdx.x] = __hpow(X_tensor[(token_idx * EMBED_SIZE) + embed_idx], 2);
+    shared_mem[threadIdx.x] = X_tensor[(token_idx * EMBED_SIZE) + embed_idx];
+    shared_mem[threadIdx.x] = __hmul(
+        shared_mem[threadIdx.x],
+        shared_mem[threadIdx.x]);
     __syncthreads();
 
     // Perform parallel reduction in shared memory
