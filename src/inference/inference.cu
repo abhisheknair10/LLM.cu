@@ -263,7 +263,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
             rms += d_gcache[blockIdx.y * gridDim.x + i];
         }
         rms = sqrtf((rms + eps) / (float)EMBED_SIZE);
-        printf("RMS of %d is 0\n", blockIdx.y);
+        printf("RMS of %d is %f\n", blockIdx.y, rms);
         d_gcache[blockIdx.y] = rms;
     }
     __syncthreads();
