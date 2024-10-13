@@ -26,6 +26,8 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache);
 
 __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache);
 
+__global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache);
+
 /* ******************************* Attention Computation ******************************* */
 void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Linear);
 

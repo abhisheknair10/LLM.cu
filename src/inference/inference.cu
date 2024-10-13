@@ -218,9 +218,10 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
 
     kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
-    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
+
+    kernel_compute_norm_tensor<<<blocks, THREADS_PER_BLOCK>>>();
+    cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(X->d_fp16_tensor);
     cudaDeviceSynchronize();
@@ -265,16 +266,19 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
         rms = sqrtf((rms + eps) / (float)EMBED_SIZE);
         d_gcache[blockIdx.y] = rms;
     }
-    __syncthreads();
+}
 
+__global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache) {
     // Normalize the input and write back
     rms = d_gcache[blockIdx.y];
-    x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
+    float x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
     float res = (x / rms) * __half2float(RMSNorm_tensor[embed_idx]);
-    if (isinf (res)) {
+    if (isinf(res)) {
         printf("RMS of %d is %f, x: %f, \n", blockIdx.y, rms, x);
     }
     X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __float2half(res);
+
+    return;
 }
 
 /* ******************************* Attention Computation ******************************* */
