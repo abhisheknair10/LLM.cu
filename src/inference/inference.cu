@@ -213,9 +213,11 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
     int total_threads = *(X->mem_len);
     dim3 blocks(1, h_NUM_TOKENS, total_threads / (h_NUM_TOKENS * THREADS_PER_BLOCK));
 
-    size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
-    CHECK_CUDA_ERROR();
     printf("Invoked\n");
+
+    size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
+
+    CHECK_CUDA_ERROR();
     kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     CHECK_CUDA_ERROR();
