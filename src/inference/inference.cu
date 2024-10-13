@@ -131,7 +131,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
 /* *************************** Convert Tokens to Embeddings *************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     // Order threads into blocks
-    int total_threads = X->mem_len;
+    int total_threads = *(X->mem_len);
     int blocks = (total_threads + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
 
     kernel_tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
@@ -210,7 +210,7 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
 }
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X, __half *d_gcache) {
-    int total_threads = X->mem_len;
+    int total_threads = *(X->mem_len);
     dim3 blocks(1, h_NUM_TOKENS, total_threads / (h_NUM_TOKENS * THREADS_PER_BLOCK));
 
     size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(__half);
@@ -232,7 +232,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     if (embed_idx >= EMBED_SIZE) return;
 
     // Load the input into shared memory and square values
-    shared_mem[threadIdx.x] = hpow(X_tensor[(token_idx * EMBED_SIZE) + embed_idx], 2);
+    shared_mem[threadIdx.x] = __hpow(X_tensor[(token_idx * EMBED_SIZE) + embed_idx], 2);
     __syncthreads();
 
     // Perform parallel reduction in shared memory
