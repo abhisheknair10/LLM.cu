@@ -271,7 +271,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     rms = d_gcache[blockIdx.y];
     x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
     float res = (x / rms) * __half2float(RMSNorm_tensor[embed_idx]);
-    if isinf (res) {
+    if (isinf (res)) {
         printf("RMS of %d is %f, x: %f, \n", blockIdx.y, rms, x);
     }
     X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __float2half(res);
