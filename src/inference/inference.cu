@@ -267,6 +267,8 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
         rms = sqrtf((rms + eps) / (float)EMBED_SIZE);
         d_gcache[blockIdx.y] = rms;
     }
+
+    return;
 }
 
 __global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache) {
