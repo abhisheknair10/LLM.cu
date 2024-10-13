@@ -262,7 +262,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
 
     X_tensor[(token_ids * EMBED_SIZE) + embed_idx] = __hmul(
         __hdiv(
-            X_tensor[(token_ids * EMBED_SIZE) + embed_idx],
+            X_tensor[(token_idx * EMBED_SIZE) + embed_idx],
             rms),
         RMSNorm_tensor[embed_idx]);
 
