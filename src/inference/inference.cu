@@ -371,6 +371,8 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
 __global__ void kernel_compute_intermediate_attention_matmul(
     __half *Linear_tensor, int *Linear_shape,
     __half *X_tensor, float *d_gcache, int qkv_idx) {
+    // Kernel start
+    //
     extern __shared__ float shared_mem[];
 
     int token_idx = blockIdx.z;
@@ -396,11 +398,13 @@ __global__ void kernel_compute_intermediate_attention_matmul(
 
     // Store partial sums in d_gcache
     if (threadIdx.x == 0) {
+        // Calculate cache indices being shared across Q, K, V kernels
         int cache_idx = qkv_idx * gridDim.z * gridDim.y * gridDim.x +
-                        blockIdx.z * gridDim.y * gridDim.x +
+                        blockIdx.z * (gridDim.y * gridDim.x) +
                         blockIdx.y * gridDim.x +
                         blockIdx.x;
 
+        // Check cache bounds
         if (cache_idx < 200000000) {
             d_gcache[cache_idx] = shared_mem[0];
         }
@@ -412,16 +416,19 @@ __global__ void kernel_compute_intermediate_attention_matmul(
 __global__ void kernel_compute_full_attention_tensors(
     __half *O_tensor, int *Linear_shape,
     float *d_gcache, int qkv_idx) {
-        int token_idx = blockIdx.y;
+    // Kernel start
+    //
+    int token_idx = blockIdx.y;
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int embed_groups = EMBED_SIZE / Linear_shape[0];
 
     if (token_idx >= d_NUM_TOKENS) return;
     if (embed_idx >= EMBED_SIZE) return;
+    if (embed_groups <= 0) return;
 
     float sum = 0.0f;
-    int cache_idx;
-
-    for (int i = 0; i < Linear_shape[0]; i++) {  // Changed from embed_groups to Linear_shape[0]
+    int cache_idx = 0;
+    for (int i = 0; i < embed_groups; i++) {
         cache_idx = qkv_idx * gridDim.y * gridDim.x * blockDim.x +
                     blockIdx.y * gridDim.x * blockDim.x +
                     blockIdx.x * blockDim.x +
@@ -429,9 +436,8 @@ __global__ void kernel_compute_full_attention_tensors(
 
         sum += d_gcache[cache_idx];
     }
+    __syncthreads();
 
-    // Write the sum to the tensor for each embed_idx, not just threadIdx.x == 0
+    // Convert the accumulated sum to __half and store it in O_tensor
     O_tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half(sum);
-
-    return;
 }
