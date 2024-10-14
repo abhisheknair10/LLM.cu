@@ -55,6 +55,8 @@ int main() {
         return 1;
     }
 
+    CudaCache *Cache = init_cache(llama3_model);
+
     char *input_str = strdup("If you are reading the data from the Internet instead, the same techniques can generally be used with the response you get from your HTTP API (it will be a file-like object); however, it is heavily recommended to use the third-party Requests library instead, which includes built-in support for JSON requests.");
 
     /*

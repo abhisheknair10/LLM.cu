@@ -9,8 +9,21 @@
 
 #include "llama3/llama3.cuh"
 
+typedef struct {
+    float *d_gnorm_cache;
+    float *d_attq_cache;
+    float *d_attk_cache;
+    float *d_attv_cache;
+
+    Tensor *Q;
+    Tensor *K;
+    Tensor *V;
+} CudaCache;
+
+CudaCache *init_cache(Llama3 *llama3_model);
+
 /* ******************************** Inference Code ******************************** */
-void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens);
+void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache);
 
 /* *************************** Convert Tokens to Embeddings *************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens);

@@ -79,8 +79,36 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
     return;
 }
 
+/* ******************************** Cache ******************************** */
+CudaCache *init_cache(Llama3 llama3_model) {
+    CudaCache *Cache = (CudaCache *)malloc(sizeof(CudaCache));
+
+    float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
+    float *d_attq_cache = create_gmemcache(50000000, sizeof(float));
+    float *d_attk_cache = create_gmemcache(10000000, sizeof(float));
+    float *d_attv_cache = create_gmemcache(10000000, sizeof(float));
+
+    Cache->d_gnorm_cache = d_gnorm_cache;
+    Cache->d_attq_cache = d_attq_cache;
+    Cache->d_attk_cache = d_attk_cache;
+    Cache->d_attv_cache = d_attv_cache;
+
+    Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
+    Tensor *K = (Tensor *)malloc(sizeof(Tensor));
+    Tensor *V = (Tensor *)malloc(sizeof(Tensor));
+    _create_intermediary_attention_tensor(Q, llama3_model->layers[0]->self_attn_q_proj);
+    _create_intermediary_attention_tensor(K, llama3_model->layers[0]->self_attn_k_proj);
+    _create_intermediary_attention_tensor(V, llama3_model->layers[0]->self_attn_v_proj);
+
+    Cache->Q = Q;
+    Cache->K = K;
+    Cache->V = V;
+
+    return Cache;
+}
+
 /* ******************************** Inference Code ******************************** */
-void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
+void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     int embed_size = 4096;
     cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
 
@@ -96,28 +124,14 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
-
-    float *d_attq_cache = create_gmemcache(50000000, sizeof(float));
-    float *d_attk_cache = create_gmemcache(10000000, sizeof(float));
-    float *d_attv_cache = create_gmemcache(10000000, sizeof(float));
-
-    Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
-    Tensor *K = (Tensor *)malloc(sizeof(Tensor));
-    Tensor *V = (Tensor *)malloc(sizeof(Tensor));
-    _create_intermediary_attention_tensor(Q, llama3_model->layers[0]->self_attn_q_proj);
-    _create_intermediary_attention_tensor(K, llama3_model->layers[0]->self_attn_k_proj);
-    _create_intermediary_attention_tensor(V, llama3_model->layers[0]->self_attn_v_proj);
-
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
         copy_fp16_tensor(PN_X, X);
-        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gnorm_cache);
+        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
         // Attention computation
-        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X,
-                            d_attq_cache, d_attk_cache, d_attv_cache);
+        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X, Cache);
 
         break;
     }
@@ -305,10 +319,10 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     *(Attention_Tensor->ndim) = 2;
 
     Attention_Tensor->mem_len = (int *)malloc(sizeof(int));
-    *(Attention_Tensor->mem_len) = Linear->shape[0] * h_NUM_TOKENS;
+    *(Attention_Tensor->mem_len) = Linear->shape[0] * 2048;
 
     Attention_Tensor->shape = (int *)malloc(sizeof(int) * 2);
-    Attention_Tensor->shape[0] = h_NUM_TOKENS;
+    Attention_Tensor->shape[0] = 2048;
     Attention_Tensor->shape[1] = Linear->shape[0];
 
     // Allocate CUDA memory
@@ -333,20 +347,20 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X,
-                         float *d_attq_cache, float *d_attk_cache, float *d_attv_cache) {
+                         CudaCache *Cache) {
     // -------- Compute intermediate matmul in cache --------
 
     // Queries
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_attq_cache);
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_attk_cache);
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_attv_cache);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, Cache->d_attq_cache);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, Cache->d_attk_cache);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, Cache->d_attv_cache);
 
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensors --------
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_attq_cache);
-    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_attk_cache);
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_attv_cache);
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, Cache->d_attq_cache);
+    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, Cache->d_attk_cache);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, Cache->d_attv_cache);
 
     cudaDeviceSynchronize();
 
