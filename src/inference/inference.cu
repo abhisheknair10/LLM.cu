@@ -349,6 +349,9 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
 
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
+    cudaDeviceSynchronize();
+
     return;
 }
 
