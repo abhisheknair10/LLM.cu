@@ -1,6 +1,6 @@
-# LLM.cu - A LLaMa3-8B CUDA Inference Engine
+# LLM.cu - A LLaMA3-8B CUDA Inference Engine
 
-LLM.cu is a CUDA native implementation of the LLaMa3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, facilitating scalable parallel processing on Nvidia GPUs.
+LLM.cu is a CUDA native implementation of the LLaMA3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, facilitating scalable parallel processing on Nvidia GPUs.
 
 ## Implementation Details
 
