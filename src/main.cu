@@ -74,7 +74,7 @@ int main() {
     int *d_tokens = tokens_to_cuda(tokens, 4096, X);
     printf(GREEN "[CUDA]" RESET " Tokenized input and moved to CUDA Device\n");
 
-    inference(llama3_model, X, d_tokens, tokens);
+    inference(llama3_model, X, d_tokens, tokens, Cache);
 
     if (TEST) {
         // Check the 0th index of the k_proj tensor of the first layer
