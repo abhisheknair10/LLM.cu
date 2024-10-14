@@ -340,7 +340,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
 
     size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
 
-    kernel_compute_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
+    kernel_compute_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
         Q->d_fp16_tensor, Q->d_ndim, Q->d_shape,
         L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_ndim, L3_Layer->self_attn_q_proj->d_shape,
         X->d_fp16_tensor, X->d_ndim, X->d_shape,
