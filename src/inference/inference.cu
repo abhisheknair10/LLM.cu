@@ -96,7 +96,11 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    float *d_gcache = create_gmemcache(200000000, sizeof(float));
+    float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
+
+    float *d_attq_cache = create_gmemcache(50000000, sizeof(float));
+    float *d_attk_cache = create_gmemcache(10000000, sizeof(float));
+    float *d_attv_cache = create_gmemcache(10000000, sizeof(float));
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
@@ -112,7 +116,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gcache);
 
         // Attention computation
-        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X, d_gcache);
+        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X,
+                            d_attq_cache, d_attk_cache, d_attv_cache);
 
         break;
     }
@@ -327,22 +332,21 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 }
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
-                         Llama3Layer *L3_Layer, Tensor *X, float *d_gcache) {
+                         Llama3Layer *L3_Layer, Tensor *X,
+                         float *d_attq_cache, float *d_attk_cache, float *d_attv_cache) {
     // -------- Compute intermediate matmul in cache --------
 
-    cudaMemset(d_gcache, 0, sizeof(float) * 200000000);
-
     // Queries
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 2);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_attq_cache);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_attk_cache);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_attv_cache);
 
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensors --------
-    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 1);
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 2);
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_attq_cache);
+    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_attk_cache);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_attv_cache);
 
     cudaDeviceSynchronize();
 
@@ -362,8 +366,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     return;
 }
 
-void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X,
-                                                 float *d_gcache, int qkv_idx) {
+void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, float *d_gcache) {
     // Function start
     //
     int blockx, blocky, blockz;
@@ -378,13 +381,12 @@ void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X,
     size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
 
     kernel_compute_intermediate_attention_matmul<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
-        Proj_Layer->d_fp16_tensor, Proj_Layer->d_shape,
-        X->d_fp16_tensor, d_gcache, qkv_idx);
+        Proj_Layer->d_fp16_tensor, Proj_Layer->d_shape, X->d_fp16_tensor, d_gcache);
 }
 
 __global__ void kernel_compute_intermediate_attention_matmul(
     __half *Linear_tensor, int *Linear_shape,
-    __half *X_tensor, float *d_gcache, int qkv_idx) {
+    __half *X_tensor, float *d_gcache) {
     extern __shared__ float shared_mem[];
 
     int total_blocks_x = (EMBED_SIZE + blockDim.x - 1) / blockDim.x;
@@ -411,23 +413,16 @@ __global__ void kernel_compute_intermediate_attention_matmul(
     }
 
     if (threadIdx.x == 0) {
-        int cache_idx = qkv_idx * d_NUM_TOKENS * Linear_shape[0] * total_blocks_x +
-                        token_idx * Linear_shape[0] * total_blocks_x +
+        int cache_idx = token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
                         blockIdx.x;
         if (cache_idx < 200000000) {
-            if (d_gcache[cache_idx] != 0.0f) {
-                printf("Found Error\n");
-            }
             d_gcache[cache_idx] = shared_mem[0];
-        } else {
-            printf("000\n");
         }
     }
 }
 
-void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
-                                         float *d_gcache, int qkv_idx) {
+void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer, float *d_gcache) {
     // Function start
     //
     int blockx, blocky;
@@ -438,13 +433,12 @@ void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_
     blocks = dim3(blockx, blocky);
 
     kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape,
-        d_gcache, qkv_idx);
+        Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape, d_gcache);
 }
 
 __global__ void kernel_compute_full_attention_tensors(
     __half *O_tensor, int *Linear_shape,
-    float *d_gcache, int qkv_idx) {
+    float *d_gcache) {
     int total_blocks_x = (EMBED_SIZE + blockDim.x - 1) / blockDim.x;
 
     int token_idx = blockIdx.y;
@@ -455,8 +449,7 @@ __global__ void kernel_compute_full_attention_tensors(
 
     float sum = 0.0f;
     for (int i = 0; i < total_blocks_x; i++) {
-        int cache_idx = qkv_idx * d_NUM_TOKENS * Linear_shape[0] * total_blocks_x +
-                        token_idx * Linear_shape[0] * total_blocks_x +
+        int cache_idx = token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
                         i;
         sum += d_gcache[cache_idx];

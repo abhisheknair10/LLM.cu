@@ -32,18 +32,19 @@ __global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_ten
 void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Linear);
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
-                         Llama3Layer *L3_Layer, Tensor *X, float *d_gcache);
+                         Llama3Layer *L3_Layer, Tensor *X,
+                         float *d_attq_cache, float *d_attk_cache, float *d_attv_cache);
 
 void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X,
-                                                 float *d_gcache, int qkv_idx);
+                                                 float *d_gcache, int d_gcache_offset);
 
 __global__ void kernel_compute_intermediate_attention_matmul(
     __half *Linear_tensor, int *Linear_shape,
-    __half *X_tensor, float *d_gcache, int qkv_idx);
+    __half *X_tensor, float *d_gcache, int d_gcache_offset);
 
 void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
-                                         float *d_gcache, int qkv_idx);
+                                         float *d_gcache, int d_gcache_offset);
 
 __global__ void kernel_compute_full_attention_tensors(
     __half *O_tensor, int *Linear_shape,
-    float *d_gcache, int qkv_idx);
+    float *d_gcache, int d_gcache_offset);
