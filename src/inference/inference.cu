@@ -131,7 +131,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
         // Attention computation
-        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X, Cache);
+        compute_qkv_tensors(CudaCache->Q, CudaCache->K, CudaCache->V, llama3_model->layers[i], X, Cache);
 
         break;
     }
@@ -139,10 +139,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     printCudaMemoryInfo();
 
     free_tensor_cuda(PN_X);
-    free_tensor_cuda(Q);
-    free_tensor_cuda(K);
-    free_tensor_cuda(V);
-    cudaFree(d_gnorm_cache);
 
     return;
 }
