@@ -331,29 +331,29 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     // -------- Compute intermediate matmul in cache --------
 
     // Queries
-    // _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
-    // _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 2);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 2);
 
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensors --------
-    // _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 0);
     _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
-    // _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 2);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 1);
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 2);
 
     cudaDeviceSynchronize();
 
     // ------------------------- Checks -------------------------
 
-    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
+    cudaDeviceSynchronize();
 
     CHECK_CUDA_ERROR();
 
