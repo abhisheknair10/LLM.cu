@@ -345,7 +345,9 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
         L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_ndim, L3_Layer->self_attn_q_proj->d_shape,
         X->d_fp16_tensor, X->d_ndim, X->d_shape,
         d_gcache, 0);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     return;
 }
