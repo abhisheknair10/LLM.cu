@@ -15,6 +15,7 @@ typedef struct {
     float *d_attk_cache;
     float *d_attv_cache;
 
+    Tensor *PN_X;
     Tensor *Q;
     Tensor *K;
     Tensor *V;
@@ -29,7 +30,7 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens);
 __global__ void kernel_tokens_to_embeddings(__half *fp16_tensor, __half *Embed, int *tokens);
 
 /* ******************************* Layer Normalization ******************************* */
-void _create_intermediary_prenorm_tensor_copy(Tensor *Y, Tensor *X);
+Tensor *_create_intermediary_prenorm_tensor_copy();
 
 void copy_fp16_tensor(Tensor *Y, Tensor *X);
 

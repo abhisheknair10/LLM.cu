@@ -81,7 +81,12 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
 /* ******************************** Cache ******************************** */
 CudaCache *init_cache(Llama3 *llama3_model) {
+    // Ahead Of Time memory allocations
+    // Allocate once, use everywhere
     CudaCache *Cache = (CudaCache *)malloc(sizeof(CudaCache));
+
+    Tensor *PN_X = _create_intermediary_prenorm_tensor_copy();
+    Cache->PN_X = PN_X;
 
     float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
     float *d_attq_cache = create_gmemcache(50000000, sizeof(float));
@@ -115,11 +120,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     free(h_tokens);
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
-
-    // Ahead Of Time memory allocations
-    // Allocate once, use everywhere
-    Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
-    _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
@@ -174,22 +174,23 @@ __global__ void kernel_tokens_to_embeddings(__half *X_tensor, __half *Embed, int
 }
 
 /* ******************************* Layer Normalization ******************************* */
-void _create_intermediary_prenorm_tensor_copy(Tensor *Y, Tensor *X) {
+Tensor *_create_intermediary_prenorm_tensor_copy() {
+    Tensor *Y = (Tensor *)malloc(sizeof(Tensor));
+
     int *d_ndim;
     int *d_mem_len;
     int *d_shape;
     __half *d_fp16_tensor;
 
     Y->ndim = (int *)malloc(sizeof(int));
-    *(Y->ndim) = *(X->ndim);
+    *(Y->ndim) = 2;
 
     Y->mem_len = (int *)malloc(sizeof(int));
-    *(Y->mem_len) = *(X->mem_len);
+    *(Y->mem_len) = 4096 * 2048;
 
-    Y->shape = (int *)malloc(sizeof(int) * (*(X->ndim)));
-    for (int i = 0; i < (*(X->ndim)); i++) {
-        Y->shape[i] = X->shape[i];
-    }
+    Y->shape = (int *)malloc(sizeof(int) * 2);
+    Y->shape[0] = 2048;
+    Y->shape[0] = 4096;
 
     // Allocate CUDA memory
     cudaMalloc(&d_ndim, sizeof(int));
@@ -208,7 +209,7 @@ void _create_intermediary_prenorm_tensor_copy(Tensor *Y, Tensor *X) {
     Y->d_shape = d_shape;
     Y->d_fp16_tensor = d_fp16_tensor;
 
-    return;
+    return Y;
 }
 
 void copy_fp16_tensor(Tensor *Y, Tensor *X) {
