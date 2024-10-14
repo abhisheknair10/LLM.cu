@@ -29,7 +29,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
 __global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache);
 
 /* ******************************* Attention Computation ******************************* */
-Tensor *_create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Linear);
+Tensor *_create_intermediary_attention_tensor(Tensor *Linear);
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X,
