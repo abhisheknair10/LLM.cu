@@ -328,7 +328,7 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X, float *d_gcache) {
-    int threads, blockx, blocky, blockz;
+    int blockx, blocky, blockz;
     dim3 blocks;
 
     // -------- Compute intermediate matmul in cache --------
@@ -426,7 +426,7 @@ __global__ void kernel_compute_full_attention_tensors(
     float sum = 0.0f;
     int cache_idx = 0;
     for (int i = 0; i < blockDim.x; i++) {
-        int cache_idx = qkv_idx * gridDim.y * gridDim.x * blockDim.x +
+        cache_idx = qkv_idx * gridDim.y * gridDim.x * blockDim.x +
                         token_idx * gridDim.x * blockDim.x +
                         fcoord_idx * blockDim.x +
                         i;
