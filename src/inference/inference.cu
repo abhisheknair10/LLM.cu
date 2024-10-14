@@ -66,10 +66,10 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-__global__ void check_embedding(__half *fp16_tensor) {
+__global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
-        for (int i = 0; i < 4096; i++) {
+        for (int i = 0; i < dim; i++) {
             float embedding = __half2float(fp16_tensor[token_idx * EMBED_SIZE + i]);
             printf("%f ", embedding);
         }
@@ -139,7 +139,7 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    // check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     // cudaDeviceSynchronize();
 
     return;
@@ -224,7 +224,7 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor);
+    // check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     // cudaDeviceSynchronize();
 }
 
@@ -338,7 +338,11 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
+    // cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
     // cudaDeviceSynchronize();
 
     return;
@@ -378,7 +382,6 @@ void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_
     kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape,
         d_gcache, qkv_idx);
-    cudaDeviceSynchronize();
 }
 
 __global__ void kernel_compute_intermediate_attention_matmul(
