@@ -112,7 +112,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gcache);
 
         // Attention computation
-        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X);
+        compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X, d_gcache);
 
         break;
     }
