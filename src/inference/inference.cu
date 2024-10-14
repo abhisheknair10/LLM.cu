@@ -368,7 +368,7 @@ void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_
                                          Tensor *X, float *d_gcache, int qkv_idx) {
     // Function start
     //
-    int blockx, blocky, blockz;
+    int blockx, blocky;
     dim3 blocks;
 
     blockx = Proj_Layer->shape[0] / MAX_THREADS_PER_BLOCK;
