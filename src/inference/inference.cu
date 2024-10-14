@@ -347,12 +347,12 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
-    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, X, d_gcache, 0);
-    cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 0);
-    cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
-    cudaDeviceSynchronize();
+    // _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, X, d_gcache, 0);
+    // cudaDeviceSynchronize();
+    // _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 0);
+    // cudaDeviceSynchronize();
+    // _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    // cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
