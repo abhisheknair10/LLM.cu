@@ -80,7 +80,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 }
 
 /* ******************************** Cache ******************************** */
-CudaCache *init_cache(Llama3 llama3_model) {
+CudaCache *init_cache(Llama3 *llama3_model) {
     CudaCache *Cache = (CudaCache *)malloc(sizeof(CudaCache));
 
     float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
