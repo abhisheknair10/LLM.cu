@@ -93,12 +93,9 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->d_attk_cache = d_attk_cache;
     Cache->d_attv_cache = d_attv_cache;
 
-    Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
-    Tensor *K = (Tensor *)malloc(sizeof(Tensor));
-    Tensor *V = (Tensor *)malloc(sizeof(Tensor));
-    _create_intermediary_attention_tensor(Q, llama3_model->layers[0]->self_attn_q_proj);
-    _create_intermediary_attention_tensor(K, llama3_model->layers[0]->self_attn_k_proj);
-    _create_intermediary_attention_tensor(V, llama3_model->layers[0]->self_attn_v_proj);
+    Tensor *Q = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
+    Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
+    Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
     Cache->Q = Q;
     Cache->K = K;
@@ -305,7 +302,9 @@ __global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_ten
 }
 
 /* ******************************* Attention Computation ******************************* */
-void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Linear) {
+Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
+    Tensor *Attention_Tensor = (Tensor *)malloc(sizeof(Tensor));
+
     int *d_ndim;
     int *d_mem_len;
     int *d_shape;
@@ -338,7 +337,7 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     Attention_Tensor->d_shape = d_shape;
     Attention_Tensor->d_fp16_tensor = d_fp16_tensor;
 
-    return;
+    return Attention_Tensor;
 }
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
@@ -362,16 +361,14 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
 
     // ------------------------- Checks -------------------------
 
-    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    // cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
-    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
+    // cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
-    cudaDeviceSynchronize();
-
-    CHECK_CUDA_ERROR();
+    // check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
+    // cudaDeviceSynchronize();
 
     return;
 }
