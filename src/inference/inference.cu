@@ -333,9 +333,17 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     // Queries
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
+    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, X, d_gcache, 0);
+    cudaDeviceSynchronize();
+
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 0);
+    cudaDeviceSynchronize();
+
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    cudaDeviceSynchronize();
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
@@ -381,22 +389,6 @@ void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X,
         X->d_fp16_tensor, d_gcache, qkv_idx);
 }
 
-void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
-                                         Tensor *X, float *d_gcache, int qkv_idx) {
-    // Function start
-    //
-    int blockx, blocky;
-    dim3 blocks;
-
-    blockx = Proj_Layer->shape[0] / MAX_THREADS_PER_BLOCK;
-    blocky = h_NUM_TOKENS;
-    blocks = dim3(blockx, blocky);
-
-    kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape,
-        d_gcache, qkv_idx);
-}
-
 __global__ void kernel_compute_intermediate_attention_matmul(
     __half *Linear_tensor, int *Linear_shape,
     __half *X_tensor, float *d_gcache, int qkv_idx) {
@@ -432,6 +424,22 @@ __global__ void kernel_compute_intermediate_attention_matmul(
                         blockIdx.x;
         d_gcache[cache_idx] = shared_mem[0];
     }
+}
+
+void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
+                                         Tensor *X, float *d_gcache, int qkv_idx) {
+    // Function start
+    //
+    int blockx, blocky;
+    dim3 blocks;
+
+    blockx = Proj_Layer->shape[0] / MAX_THREADS_PER_BLOCK;
+    blocky = h_NUM_TOKENS;
+    blocks = dim3(blockx, blocky);
+
+    kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
+        Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape,
+        d_gcache, qkv_idx);
 }
 
 __global__ void kernel_compute_full_attention_tensors(
