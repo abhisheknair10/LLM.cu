@@ -330,24 +330,26 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X, float *d_gcache) {
     // -------- Compute intermediate matmul in cache --------
 
+    cudaMemset(d_gcache, 0, sizeof(float) * 200000000);
+
     // Queries
-    // _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
-    // _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 2);
 
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensors --------
-    // _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
-    // _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 1);
+    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 1);
     _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 2);
 
     cudaDeviceSynchronize();
 
     // ------------------------- Checks -------------------------
 
-    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    cudaDeviceSynchronize();
+    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    // cudaDeviceSynchronize();
 
     // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
     // cudaDeviceSynchronize();
@@ -413,8 +415,10 @@ __global__ void kernel_compute_intermediate_attention_matmul(
                         token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
                         blockIdx.x;
-        if (cache_idx < 200000000) {
+        if (cache_idx < 200000000 && d_gcache[cache_idx] != 0) {
             d_gcache[cache_idx] = shared_mem[0];
+        } else {
+            printf("Found Error\n");
         }
     }
 }
