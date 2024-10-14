@@ -21,7 +21,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-const int THREADS_PER_BLOCK = 1024;
+const int MAX_THREADS_PER_BLOCK = 1024;
 
 __constant__ int EMBED_SIZE;
 
@@ -96,7 +96,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    float *d_gcache = create_gmemcache(10000, sizeof(float));
+    float *d_gcache = create_gmemcache(200000000, sizeof(float));
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
@@ -132,9 +132,9 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     // Order threads into blocks
     int total_threads = *(X->mem_len);
-    int blocks = (total_threads + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    int blocks = (total_threads + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK;
 
-    kernel_tokens_to_embeddings<<<blocks, THREADS_PER_BLOCK>>>(
+    kernel_tokens_to_embeddings<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         X->d_fp16_tensor, llama3_model->embed_tokens->d_fp16_tensor, d_tokens);
 
     cudaDeviceSynchronize();
@@ -210,17 +210,17 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
 }
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
-    int blocks_x = 4096 / THREADS_PER_BLOCK;
+    int blocks_x = 4096 / MAX_THREADS_PER_BLOCK;
     int blocks_y = h_NUM_TOKENS;
 
     dim3 blocks(blocks_x, blocks_y);
-    size_t shared_mem_size = THREADS_PER_BLOCK * sizeof(float);
+    size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
 
-    kernel_compute_rms_norm<<<blocks, THREADS_PER_BLOCK, shared_mem_size>>>(
+    kernel_compute_rms_norm<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
 
-    kernel_compute_norm_tensor<<<blocks, THREADS_PER_BLOCK>>>(
+    kernel_compute_norm_tensor<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
     cudaDeviceSynchronize();
 
@@ -326,15 +326,26 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
     return;
 }
 
-void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer, Tensor *X) {
-    /*
-    // Compute Queries
-    kernel_compute_attention_tensors<<<4, 1024>>>(
+void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
+                         Llama3Layer *L3_Layer, Tensor *X, float *d_gcache) {
+    int blockx, blocky, blockz;
+    dim3 blocks;
+
+    // Compute Queries ----------------------------------------------------
+    blockx = 4096 / MAX_THREADS_PER_BLOCK;
+    blocky = L3_Layer->self_attn_q_proj->shape[0];
+    blockz = h_NUM_TOKENS;
+
+    blocks = dim3(blockx, blocky, blockz);
+
+    size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
+
+    kernel_compute_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         Q->d_fp16_tensor, Q->d_ndim, Q->d_shape,
         L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_ndim, L3_Layer->self_attn_q_proj->d_shape,
-        X->d_fp16_tensor, X->d_ndim, X->d_shape);
+        X->d_fp16_tensor, X->d_ndim, X->d_shape,
+        d_gcache, 0);
     cudaDeviceSynchronize();
-    */
 
     return;
 }
@@ -342,22 +353,47 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V, Llama3Layer *L3_Layer,
 __global__ void kernel_compute_attention_tensors(
     __half *O_tensor, int *O_ndim, int *O_shape,
     __half *Linear_tensor, int *Linear_ndim, int *Linear_shape,
-    __half *X_tensor, int *X_ndim, int *X_shape) {
-    // Start of kernel
+    __half *X_tensor, int *X_ndim, int *X_shape,
+    float *d_gcache, int qkv_idx) {
+    // Kernel start
+    //
+    extern __shared__ float shared_mem[];
 
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int dim = gridDim.x * blockDim.x;
+    int token_idx = blockIdx.z;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int fcoord_idx = blockIdx.y;
 
-    // [4096][1024, 4096]
+    if (token_idx >= d_NUM_TOKENS) return;
+    if (embed_idx >= EMBED_SIZE) return;
+    if (fcoord_idx >= Linear_shape[0]) return;
 
-    if (idx >= dim) return;
+    float x = __half2float(X_tensor[token_idx * EMBED_SIZE + embed_idx]);
+    float f = __half2float(Linear_tensor[fcoord_idx * EMBED_SIZE + embed_idx]);
+    shared_mem[threadIdx.x] = x * f;
+    __syncthreads();
 
-    __half sum = 0;
-    for (int i = 0; i < EMBED_SIZE; i++) {
-        sum += (X_tensor[i] * Linear_tensor[EMBED_SIZE * i]);
+    // Perform parallel reduction in shared memory
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) {
+            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
+        }
+        __syncthreads();
     }
 
-    O_tensor[idx] = sum;
+    // Store partial sums in d_gcache
+    if (threadIdx.x == 0) {
+        // calculate cache indices being shared across Q, K, V kernels
+        int cache_idx = qkv_idx * gridDim.z * gridDim.y * gridDim.x +
+                        blockIdx.z * (gridDim.y * gridDim.x) +
+                        blockIdx.y * gridDim.x +
+                        blockIdx.x;
+
+        if (cache_idx < 200000000) {
+            d_gcache[cache_idx] = shared_mem[0];
+        } else {
+            printf("Error indexing %d\n", cache_idx);
+        }
+    }
 
     return;
 }
