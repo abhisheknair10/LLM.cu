@@ -9,6 +9,17 @@
 
 #include "llama3/llama3.cuh"
 
+typedef struct {
+    float *d_gnorm_cache;
+    float *d_attq_cache;
+    float *d_attk_cache;
+    float *d_attv_cache;
+
+    Tensor *Q;
+    Tensor *K;
+    Tensor *V;
+} CudaCache;
+
 /* ******************************** Inference Code ******************************** */
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache);
 
@@ -48,15 +59,4 @@ __global__ void kernel_compute_full_attention_tensors(
     float *d_gcache);
 
 /* ******************************* Cuda Cache ******************************* */
-typedef struct {
-    float *d_gnorm_cache;
-    float *d_attq_cache;
-    float *d_attk_cache;
-    float *d_attv_cache;
-
-    Tensor *Q;
-    Tensor *K;
-    Tensor *V;
-} CudaCache;
-
 CudaCache *init_cache(Llama3 *llama3_model);
