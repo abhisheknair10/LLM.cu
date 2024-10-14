@@ -96,7 +96,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    float *d_gcache = create_gmemcache(200000000000, sizeof(float));
+    float *d_gcache = create_gmemcache(200000000, sizeof(float));
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
@@ -412,7 +412,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
                         token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
                         blockIdx.x;
-        if (cache_idx < 200000000000) {
+        if (cache_idx < 200000000) {
             d_gcache[cache_idx] = shared_mem[0];
         }
     }
