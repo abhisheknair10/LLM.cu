@@ -28,6 +28,7 @@ __constant__ int EMBED_SIZE;
 __device__ int d_NUM_TOKENS;
 int h_NUM_TOKENS;
 
+/* ******************************** HELPERS ******************************** */
 // Allocate global mem cache on device
 float *create_gmemcache(size_t mem_len, size_t type_size) {
     float *d_gcache;
