@@ -328,14 +328,31 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X, float *d_gcache) {
-    int blockx, blocky, blockz;
-    dim3 blocks;
-
     // -------- Compute intermediate matmul in cache --------
 
     // Queries
+    _abstract_intermediate_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    cudaDeviceSynchronize();
+
+    // -------- Compute full matmul in output tensorss --------
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    cudaDeviceSynchronize();
+
+    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
+    // cudaDeviceSynchronize();
+
+    return;
+}
+
+void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X,
+                                                 float *d_gcache, int qkv_idx) {
+    // Function start
+    //
+    int blockx, blocky, blockz;
+    dim3 blocks;
+
     blockx = 4096 / MAX_THREADS_PER_BLOCK;
-    blocky = L3_Layer->self_attn_q_proj->shape[0];
+    blocky = Proj_Layer->shape[0];
     blockz = h_NUM_TOKENS;
 
     blocks = dim3(blockx, blocky, blockz);
@@ -343,28 +360,25 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
 
     kernel_compute_intermediate_attention_matmul<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
-        L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
-        X->d_fp16_tensor, d_gcache, 0);
-    cudaDeviceSynchronize();
+        Proj_Layer->d_fp16_tensor, Proj_Layer->d_shape,
+        X->d_fp16_tensor, d_gcache, qkv_idx);
+}
 
-    // -------- Compute full matmul in output tensorss --------
-    blockx = L3_Layer->self_attn_q_proj->shape[0] / MAX_THREADS_PER_BLOCK;
+void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
+                                         Tensor *X, float *d_gcache, int qkv_idx) {
+    // Function start
+    //
+    int blockx, blocky, blockz;
+    dim3 blocks;
+
+    blockx = Proj_Layer->shape[0] / MAX_THREADS_PER_BLOCK;
     blocky = h_NUM_TOKENS;
     blocks = dim3(blockx, blocky);
 
     kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        Q->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
-        d_gcache, 0);
-    CHECK_CUDA_ERROR();
+        Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape,
+        d_gcache, qkv_idx);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
-
-    check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
-    cudaDeviceSynchronize();
-
-    printf("Shape: %d, %d\n", Q->shape[0], Q->shape[1]);
-
-    return;
 }
 
 __global__ void kernel_compute_intermediate_attention_matmul(
