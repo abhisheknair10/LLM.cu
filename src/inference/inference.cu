@@ -352,6 +352,8 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     blocky = h_NUM_TOKENS;
     blocks = dim3(blockx, blocky);
 
+    printf("%d, %d, %d", MAX_THREADS_PER_BLOCK, blockx, blocky);
+
     kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         Q->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
         d_gcache, 0);
@@ -427,8 +429,8 @@ __global__ void kernel_compute_full_attention_tensors(
     int cache_idx = 0;
     for (int i = 0; i < blockDim.x; i++) {
         cache_idx = qkv_idx * gridDim.y * gridDim.x * blockDim.x +
-                    blockIdx.y * gridDim.x * blockDim.x +
-                    blockIdx.x * blockDim.x +
+                    token_idx * gridDim.x * blockDim.x +
+                    fcoord_idx * blockDim.x +
                     i;
 
         sum += d_gcache[cache_idx];
