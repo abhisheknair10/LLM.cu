@@ -415,10 +415,13 @@ __global__ void kernel_compute_intermediate_attention_matmul(
                         token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
                         blockIdx.x;
-        if (cache_idx < 200000000 && d_gcache[cache_idx] != 0) {
+        if (cache_idx < 200000000) {
+            if (d_gcache[cache_idx] != 0) {
+                printf("Found Error\n");
+            }
             d_gcache[cache_idx] = shared_mem[0];
         } else {
-            printf("Found Error\n");
+            printf("000\n");
         }
     }
 }
