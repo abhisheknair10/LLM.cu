@@ -441,8 +441,7 @@ void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_
 }
 
 __global__ void kernel_compute_full_attention_tensors(
-    __half *O_tensor, int *Linear_shape,
-    float *d_gcache) {
+    __half *O_tensor, int *Linear_shape, float *d_gcache) {
     int total_blocks_x = (EMBED_SIZE + blockDim.x - 1) / blockDim.x;
 
     int token_idx = blockIdx.y;

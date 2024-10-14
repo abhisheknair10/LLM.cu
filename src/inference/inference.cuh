@@ -56,8 +56,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
 void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer, float *d_gcache);
 
 __global__ void kernel_compute_full_attention_tensors(
-    __half *O_tensor, int *Linear_shape,
-    float *d_gcache);
+    __half *O_tensor, int *Linear_shape, float *d_gcache);
 
 /* ******************************* Cuda Cache ******************************* */
 CudaCache *init_cache(Llama3 *llama3_model);
