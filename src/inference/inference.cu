@@ -436,7 +436,10 @@ __global__ void kernel_compute_full_attention_tensors(
 
         sum += d_gcache[cache_idx];
     }
+    __syncthreads();
 
-    // Convert the accumulated sum to __half and store it in O_tensor
-    O_tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half(sum);
+    if (threadIdx.x == 0) {
+        // Convert the accumulated sum to __half and store it in O_tensor
+        O_tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half(sum);
+    }
 }
