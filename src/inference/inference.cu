@@ -376,31 +376,30 @@ __global__ void kernel_compute_intermediate_attention_matmul(
 
     int token_idx = blockIdx.z;
     int fcoord_idx = blockIdx.y;
-    int block_x = blockIdx.x;
-    int thread_x = threadIdx.x;
-    int embed_idx = block_x * blockDim.x + thread_x;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (token_idx >= d_NUM_TOKENS || fcoord_idx >= Linear_shape[0] || embed_idx >= EMBED_SIZE)
-        return;
+    if (token_idx >= d_NUM_TOKENS) return;
+    if (fcoord_idx >= Linear_shape[0]) return;
+    if (embed_idx >= EMBED_SIZE) return;
 
     float x = __half2float(X_tensor[token_idx * EMBED_SIZE + embed_idx]);
     float f = __half2float(Linear_tensor[fcoord_idx * EMBED_SIZE + embed_idx]);
-    shared_mem[thread_x] = x * f;
+    shared_mem[threadIdx.x] = x * f;
     __syncthreads();
 
     // Reduction
     for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-        if (thread_x < stride) {
-            shared_mem[thread_x] += shared_mem[thread_x + stride];
+        if (threadIdx.x < stride) {
+            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
         }
         __syncthreads();
     }
 
-    if (thread_x == 0) {
+    if (threadIdx.x == 0) {
         int cache_idx = qkv_idx * d_NUM_TOKENS * Linear_shape[0] * total_blocks_x +
                         token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
-                        block_x;
+                        blockIdx.x;
         d_gcache[cache_idx] = shared_mem[0];
     }
 }
@@ -413,8 +412,8 @@ __global__ void kernel_compute_full_attention_tensors(
     int token_idx = blockIdx.y;
     int fcoord_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (token_idx >= d_NUM_TOKENS || fcoord_idx >= Linear_shape[0])
-        return;
+    if (token_idx >= d_NUM_TOKENS) return;
+    if (fcoord_idx >= Linear_shape[0]) return;
 
     float sum = 0.0f;
     for (int i = 0; i < total_blocks_x; i++) {
