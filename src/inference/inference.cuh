@@ -42,7 +42,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
     __half *X_tensor, float *d_gcache, int qkv_idx);
 
 void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
-                                         Tensor *X, float *d_gcache, int qkv_idx);
+                                         float *d_gcache, int qkv_idx);
 
 __global__ void kernel_compute_full_attention_tensors(
     __half *O_tensor, int *Linear_shape,

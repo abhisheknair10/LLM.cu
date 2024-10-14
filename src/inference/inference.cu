@@ -333,25 +333,25 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     // Queries
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, X, d_gcache, 0);
+    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
     cudaDeviceSynchronize();
 
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 0);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
     cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 0);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 1);
     cudaDeviceSynchronize();
 
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 2);
     cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 2);
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
-    // _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, X, d_gcache, 0);
+    // _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
     // cudaDeviceSynchronize();
-    // _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 0);
+    // _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 0);
     // cudaDeviceSynchronize();
-    // _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    // _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 0);
     // cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
@@ -427,7 +427,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
 }
 
 void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer,
-                                         Tensor *X, float *d_gcache, int qkv_idx) {
+                                         float *d_gcache, int qkv_idx) {
     // Function start
     //
     int blockx, blocky;
