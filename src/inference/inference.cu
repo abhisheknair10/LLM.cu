@@ -138,8 +138,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     printCudaMemoryInfo();
 
-    free_tensor_cuda(PN_X);
-
     return;
 }
 
