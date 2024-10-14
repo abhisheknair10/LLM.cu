@@ -356,7 +356,9 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     kernel_compute_full_attention_tensors<<<blocks, threads>>>(
         Q->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
         d_gcache, 0);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
     cudaDeviceSynchronize();
