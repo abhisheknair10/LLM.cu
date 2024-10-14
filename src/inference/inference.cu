@@ -348,12 +348,11 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
-    threads = 4096 / MAX_THREADS_PER_BLOCK;
-    blockx = L3_Layer->self_attn_q_proj->shape[0];
+    blockx = L3_Layer->self_attn_q_proj->shape[0] / MAX_THREADS_PER_BLOCK;
     blocky = h_NUM_TOKENS;
     blocks = dim3(blockx, blocky);
 
-    kernel_compute_full_attention_tensors<<<blocks, threads>>>(
+    kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         Q->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
         d_gcache, 0);
     CHECK_CUDA_ERROR();
@@ -400,7 +399,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
     if (threadIdx.x == 0) {
         // Calculate cache indices being shared across Q, K, V kernels
         int cache_idx = qkv_idx * gridDim.z * gridDim.y * gridDim.x +
-                        blockIdx.z * (gridDim.y * gridDim.x) +
+                        blockIdx.z * gridDim.y * gridDim.x +
                         blockIdx.y * gridDim.x +
                         blockIdx.x;
 
@@ -418,26 +417,23 @@ __global__ void kernel_compute_full_attention_tensors(
     float *d_gcache, int qkv_idx) {
     // Kernel start
     //
+    int fcoord_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int token_idx = blockIdx.y;
-    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int embed_groups = EMBED_SIZE / Linear_shape[0];
 
+    if (fcoord_idx >= Linear_shape[0]) return;
     if (token_idx >= d_NUM_TOKENS) return;
-    if (embed_idx >= EMBED_SIZE) return;
-    if (embed_groups <= 0) return;
 
     float sum = 0.0f;
     int cache_idx = 0;
-    for (int i = 0; i < embed_groups; i++) {
-        cache_idx = qkv_idx * gridDim.y * gridDim.x * blockDim.x +
-                    blockIdx.y * gridDim.x * blockDim.x +
-                    blockIdx.x * blockDim.x +
-                    i;
+    for (int i = 0; i < blockDim.x; i++) {
+        int cache_idx = qkv_idx * gridDim.y * gridDim.x * blockDim.x +
+                        token_idx * gridDim.x * blockDim.x +
+                        fcoord_idx * blockDim.x +
+                        i;
 
         sum += d_gcache[cache_idx];
     }
-    __syncthreads();
 
     // Convert the accumulated sum to __half and store it in O_tensor
-    O_tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half(sum);
+    O_tensor[token_idx * Linear_shape[0] + fcoord_idx] = __float2half(sum);
 }
