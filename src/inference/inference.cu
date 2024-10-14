@@ -96,7 +96,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    float *d_gcache = create_gmemcache(200000000, sizeof(float));
+    float *d_gcache = create_gmemcache(2000000000, sizeof(float));
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
