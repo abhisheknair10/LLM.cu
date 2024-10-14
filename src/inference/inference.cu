@@ -332,37 +332,27 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
 
     // Queries
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
-    cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
-    cudaDeviceSynchronize();
-
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
-    cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 1);
-    cudaDeviceSynchronize();
-
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 2);
-    cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 2);
+
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
-    // _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 0);
-    // cudaDeviceSynchronize();
-    // _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 0);
-    // cudaDeviceSynchronize();
-    // _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 0);
-    // cudaDeviceSynchronize();
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, d_gcache, 0);
+    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, d_gcache, 1);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, d_gcache, 2);
 
-    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
-    // printf("Queries\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
-    // printf("Keys\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    // check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
-    // printf("Values\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    cudaDeviceSynchronize();
+
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
+    printf("Queries\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
+    cudaDeviceSynchronize();
+    printf("Keys\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+    check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
+    cudaDeviceSynchronize();
+    printf("Values\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
 
     CHECK_CUDA_ERROR();
 
@@ -424,8 +414,6 @@ __global__ void kernel_compute_intermediate_attention_matmul(
                         blockIdx.x;
         if (cache_idx < 2000000000) {
             d_gcache[cache_idx] = shared_mem[0];
-        } else {
-            printf("Bad access\n");
         }
     }
 }
