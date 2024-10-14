@@ -416,7 +416,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
                         fcoord_idx * total_blocks_x +
                         blockIdx.x;
         if (cache_idx < 200000000) {
-            if (d_gcache[cache_idx] != 0) {
+            if (d_gcache[cache_idx] == 0.0f) {
                 printf("Found Error\n");
             }
             d_gcache[cache_idx] = shared_mem[0];
