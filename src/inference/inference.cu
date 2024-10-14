@@ -87,19 +87,19 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
     // Allocate Memory --------------------------------------------------------
     Tensor *PN_X = _create_intermediary_prenorm_tensor_copy();
-    
+
     float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
     float *d_attq_cache = create_gmemcache(50000000, sizeof(float));
     float *d_attk_cache = create_gmemcache(10000000, sizeof(float));
     float *d_attv_cache = create_gmemcache(10000000, sizeof(float));
-    
+
     Tensor *Q = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
-    
+
     Cache->d_gnorm_cache = d_gnorm_cache;
     Cache->d_attq_cache = d_attq_cache;
     Cache->d_attk_cache = d_attk_cache;
@@ -127,7 +127,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
-        copy_fp16_tensor(PN_X, X);
+        copy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
         // Attention computation
