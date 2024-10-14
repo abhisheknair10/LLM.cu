@@ -367,7 +367,7 @@ void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X,
     dim3 blocks;
 
     blockx = 4096 / MAX_THREADS_PER_BLOCK;
-    blocky = Proj_Layer->shape[0] / MAX_THREADS_PER_BLOCK;
+    blocky = Proj_Layer->shape[1];
     blockz = h_NUM_TOKENS;
 
     blocks = dim3(blockx, blocky, blockz);
