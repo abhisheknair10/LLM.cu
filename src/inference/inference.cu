@@ -331,7 +331,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     // -------- Compute intermediate matmul in cache --------
 
     // Queries
-    _abstract_intermediate_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
