@@ -113,7 +113,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
         copy_fp16_tensor(PN_X, X);
-        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gcache);
+        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, d_gnorm_cache);
 
         // Attention computation
         compute_qkv_tensors(Q, K, V, llama3_model->layers[i], X,
@@ -128,7 +128,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     free_tensor_cuda(Q);
     free_tensor_cuda(K);
     free_tensor_cuda(V);
-    cudaFree(d_gcache);
+    cudaFree(d_gnorm_cache);
 
     return;
 }
