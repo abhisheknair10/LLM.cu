@@ -397,9 +397,9 @@ __global__ void kernel_compute_intermediate_attention_matmul(
     // Store partial sums in d_gcache
     if (threadIdx.x == 0) {
         // Calculate cache indices being shared across Q, K, V kernels
-        int cache_idx = qkv_idx * gridDim.z * gridDim.y * gridDim.x +
-                        blockIdx.z * (gridDim.y * gridDim.x) +
-                        blockIdx.y * gridDim.x +
+        int cache_idx = qkv_idx * d_NUM_TOKENS * Linear_shape[0] * num_blocks_x +
+                        token_idx * Linear_shape[0] * num_blocks_x +
+                        fcoord_idx * num_blocks_x +
                         blockIdx.x;
 
         // Check cache bounds
@@ -426,11 +426,12 @@ __global__ void kernel_compute_full_attention_tensors(
 
     float sum = 0.0f;
     int cache_idx = 0;
+    int embed_groups = blockDim.x;
     for (int i = 0; i < embed_groups; i++) {
-        cache_idx = qkv_idx * (d_NUM_TOKENS * EMBED_SIZE * embed_groups) +
-                    token_idx * (EMBED_SIZE * embed_groups) +
-                    embed_idx * embed_groups +
-                    i;
+        int cache_idx = qkv_idx * d_NUM_TOKENS * Linear_shape[0] * embed_groups +
+                        token_idx * Linear_shape[0] * embed_groups +
+                        fcoord_idx * embed_groups +
+                        i;
 
         sum += d_gcache[cache_idx];
     }
