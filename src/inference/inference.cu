@@ -363,6 +363,8 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
     cudaDeviceSynchronize();
 
+    printf("Shape: %d, %d\n", Q->shape[0], Q->shape[1]);
+
     return;
 }
 
