@@ -69,7 +69,7 @@ void printCudaMemoryInfo() {
 __global__ void check_embedding(__half *fp16_tensor) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
-        for (int i = 0; i < EMBED_SIZE; i++) {
+        for (int i = 0; i < 1024; i++) {
             float embedding = __half2float(fp16_tensor[token_idx * EMBED_SIZE + i]);
             printf("%f ", embedding);
         }
@@ -328,10 +328,12 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X, float *d_gcache) {
-    int blockx, blocky, blockz;
+    int threads, blockx, blocky, blockz;
     dim3 blocks;
 
-    // Compute Queries ----------------------------------------------------
+    // -------- Compute intermediate matmul in cache --------
+
+    // Queries
     blockx = 4096 / MAX_THREADS_PER_BLOCK;
     blocky = L3_Layer->self_attn_q_proj->shape[0];
     blockz = h_NUM_TOKENS;
@@ -340,14 +342,21 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
 
     size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
 
-    kernel_compute_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
-        Q->d_fp16_tensor, Q->d_ndim, Q->d_shape,
-        L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_ndim, L3_Layer->self_attn_q_proj->d_shape,
-        X->d_fp16_tensor, X->d_ndim, X->d_shape,
-        d_gcache, 0);
-    CHECK_CUDA_ERROR();
+    kernel_compute_intermediate_attention_matmul<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
+        L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
+        X->d_fp16_tensor, d_gcache, 0);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
+
+    // -------- Compute full matmul in output tensorss --------
+    threads = 4096 / MAX_THREADS_PER_BLOCK;
+    blockx = L3_Layer->self_attn_q_proj->shape[0];
+    blocky = h_NUM_TOKENS;
+    blocks = dim3(blockx, blocky);
+
+    kernel_compute_full_attention_tensors<<<blocks, threads>>>(
+        Q->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
+        d_gcache, 0);
+    cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor);
     cudaDeviceSynchronize();
@@ -355,11 +364,9 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     return;
 }
 
-__global__ void kernel_compute_attention_tensors(
-    __half *O_tensor, int *O_ndim, int *O_shape,
-    __half *Linear_tensor, int *Linear_ndim, int *Linear_shape,
-    __half *X_tensor, int *X_ndim, int *X_shape,
-    float *d_gcache, int qkv_idx) {
+__global__ void kernel_compute_intermediate_attention_matmul(
+    __half *Linear_tensor, int *Linear_shape,
+    __half *X_tensor, float *d_gcache, int qkv_idx) {
     // Kernel start
     //
     extern __shared__ float shared_mem[];
@@ -387,18 +394,45 @@ __global__ void kernel_compute_attention_tensors(
 
     // Store partial sums in d_gcache
     if (threadIdx.x == 0) {
-        // calculate cache indices being shared across Q, K, V kernels
+        // Calculate cache indices being shared across Q, K, V kernels
         int cache_idx = qkv_idx * gridDim.z * gridDim.y * gridDim.x +
                         blockIdx.z * (gridDim.y * gridDim.x) +
                         blockIdx.y * gridDim.x +
                         blockIdx.x;
 
+        // Check cache bounds
         if (cache_idx < 200000000) {
             d_gcache[cache_idx] = shared_mem[0];
-        } else {
-            printf("Error indexing %d\n", cache_idx);
         }
     }
 
     return;
+}
+
+__global__ void kernel_compute_full_attention_tensors(
+    __half *O_tensor, int *Linear_shape,
+    float *d_gcache, int qkv_idx) {
+    // Kernel start
+    //
+    int token_idx = blockIdx.y;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int embed_groups = EMBED_SIZE / Linear_shape[0];
+
+    if (token_idx >= d_NUM_TOKENS) return;
+    if (embed_idx >= EMBED_SIZE) return;
+    if (embed_groups <= 0) return;
+
+    float sum = 0.0f;
+    int cache_idx = 0;
+    for (int i = 0; i < embed_groups; i++) {
+        cache_idx = qkv_idx * (d_NUM_TOKENS * EMBED_SIZE * embed_groups) +
+                    token_idx * (EMBED_SIZE * embed_groups) +
+                    embed_idx * embed_groups +
+                    i;
+
+        sum += d_gcache[cache_idx];
+    }
+
+    // Convert the accumulated sum to __half and store it in O_tensor
+    O_tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half(sum);
 }

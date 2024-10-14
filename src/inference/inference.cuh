@@ -34,8 +34,10 @@ void _create_intermediary_attention_tensor(Tensor *Attention_Tensor, Tensor *Lin
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X, float *d_gcache);
 
-__global__ void kernel_compute_attention_tensors(
-    __half *O_tensor, int *O_ndim, int *O_shape,
-    __half *Linear_tensor, int *Linear_ndim, int *Linear_shape,
-    __half *X_tensor, int *X_ndim, int *X_shape,
+__global__ void kernel_compute_intermediate_attention_matmul(
+    __half *Linear_tensor, int *Linear_shape,
+    __half *X_tensor, float *d_gcache, int qkv_idx);
+
+__global__ void kernel_compute_full_attention_tensors(
+    __half *O_tensor, int *Linear_shape,
     float *d_gcache, int qkv_idx);
