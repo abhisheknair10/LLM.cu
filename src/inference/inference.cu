@@ -352,14 +352,14 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
 
     // ------------------------- Checks -------------------------
 
-    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
+    cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
+    cudaDeviceSynchronize();
 
     CHECK_CUDA_ERROR();
 
@@ -416,9 +416,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
         int cache_idx = token_idx * Linear_shape[0] * total_blocks_x +
                         fcoord_idx * total_blocks_x +
                         blockIdx.x;
-        if (cache_idx < 200000000) {
-            d_gcache[cache_idx] = shared_mem[0];
-        }
+        d_gcache[cache_idx] = shared_mem[0];
     }
 }
 
