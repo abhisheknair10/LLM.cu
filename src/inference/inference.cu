@@ -96,7 +96,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens) {
     Tensor *PN_X = (Tensor *)malloc(sizeof(Tensor));
     _create_intermediary_prenorm_tensor_copy(PN_X, X);
 
-    float *d_gcache = create_gmemcache(600000000, sizeof(float));
+    float *d_gcache = create_gmemcache(200000000, sizeof(float));
 
     Tensor *Q = (Tensor *)malloc(sizeof(Tensor));
     Tensor *K = (Tensor *)malloc(sizeof(Tensor));
@@ -333,17 +333,17 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     // Queries
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 1);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 2);
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
 
     // -------- Compute full matmul in output tensorss --------
     _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 1);
+    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 2);
+    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, X, d_gcache, 0);
     cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
