@@ -352,8 +352,6 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     blocky = h_NUM_TOKENS;
     blocks = dim3(blockx, blocky);
 
-    printf("%d, %d, %d", MAX_THREADS_PER_BLOCK, blockx, blocky);
-
     kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         Q->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_shape,
         d_gcache, 0);
@@ -401,8 +399,8 @@ __global__ void kernel_compute_intermediate_attention_matmul(
     if (threadIdx.x == 0) {
         // Calculate cache indices being shared across Q, K, V kernels
         int cache_idx = qkv_idx * gridDim.z * gridDim.y * gridDim.x +
-                        blockIdx.z * gridDim.y * gridDim.x +
-                        blockIdx.y * gridDim.x +
+                        token_idx * gridDim.y * gridDim.x +
+                        fcoord_idx * gridDim.x +
                         blockIdx.x;
 
         // Check cache bounds
