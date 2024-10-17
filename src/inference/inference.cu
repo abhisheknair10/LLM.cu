@@ -134,6 +134,9 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         // Attention computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
+        // RoPE scaling
+        rope_scaling(Cache->Q, Cache->K);
+
         break;
     }
 
@@ -461,3 +464,52 @@ __global__ void kernel_compute_full_attention_tensors(
 
     O_tensor[token_idx * Linear_shape[0] + fcoord_idx] = __float2half(sum);
 }
+
+/* ************************ Rotary Positional Embedding (RoPE) ************************ */
+void rope_scaling(Tensor *Q, Tensor *K) {
+    dim3 blocks;
+
+    // RoPE on Q
+    blocks = dim3(Q->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
+    kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(Q->d_fp16_tensor);
+
+    // RoPE on K
+    blocks = dim3(K->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
+    kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(K->d_fp16_tensor);
+
+    cudaDeviceSynchronize();
+
+    // ------------------------- Checks -------------------------
+    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    // cudaDeviceSynchronize();
+
+    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
+    // cudaDeviceSynchronize();
+
+    return;
+}
+
+__global__ void kernel_rope_scaling(__half *tensor) {
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    int embed_idx = idx * 2;
+    int token_idx = blockIdx.y;
+
+    if (embed_idx >= EMBED_SIZE) return;
+    if (token_idx >= d_NUM_TOKENS) return;
+
+    float even = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx]);
+    float odd = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx + 1]);
+
+    int scaling_factor = 10000;
+
+    float theta = token_idx * pow(scaling_factor, -2 * idx / EMBED_SIZE);
+    float cos_comp = cos(theta);
+    float sin_comp = sin(theta);
+
+    tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half((cos_comp * even) + (-1.0 * sin_comp * odd));
+    tensor[token_idx * EMBED_SIZE + embed_idx + 1] = __float2half((sin_comp * even) + (cos_comp * odd));
+
+    return;
+}
+
+/* ***************************** Multi-Head Attention ***************************** */

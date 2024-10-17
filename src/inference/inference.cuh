@@ -58,5 +58,10 @@ void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_
 __global__ void kernel_compute_full_attention_tensors(
     __half *O_tensor, int *Linear_shape, float *d_gcache);
 
-/* ******************************* Cuda Cache ******************************* */
+/* ************************ Rotary Positional Embedding (RoPE) ************************ */
+void rope_scaling(Tensor *Q, Tensor *K);
+
+__global__ void kernel_rope_scaling(__half *tensor);
+
+/* ************************************** Cuda Cache ************************************** */
 CudaCache *init_cache(Llama3 *llama3_model);

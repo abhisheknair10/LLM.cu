@@ -1,11 +1,20 @@
 # LLM.cu - A LLaMA3-8B CUDA Inference Engine
 
-LLM.cu is a CUDA native implementation of the LLaMA3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, facilitating scalable parallel processing on Nvidia GPUs.
+LLM.cu is a CUDA native implementation of the LLaMA3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, enabling scalable parallel processing on Nvidia GPUs.
 
-## Implementation Details
+The models are expected to be downloaded off of HuggingFace. They are stored as BF16 parameter weights in a .safetensor file, which during load time to the CUDA device, is converted to FP16 via a FP32 proxy. Hence, a CUDA device with a minimum of 24GB VRAM must be used.
 
 ## Setup and Usage
 
+### Minimum Requirements:
+```bash
+- 24GB+ VRAM CUDA Device
+- HuggingFace account
+- Operating System: UNIX or WSL
+- CUDA Toolkit (7.5+)
+```
+
+### Run Inference
 1. Run the **[setup-docker.sh](https://github.com/abhisheknair10/LLM.cu/blob/main/setup-docker.sh)** file to setup your Virtual/Physical Machine to run Docker with access to Nvidia GPUs. Once the shell script has finished executing, make sure to log out of the terminal, and then log back in to run **[run-docker.sh](https://github.com/abhisheknair10/LLM.cu/blob/main/run-docker.sh)**.
 
 ```bash
@@ -32,6 +41,12 @@ export HF_TOKEN=<your_token>
 
 ```bash
 huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir ./model_weights/ --token $HF_TOKEN
+```
+
+5. Run Make 🎉.
+
+```bash
+make run
 ```
 
 ## Acknowledgments
