@@ -497,10 +497,9 @@ __global__ void kernel_rope_scaling(__half *tensor) {
     if (embed_idx >= EMBED_SIZE) return;
     if (token_idx >= d_NUM_TOKENS) return;
 
+    int scaling_factor = 10000;
     float even = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx]);
     float odd = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx + 1]);
-
-    int scaling_factor = 10000;
 
     float theta = token_idx * pow(scaling_factor, -2 * idx / EMBED_SIZE);
     float cos_comp = cos(theta);
