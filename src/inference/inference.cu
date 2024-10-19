@@ -527,13 +527,17 @@ void rope_scaling(Tensor *Q, Tensor *K) {
 
     // RoPE on Q
     blocks = dim3(Q->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
+    CHECK_CUDA_ERROR();
     kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(Q->d_fp16_tensor);
+    CHECK_CUDA_ERROR();
 
     // RoPE on K
     blocks = dim3(K->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
+    CHECK_CUDA_ERROR();
     kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(K->d_fp16_tensor);
-
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     // ------------------------- Checks -------------------------
     // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
@@ -579,11 +583,10 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     int gridSize1_x = (num_tokens + blockSize1 - 1) / blockSize1;
     dim3 grid1(gridSize1_x, num_tokens, nheads);
     size_t shared_mem_size1 = blockSize1 * sizeof(float);
-    CHECK_CUDA_ERROR();
+
     kernel_compute_attention_scores_softmax<<<grid1, blockSize1, shared_mem_size1>>>(
         Cache->d_attention_score_cache, Q->d_fp16_tensor, K->d_fp16_tensor,
         num_tokens, nheads, nkheads, head_dim, 1, 1);
-        CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
 
     // Kernel 2: Multiply attention weights with V
