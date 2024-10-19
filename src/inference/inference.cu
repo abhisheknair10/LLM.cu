@@ -130,7 +130,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int j = 0; j < 50; j++) {
-        print("%d ", j);
+        printf("%d ", j);
         for (int i = 0; i < llama3_model->n_layers; i++) {
             // Pre-attention normalization
             copy_fp16_tensor(Cache->PN_X, X);
