@@ -160,10 +160,10 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         CHECK_CUDA_ERROR();
 
         // Post-attention normalization
-        copy_fp16_tensor(Cache->PN_X, X);
-        CHECK_CUDA_ERROR();
-        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
-        CHECK_CUDA_ERROR();
+        // copy_fp16_tensor(Cache->PN_X, X);
+        // CHECK_CUDA_ERROR();
+        // compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
+        // CHECK_CUDA_ERROR();
     }
 
     CHECK_CUDA_ERROR();
