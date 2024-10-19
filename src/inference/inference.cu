@@ -249,7 +249,7 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
     cudaMemcpy(
         Y->d_fp16_tensor,
         X->d_fp16_tensor,
-        sizeof(__half) * (*(Y->mem_len)),
+        sizeof(__half) * (*(X->mem_len)),
         cudaMemcpyDeviceToDevice);
 
     return;
