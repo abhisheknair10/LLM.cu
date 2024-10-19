@@ -223,7 +223,7 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
 
     Y->shape = (int *)malloc(sizeof(int) * 2);
     Y->shape[0] = 2048;
-    Y->shape[0] = 4096;
+    Y->shape[1] = 4096;
 
     // Allocate CUDA memory
     cudaMalloc(&d_ndim, sizeof(int));
