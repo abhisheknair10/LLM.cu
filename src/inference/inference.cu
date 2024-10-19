@@ -131,8 +131,16 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
-void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, int num_tokens, CudaCache *Cache) {
-    tokens_to_embeddings(X, llama3_model, d_tokens, num_tokens);
+void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
+    int embed_size = 4096;
+    cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
+
+    // Set NUM_TOKENS value in device memory
+    h_NUM_TOKENS = h_tokens[0] - 1;
+    cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
+    free(h_tokens);
+
+    tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
@@ -173,6 +181,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, in
     CHECK_CUDA_ERROR();
 
     printCudaMemoryInfo();
+
+    return;
 }
 
 /* ************************** Convert Tokens to Embeddings ************************** */
