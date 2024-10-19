@@ -28,7 +28,7 @@ __constant__ int EMBED_SIZE;
 __device__ int d_NUM_TOKENS;
 int h_NUM_TOKENS;
 
-/* ******************************** HELPERS ******************************** */
+/* ************************************ HELPERS ************************************ */
 // Allocate global mem cache on device
 float *create_gmemcache(size_t mem_len, size_t type_size) {
     float *d_gcache;
@@ -80,7 +80,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
     return;
 }
 
-/* ******************************** Cache ******************************** */
+/* ************************************* Cache ************************************* */
 CudaCache *init_cache(Llama3 *llama3_model) {
     // Ahead Of Time memory allocations
     // Allocate once, use everywhere
@@ -98,22 +98,26 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
-    // Save pointers to Struct --------------------------------------------------------
-    Cache->PN_X = PN_X;
+    float *d_attention_score_cache = create_gmemcache(2048 * 2048, sizeof(float));
 
+    // Save pointers to Struct --------------------------------------------------------
     Cache->d_gnorm_cache = d_gnorm_cache;
     Cache->d_attq_cache = d_attq_cache;
     Cache->d_attk_cache = d_attk_cache;
     Cache->d_attv_cache = d_attv_cache;
 
+    Cache->PN_X = PN_X;
+
     Cache->Q = Q;
     Cache->K = K;
     Cache->V = V;
 
+    Cache->d_attention_score_cache = d_attention_score_cache;
+
     return Cache;
 }
 
-/* ******************************** Inference Code ******************************** */
+/* ********************************* Inference Code ********************************* */
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     int embed_size = 4096;
     cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
@@ -131,21 +135,34 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         copy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
-        // Attention computation
+        // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
 
-        break;
+        // Attention computation
+        compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
+
+        // Output computation
+        compute_output(X, llama3_model->layers[i]);
+
+        // Add pre-normalized input
+        add_norm(X, Cache->PN_X);
+
+        // Post-attention normalization
+        copy_fp16_tensor(Cache->PN_X, X);
+        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
     }
+
+    CHECK_CUDA_ERROR();
 
     printCudaMemoryInfo();
 
     return;
 }
 
-/* *************************** Convert Tokens to Embeddings *************************** */
+/* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     // Order threads into blocks
     int total_threads = *(X->mem_len);
@@ -275,7 +292,7 @@ __global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor
     __syncthreads();
 
     float rms = 0.0f;
-    float eps = 1e-6f;
+    float eps = 1e-5f;
 
     // Compute the RMS value
     if (threadIdx.x == 0 && blockIdx.x == 0) {
@@ -307,7 +324,32 @@ __global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_ten
     return;
 }
 
-/* ******************************* Attention Computation ******************************* */
+void add_norm(Tensor *X, Tensor *PN_X) {
+    dim3 blocks(4096 / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+
+    add_norm<<<blocks, MAX_THREADS_PER_BLOCK>>>(
+        X->d_fp16_tensor, PN_X->d_fp16_tensor);
+
+    cudaDeviceSynchronize();
+
+    return;
+}
+
+__global__ void add_norm(__half *X, __half *PN_X) {
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int token_idx = blockIdx.y;
+
+    if (embed_idx >= EMBED_SIZE) return;
+    if (token_idx >= d_NUM_TOKENS) return;
+
+    X[token_idx * EMBED_SIZE + embed_idx] = __hadd(
+        X[token_idx * EMBED_SIZE + embed_idx],
+        PN_X[token_idx * EMBED_SIZE + embed_idx]);
+
+    return;
+}
+
+/* ***************************** Attention Tensor Computation **************************** */
 Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
     Tensor *Attention_Tensor = (Tensor *)malloc(sizeof(Tensor));
 
@@ -376,6 +418,16 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     return;
 }
 
+void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
+    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_o_proj, X, Cache->d_attq_cache);
+    cudaDeviceSynchronize();
+
+    _abstract_full_attensor_kernel_call(X, L3_Layer->self_attn_o_proj, Cache->d_attq_cache);
+    cudaDeviceSynchronize();
+
+    return;
+}
+
 void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, float *d_gcache) {
     // Function start
     //
@@ -392,6 +444,8 @@ void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, 
 
     kernel_compute_intermediate_attention_matmul<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
         Proj_Layer->d_fp16_tensor, Proj_Layer->d_shape, X->d_fp16_tensor, d_gcache);
+
+    return;
 }
 
 __global__ void kernel_compute_intermediate_attention_matmul(
@@ -442,6 +496,8 @@ void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_
 
     kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape, d_gcache);
+
+    return;
 }
 
 __global__ void kernel_compute_full_attention_tensors(
@@ -465,7 +521,7 @@ __global__ void kernel_compute_full_attention_tensors(
     O_tensor[token_idx * Linear_shape[0] + fcoord_idx] = __float2half(sum);
 }
 
-/* ************************ Rotary Positional Embedding (RoPE) ************************ */
+/* ************************* Rotary Positional Embedding (RoPE) ************************* */
 void rope_scaling(Tensor *Q, Tensor *K) {
     dim3 blocks;
 
@@ -497,7 +553,7 @@ __global__ void kernel_rope_scaling(__half *tensor) {
     if (embed_idx >= EMBED_SIZE) return;
     if (token_idx >= d_NUM_TOKENS) return;
 
-    int scaling_factor = 10000;
+    int scaling_factor = 500000;
     float even = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx]);
     float odd = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx + 1]);
 
@@ -511,4 +567,152 @@ __global__ void kernel_rope_scaling(__half *tensor) {
     return;
 }
 
-/* ***************************** Multi-Head Attention ***************************** */
+/* **************************** Grouped Multi-Query Attention **************************** */
+void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
+    int nheads = 32;
+    int nkheads = 8;
+    int num_tokens = h_NUM_TOKENS;
+    int head_dim = 128;
+
+    // Kernel 1: Compute attention scores and apply softmax
+    int blockSize1 = head_dim;
+    int gridSize1_x = (num_tokens + blockSize1 - 1) / blockSize1;
+    dim3 grid1(gridSize1_x, num_tokens, nheads);
+    size_t shared_mem_size1 = blockSize1 * sizeof(float);
+
+    kernel_compute_attention_scores_softmax<<<grid1, blockSize1, shared_mem_size1>>>(
+        Cache->d_attention_score_cache, Q->d_fp16_tensor, K->d_fp16_tensor,
+        num_tokens, nheads, nkheads, head_dim, 1, 1);
+    cudaDeviceSynchronize();
+
+    // Kernel 2: Multiply attention weights with V
+    int blockSize2 = head_dim;
+    dim3 grid2(1, num_tokens, nheads);
+    size_t shared_mem_size2 = 0;
+
+    kernel_compute_attention_output<<<grid2, blockSize2, shared_mem_size2>>>(
+        X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
+        num_tokens, nheads, nkheads, head_dim);
+    cudaDeviceSynchronize();
+
+    return;
+}
+
+__global__ void kernel_compute_attention_scores_softmax(
+    float *attention_scores, __half *Q, __half *K,
+    int num_tokens, int nheads, int nkheads, int head_dim,
+    uint8_t scaling, uint8_t automask) {
+    // Kernel Start
+    //
+    extern __shared__ float shared_mem[];
+
+    int h = blockIdx.z;
+    int i = blockIdx.y;
+    int j_start = blockIdx.x * blockDim.x;
+    int tid = threadIdx.x;
+
+    if (i >= num_tokens || h >= nheads)
+        return;
+
+    int kv_head = h / (nheads / nkheads);
+
+    // Compute attention scores for a chunk of keys
+    for (int j = j_start + tid; j < num_tokens; j += blockDim.x) {
+        if (j >= num_tokens)
+            continue;
+
+        // Dot product over head_dim
+        float dot_product = 0.0f;
+        for (int d = 0; d < head_dim; ++d) {
+            int Q_idx = i * nheads * head_dim + h * head_dim + d;
+            int K_idx = j * nkheads * head_dim + kv_head * head_dim + d;
+
+            float q_val = __half2float(Q[Q_idx]);
+            float k_val = __half2float(K[K_idx]);
+            dot_product += q_val * k_val;
+        }
+
+        // Apply scaling
+        if (scaling) {
+            dot_product /= sqrtf((float)head_dim);
+        }
+
+        // Apply mask
+        if (automask && j > i) {
+            dot_product = -1e9f;
+        }
+
+        // Store the raw attention score
+        int score_idx = h * num_tokens * num_tokens + i * num_tokens + j;
+        shared_mem[tid] = dot_product;
+
+        __syncthreads();
+
+        // Compute max for numerical stability
+        float max_score = -1e9f;
+        for (int k = 0; k < blockDim.x && (j_start + k) < num_tokens; ++k) {
+            max_score = fmaxf(max_score, shared_mem[k]);
+        }
+
+        __syncthreads();
+
+        // Subtract max and exponentiate
+        float sum_exp = 0.0f;
+        float exp_score = expf(shared_mem[tid] - max_score);
+        shared_mem[tid] = exp_score;
+
+        __syncthreads();
+
+        // Compute sum of exponentials
+        for (int k = 0; k < blockDim.x && (j_start + k) < num_tokens; ++k) {
+            sum_exp += shared_mem[k];
+        }
+
+        __syncthreads();
+
+        // Normalize to get softmax probabilities
+        float attention_weight = exp_score / (sum_exp + 1e-6f);
+
+        attention_scores[score_idx] = attention_weight;
+    }
+
+    return;
+}
+
+__global__ void kernel_compute_attention_output(
+    __half *output, float *attention_scores, __half *V,
+    int num_tokens, int nheads, int nkheads, int head_dim) {
+    // Kernel start
+    //
+    extern __shared__ float shared_V[];
+
+    int h = blockIdx.z;
+    int i = blockIdx.y;
+    int d = threadIdx.x;
+
+    if (i >= num_tokens) return;
+    if (h >= nheads) return;
+    if (d >= head_dim) return;
+
+    int kv_head = h / (nheads / nkheads);
+
+    float output_val = 0.0f;
+
+    // Loop over all keys to compute the weighted sum
+    for (int j = 0; j < num_tokens; ++j) {
+        int score_idx = h * num_tokens * num_tokens + i * num_tokens + j;
+        float attn_weight = attention_scores[score_idx];
+
+        int V_idx = j * nkheads * head_dim + kv_head * head_dim + d;
+        float v_val = __half2float(V[V_idx]);
+
+        output_val += attn_weight * v_val;
+    }
+
+    int output_idx = i * nheads * head_dim + h * head_dim + d;
+    output[output_idx] = __float2half(output_val);
+
+    return;
+}
+
+/* ********************************* Feed Forward Network ********************************* */
