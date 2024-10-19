@@ -135,7 +135,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
         // Attention tensor computation
-        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
+        // compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
