@@ -18,7 +18,7 @@
 #define CLEAR_TERMINAL() system("clear")
 
 const int MODEL_NUM_LAYERS = 32;
-const bool TEST = true;
+const bool TEST = false;
 
 __global__ void model_param_checker(__half *fp16_tensor, int *mem_len);
 __global__ void tokens_checker(int *tokens);

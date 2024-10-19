@@ -145,7 +145,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
         // Output computation
-        compute_output(X, llama3_model->layers[i]);
+        compute_output(X, llama3_model->layers[i], Cache);
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
@@ -418,7 +418,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     return;
 }
 
-void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
+void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_o_proj, X, Cache->d_attq_cache);
     cudaDeviceSynchronize();
 

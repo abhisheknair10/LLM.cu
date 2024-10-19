@@ -54,7 +54,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X,
                          CudaCache *Cache);
 
-void compute_output(Llama3Layer *L3_Layer, Tensor *X);
+void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache);
 
 void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, float *d_gcache);
 
