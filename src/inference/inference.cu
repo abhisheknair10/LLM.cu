@@ -739,8 +739,8 @@ __global__ void kernel_compute_attention_output(
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
-    dim3 blockDim(EMBED_SIZE / MAX_THREADS_PER_BLOCK);
-    dim3 gridDim((EMBED_SIZE + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, d_ff, h_NUM_TOKENS);
+    dim3 blockDim(MAX_THREADS_PER_BLOCK);
+    dim3 gridDim((4096 + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
     size_t shared_mem_size = 2 * MAX_THREADS_PER_BLOCK * sizeof(float);
 
@@ -851,5 +851,5 @@ void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
     check_embedding<<<1, 1>>>(Cache->next_token, 128256);
     cudaDeviceSynchronize();
 
-    return:
+    return;
 }
