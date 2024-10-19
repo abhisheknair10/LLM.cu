@@ -67,13 +67,13 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-__global__ void check_embedding(__half *fp16_tensor, int dim) {
+__global__ void check_embedding(float *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
         int max = 0;
         float curr_max = 0.0f;
         for (int i = 0; i < dim; i++) {
-            float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
+            float embedding = fp16_tensor[token_idx * dim + i];
 
             if (embedding >= curr_max) {
                 curr_max = embedding;
@@ -839,7 +839,7 @@ __global__ void kernel_down_proj_matmul(
 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
-    int out_dim = L3_Layer->mlp_down_proj->shape[0];
+    int out_dim = LM_HEAD->shape[0];
     dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
     dim3 gridDim_down((out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
