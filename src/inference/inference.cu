@@ -145,7 +145,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
         // Output computation
-        compute_output(X, llama3_model->layers[i], Cache);
+        compute_output(llama3_model->layers[i], X, Cache);
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
