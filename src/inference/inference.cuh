@@ -22,6 +22,9 @@ typedef struct {
     Tensor *V;
 
     float *d_attention_score_cache;
+    float *d_feedforward_cache;
+
+    float *next_token;
 } CudaCache;
 
 /* ********************************* Inference Code ********************************* */
@@ -85,6 +88,16 @@ __global__ void kernel_compute_attention_output(
     int num_tokens, int nheads, int nkheads, int head_dim);
 
 /* ********************************* Feed Forward Network ********************************* */
+void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
+
+__global__ void kernel_gate_up_proj(
+    float *d_feedforward_cache, __half *Proj_Up, __half *Proj_Gate, __half *X);
+
+__global__ void kernel_down_proj_matmul(
+    float *d_feedforward_cache, __half *Proj_Down, __half *X_out, int down_proj_out_dim);
+
+/* ********************************* Language Model Head ********************************* */
+void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache);
 
 /* ************************************** Cuda Cache ************************************** */
 CudaCache *init_cache(Llama3 *llama3_model);

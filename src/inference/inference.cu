@@ -99,6 +99,9 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
     float *d_attention_score_cache = create_gmemcache(2048 * 2048, sizeof(float));
+    float *d_feedforward_cache = create_gmemcache(14336 * 2048, sizeof(float));
+
+    float *next_token = create_gmemcache(128256 * 2048, sizeof(float));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->d_gnorm_cache = d_gnorm_cache;
@@ -113,6 +116,9 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->V = V;
 
     Cache->d_attention_score_cache = d_attention_score_cache;
+    Cache->d_feedforward_cache = d_feedforward_cache;
+
+    Cache->next_token = next_token;
 
     return Cache;
 }
@@ -129,34 +135,47 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
-    for (int j = 0; j < 10; j++) {
-        printf("%d \n", j);
-        for (int i = 0; i < llama3_model->n_layers; i++) {
-            // Pre-attention normalization
-            copy_fp16_tensor(Cache->PN_X, X);
-            compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
+    for (int i = 0; i < llama3_model->n_layers; i++) {
+        // Pre-attention normalization
+        copy_fp16_tensor(Cache->PN_X, X);
+        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
-            // Attention tensor computation
-            compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
+        // Attention tensor computation
+        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
-            // RoPE scaling
-            rope_scaling(Cache->Q, Cache->K);
+        // RoPE scaling
+        rope_scaling(Cache->Q, Cache->K);
 
-            // Attention computation
-            compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
+        // Attention computation
+        compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
-            // Output computation
-            compute_output(llama3_model->layers[i], X, Cache);
+        // Output computation
+        compute_output(llama3_model->layers[i], X, Cache);
 
-            // Add pre-normalized input
-            add_norm(X, Cache->PN_X);
+        // Add pre-normalized input
+        add_norm(X, Cache->PN_X);
 
-            // Post-attention normalization
-            // copy_fp16_tensor(Cache->PN_X, X);
-            // compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
-            CHECK_CUDA_ERROR();
-        }
+        // Post-attention normalization
+        copy_fp16_tensor(Cache->PN_X, X);
+        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
+
+        // Feedforward
+        compute_feedforward(X, llama3_model->layers[i], Cache);
+
+        // Add pre-normalized input
+        add_norm(X, Cache->PN_X);
     }
+
+    compute_layer_norm(llama3_model->norm, X, Cache->d_gnorm_cache);
+
+    int lm_head = L3_Layer->lm_head->shape[0];
+    dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
+    dim3 gridDim_down((down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+
+    kernel_down_proj_matmul<<<gridDim_down, blockDim_down>>>(
+        X->d_fp16_tensor, L3_Layer->mlp_down_proj->d_fp16_tensor,
+        Cache->d_feedforward_cache, down_proj_out_dim);
+    cudaDeviceSynchronize();
 
     CHECK_CUDA_ERROR();
 
@@ -719,3 +738,118 @@ __global__ void kernel_compute_attention_output(
 }
 
 /* ********************************* Feed Forward Network ********************************* */
+void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
+    dim3 blockDim(EMBED_SIZE / MAX_THREADS_PER_BLOCK);
+    dim3 gridDim((EMBED_SIZE + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, d_ff, h_NUM_TOKENS);
+
+    size_t shared_mem_size = 2 * MAX_THREADS_PER_BLOCK * sizeof(float);
+
+    // Gate and up projection
+    kernel_gate_up_proj<<<gridDim, blockDim, shared_mem_size>>>(
+        Cache->d_feedforward_cache, L3_Layer->mlp_up_proj->d_fp16_tensor,
+        L3_Layer->mlp_gate_proj->d_fp16_tensor, X);
+    cudaDeviceSynchronize();
+
+    // Down projection
+    int down_proj_out_dim = L3_Layer->mlp_down_proj->shape[0];
+    dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
+    dim3 gridDim_down((down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+
+    kernel_down_proj_matmul<<<gridDim_down, blockDim_down>>>(
+        X->d_fp16_tensor, L3_Layer->mlp_down_proj->d_fp16_tensor,
+        Cache->d_feedforward_cache, down_proj_out_dim);
+    cudaDeviceSynchronize();
+
+    return;
+}
+
+__global__ void kernel_gate_up_proj(
+    float *d_feedforward_cache, __half *Proj_Up, __half *Proj_Gate, __half *X) {
+    int token_idx = blockIdx.z;
+    int fcoord_idx = blockIdx.y;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    extern __shared__ float shared_mem[];
+
+    // Ensure we are within valid index bounds
+    if (token_idx >= d_NUM_TOKENS || fcoord_idx >= EMBED_SIZE || embed_idx >= EMBED_SIZE) {
+        return;
+    }
+
+    // Compute gate projection
+    float x = __half2float(X[token_idx * EMBED_SIZE + embed_idx]);
+    float gate_w = __half2float(Proj_Gate[fcoord_idx * EMBED_SIZE + embed_idx]);
+    float gate_proj = x * gate_w;
+
+    // Compute up projection
+    float up_w = __half2float(Proj_Up[fcoord_idx * EMBED_SIZE + embed_idx]);
+    float up_proj = x * up_w;
+
+    // Store partial sums in shared memory for reduction
+    shared_mem[threadIdx.x] = gate_proj;
+    shared_mem[blockDim.x + threadIdx.x] = up_proj;
+    __syncthreads();
+
+    // Parallel reduction within the block for both gate and up
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) {
+            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
+            shared_mem[blockDim.x + threadIdx.x] += shared_mem[blockDim.x + threadIdx.x + stride];
+        }
+        __syncthreads();
+    }
+
+    // Apply SiLU to the gate projection and add to the up projection
+    if (threadIdx.x == 0) {
+        int idx = token_idx * EMBED_SIZE + fcoord_idx;
+
+        // Final gate and up projections after reduction
+        float gate_final = shared_mem[0];
+        float up_final = shared_mem[blockDim.x];
+
+        // Apply SiLU to gate projection
+        float sigmoid = 1.0f / (1.0f + expf(-gate_final));
+        float silu_gate = gate_final * sigmoid;
+
+        // Add SiLU(gate) and up projection
+        d_feedforward_cache[idx] = silu_gate + up_final;
+    }
+}
+
+__global__ void kernel_down_proj_matmul(
+    __half *X_out, __half *Proj_Down, float *d_feedforward_cache, int down_proj_out_dim) {
+    int token_idx = blockIdx.y;
+    int down_proj_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (token_idx >= d_NUM_TOKENS || down_proj_idx >= down_proj_out_dim) {
+        return;
+    }
+
+    // Compute the dot product between d_feedforward_cache and the down projection matrix Proj_Down
+    float result = 0.0f;
+    for (int i = 0; i < EMBED_SIZE; ++i) {
+        float cache_val = d_feedforward_cache[token_idx * EMBED_SIZE + i];
+        float down_proj_val = __half2float(Proj_Down[down_proj_idx * EMBED_SIZE + i]);
+        result += cache_val * down_proj_val;
+    }
+
+    // Store the result back in X_out
+    X_out[token_idx * down_proj_out_dim + down_proj_idx] = __float2half(result);
+}
+
+/* ********************************* Language Model Head ********************************* */
+void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
+    int out_dim = L3_Layer->mlp_down_proj->shape[0];
+    dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
+    dim3 gridDim_down((out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+
+    kernel_down_proj_matmul<<<gridDim_down, blockDim_down>>>(
+        Cache->next_token, LM_HEAD->d_fp16_tensor,
+        X->d_fp16_tensor, out_dim);
+    cudaDeviceSynchronize();
+
+    check_embedding<<<1, 1>>>(Cache->next_token, 128256);
+    cudaDeviceSynchronize();
+
+    return:
+}
