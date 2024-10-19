@@ -75,7 +75,7 @@ __global__ void check_embedding(float *fp16_tensor, int dim) {
         for (int i = 0; i < dim; i++) {
             float embedding = fp16_tensor[token_idx * dim + i];
 
-            if (embedding >= curr_max) {
+            if (embedding > curr_max) {
                 curr_max = embedding;
                 max = i;
             }
