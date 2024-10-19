@@ -57,7 +57,7 @@ int main() {
 
     CudaCache *Cache = init_cache(llama3_model);
 
-    char *input_str = strdup("If you are reading the data from the Internet instead, the same techniques can generally be used with the response you get from your HTTP API (it will be a file-like object); however, it is heavily recommended to use the third-party Requests library instead, which includes built-in support for JSON requests.");
+    char *input_str = strdup("The largest ocean in the world is");
 
     /*
     char *input_str = (char *)malloc(sizeof(char) * 2048);
