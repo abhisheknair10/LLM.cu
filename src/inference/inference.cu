@@ -129,29 +129,32 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
-    for (int i = 0; i < llama3_model->n_layers; i++) {
-        // Pre-attention normalization
-        copy_fp16_tensor(Cache->PN_X, X);
-        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
+    for (int j = 0; j < 50; j++) {
+        print("%d ", j);
+        for (int i = 0; i < llama3_model->n_layers; i++) {
+            // Pre-attention normalization
+            copy_fp16_tensor(Cache->PN_X, X);
+            compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
-        // Attention tensor computation
-        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
+            // Attention tensor computation
+            compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
-        // RoPE scaling
-        rope_scaling(Cache->Q, Cache->K);
+            // RoPE scaling
+            rope_scaling(Cache->Q, Cache->K);
 
-        // Attention computation
-        compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
+            // Attention computation
+            compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
-        // Output computation
-        compute_output(llama3_model->layers[i], X, Cache);
+            // Output computation
+            compute_output(llama3_model->layers[i], X, Cache);
 
-        // Add pre-normalized input
-        add_norm(X, Cache->PN_X);
+            // Add pre-normalized input
+            add_norm(X, Cache->PN_X);
 
-        // Post-attention normalization
-        copy_fp16_tensor(Cache->PN_X, X);
-        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
+            // Post-attention normalization
+            copy_fp16_tensor(Cache->PN_X, X);
+            compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
+        }
     }
 
     CHECK_CUDA_ERROR();
