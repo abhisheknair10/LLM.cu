@@ -94,7 +94,7 @@ __global__ void kernel_gate_up_proj(
     float *d_feedforward_cache, __half *Proj_Up, __half *Proj_Gate, __half *X);
 
 __global__ void kernel_down_proj_matmul(
-    float *d_feedforward_cache, __half *Proj_Down, __half *X_out, int down_proj_out_dim);
+    __half *X_out, __half *Proj_Down, float *d_feedforward_cache, int down_proj_out_dim);
 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache);

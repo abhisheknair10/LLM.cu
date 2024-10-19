@@ -747,7 +747,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Gate and up projection
     kernel_gate_up_proj<<<gridDim, blockDim, shared_mem_size>>>(
         Cache->d_feedforward_cache, L3_Layer->mlp_up_proj->d_fp16_tensor,
-        L3_Layer->mlp_gate_proj->d_fp16_tensor, X);
+        L3_Layer->mlp_gate_proj->d_fp16_tensor, X->d_fp16_tensor);
     cudaDeviceSynchronize();
 
     // Down projection
