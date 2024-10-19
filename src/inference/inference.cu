@@ -129,41 +129,35 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
-    // Run Inference
-    for (int i = 0; i < llama3_model->n_layers; i++) {
-        printf("%d\n", i);
-        CHECK_CUDA_ERROR();
-        // Pre-attention normalization
-        copy_fp16_tensor(Cache->PN_X, X);
-        CHECK_CUDA_ERROR();
-        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
-        CHECK_CUDA_ERROR();
+    for (int j = 0; j < 10; j++) {
+        print("%d\n", j);
+        // Run Inference
+        for (int i = 0; i < llama3_model->n_layers; i++) {
+            // Pre-attention normalization
+            copy_fp16_tensor(Cache->PN_X, X);
+            compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
 
-        // Attention tensor computation
-        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
-        CHECK_CUDA_ERROR();
+            // Attention tensor computation
+            compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
-        // RoPE scaling
-        rope_scaling(Cache->Q, Cache->K);
-        CHECK_CUDA_ERROR();
+            // RoPE scaling
+            rope_scaling(Cache->Q, Cache->K);
 
-        // Attention computation
-        compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
-        CHECK_CUDA_ERROR();
+            // Attention computation
+            compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
-        // Output computation
-        compute_output(llama3_model->layers[i], X, Cache);
-        CHECK_CUDA_ERROR();
+            // Output computation
+            compute_output(llama3_model->layers[i], X, Cache);
 
-        // Add pre-normalized input
-        add_norm(X, Cache->PN_X);
-        CHECK_CUDA_ERROR();
+            // Add pre-normalized input
+            add_norm(X, Cache->PN_X);
 
-        // Post-attention normalization
-        // copy_fp16_tensor(Cache->PN_X, X);
-        // CHECK_CUDA_ERROR();
-        // compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
-        // CHECK_CUDA_ERROR();
+            // Post-attention normalization
+            // copy_fp16_tensor(Cache->PN_X, X);
+            // CHECK_CUDA_ERROR();
+            // compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
+            // CHECK_CUDA_ERROR();
+        }
     }
 
     CHECK_CUDA_ERROR();
