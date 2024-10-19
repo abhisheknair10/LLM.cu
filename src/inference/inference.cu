@@ -168,14 +168,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     compute_layer_norm(llama3_model->norm, X, Cache->d_gnorm_cache);
 
-    int lm_head = L3_Layer->lm_head->shape[0];
-    dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
-    dim3 gridDim_down((down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
-
-    kernel_down_proj_matmul<<<gridDim_down, blockDim_down>>>(
-        X->d_fp16_tensor, L3_Layer->mlp_down_proj->d_fp16_tensor,
-        Cache->d_feedforward_cache, down_proj_out_dim);
-    cudaDeviceSynchronize();
+    compute_lm_head(X, llama3_model->lm_head, Cache);
 
     CHECK_CUDA_ERROR();
 
