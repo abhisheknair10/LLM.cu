@@ -131,6 +131,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     // Run Inference
     for (int i = 0; i < llama3_model->n_layers; i++) {
+        printf("%d\n", i);
+        CHECK_CUDA_ERROR();
         // Pre-attention normalization
         copy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
@@ -527,17 +529,13 @@ void rope_scaling(Tensor *Q, Tensor *K) {
 
     // RoPE on Q
     blocks = dim3(Q->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
-    CHECK_CUDA_ERROR();
     kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(Q->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
 
     // RoPE on K
     blocks = dim3(K->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
-    CHECK_CUDA_ERROR();
     kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(K->d_fp16_tensor);
-    CHECK_CUDA_ERROR();
+
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 
     // ------------------------- Checks -------------------------
     // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
