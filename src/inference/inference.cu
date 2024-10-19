@@ -541,8 +541,8 @@ void rope_scaling(Tensor *Q, Tensor *K) {
     kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(Q->d_fp16_tensor);
 
     // RoPE on K
-    blocks = dim3(K->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
-    kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(K->d_fp16_tensor);
+    blocks = dim3(K->shape[1] / (MAX_THREADS_PER_BLOCK * 4), h_NUM_TOKENS);
+    kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK / 2>>>(K->d_fp16_tensor);
 
     cudaDeviceSynchronize();
 
