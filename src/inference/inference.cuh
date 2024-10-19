@@ -99,5 +99,8 @@ __global__ void kernel_down_proj_matmul(
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache);
 
+__global__ void kernel_lm_head(
+    float *X_out, __half *LM_HEAD, __half *d_feedforward_cache, int down_proj_out_dim);
+
 /* ************************************** Cuda Cache ************************************** */
 CudaCache *init_cache(Llama3 *llama3_model);

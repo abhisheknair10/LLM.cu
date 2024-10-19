@@ -843,7 +843,7 @@ void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
     dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
     dim3 gridDim_down((out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
-    kernel_down_proj_matmul<<<gridDim_down, blockDim_down>>>(
+    kernel_lm_head<<<gridDim_down, blockDim_down>>>(
         Cache->next_token, LM_HEAD->d_fp16_tensor,
         X->d_fp16_tensor, out_dim);
     cudaDeviceSynchronize();
@@ -852,4 +852,24 @@ void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
     cudaDeviceSynchronize();
 
     return;
+}
+
+__global__ void kernel_lm_head(
+    float *X_out, __half *LM_HEAD, __half *d_feedforward_cache, int down_proj_out_dim) {
+    int token_idx = blockIdx.y;
+    int down_proj_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (token_idx >= d_NUM_TOKENS || down_proj_idx >= down_proj_out_dim) {
+        return;
+    }
+
+    float result = 0.0f;
+    for (int i = 0; i < EMBED_SIZE; ++i) {
+        float cache_val = d_feedforward_cache[token_idx * EMBED_SIZE + i];
+        float down_proj_val = __half2float(LM_HEAD[down_proj_idx * EMBED_SIZE + i]);
+        result += cache_val * down_proj_val;
+    }
+
+    // Store the result back in X_out
+    X_out[token_idx * down_proj_out_dim + down_proj_idx] = __float2half(result);
 }
