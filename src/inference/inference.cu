@@ -288,14 +288,19 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
         - Coalesced load into shared memory of 1024 window with vectorized retrieval
         - A 1024 thread block is used to retrieve 4096 elements. Each thread retrieves consecutive
             indicies. Instead of looping and having 4 separate memory access transactions for each
-            window retrieval per thread, a singular call loading 4 __half's as 1 __half4 allows for
+            window retrieval per thread, a singular call loading 4 __half's as 1 uint64_t allows for
             4 indicies to be retreived virtually as one data type.
     */
-    __half4 data = ((const __half4 *)X)[token_idx * 1024 + vw_embed_idx];
-    shared_mem[vw_embed_idx] = __half2float(data.x) * __half2float(data.x) +
-                               __half2float(data.y) * __half2float(data.y) +
-                               __half2float(data.z) * __half2float(data.z) +
-                               __half2float(data.w) * __half2float(data.w);
+    uint64_t data = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
+    __half data_x = (data >> 0) & 0xFFFF;
+    __half data_y = (data >> 16) & 0xFFFF;
+    __half data_z = (data >> 32) & 0xFFFF;
+    __half data_w = (data >> 48) & 0xFFFF;
+
+    shared_mem[vw_embed_idx] = __half2float(data_x) * __half2float(data_x) +
+                               __half2float(data_y) * __half2float(data_y) +
+                               __half2float(data_z) * __half2float(data_z) +
+                               __half2float(data_w) * __half2float(data_w);
 
     __syncthreads();
 
@@ -337,15 +342,30 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
     float rms = sqrtf(shared_mem[0] / 4096);
     __syncthreads();
 
-    __half4 norm_gain = ((const __half4 *)RMSNorm)[vw_embed_idx];
-    __half4 vec_x = ((const __half4 *)X)[token_idx * 1024 + vw_embed_idx];
+    uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
+    uint64_t vec_x = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
 
-    vec_x.x = __float2half(__half2float(vec_x.x) * __half2float(norm_gain.x) / rms);
-    vec_x.y = __float2half(__half2float(vec_x.y) * __half2float(norm_gain.y) / rms);
-    vec_x.z = __float2half(__half2float(vec_x.z) * __half2float(norm_gain.z) / rms);
-    vec_x.w = __float2half(__half2float(vec_x.w) * __half2float(norm_gain.w) / rms);
+    __half norm_gain_x = (norm_gain >> 0) & 0xFFFF;
+    __half norm_gain_y = (norm_gain >> 16) & 0xFFFF;
+    __half norm_gain_z = (norm_gain >> 32) & 0xFFFF;
+    __half norm_gain_w = (norm_gain >> 48) & 0xFFFF;
 
-    ((__half4 *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
+    __half vec_x_x = (vec_x >> 0) & 0xFFFF;
+    __half vec_x_y = (vec_x >> 16) & 0xFFFF;
+    __half vec_x_z = (vec_x >> 32) & 0xFFFF;
+    __half vec_x_w = (vec_x >> 48) & 0xFFFF;
+
+    vec_x_x = __float2half(__half2float(vec_x_x) * __half2float(norm_gain_x) / rms);
+    vec_x_y = __float2half(__half2float(vec_x_y) * __half2float(norm_gain_y) / rms);
+    vec_x_z = __float2half(__half2float(vec_x_z) * __half2float(norm_gain_z) / rms);
+    vec_x_w = __float2half(__half2float(vec_x_w) * __half2float(norm_gain_w) / rms);
+
+    vec_x = (uint64_t(__half_as_ushort(vec_x_x)) << 0) |
+            (uint64_t(__half_as_ushort(vec_x_y)) << 16) |
+            (uint64_t(__half_as_ushort(vec_x_z)) << 32) |
+            (uint64_t(__half_as_ushort(vec_x_w)) << 48);
+
+    ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
 
     return;
 }

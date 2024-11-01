@@ -37,7 +37,7 @@ __global__ void kernel_tokens_to_embeddings(__half *X, __half *Embed, int *token
 /* ******************************* Layer Normalization ******************************* */
 Tensor *_create_intermediary_prenorm_tensor_copy();
 
-void deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X);
+void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X);
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X);
 
