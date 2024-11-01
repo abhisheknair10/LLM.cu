@@ -145,6 +145,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
 
+        break;
+
         //======================== COMPLETED AND CHECKED ========================
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
@@ -365,6 +367,11 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
             (uint64_t(__half_as_ushort(vec_x_w)) << 48);
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
+
+    printf("%f\n", __half2float(vec_x_x));
+    printf("%f\n", __half2float(vec_x_y));
+    printf("%f\n", __half2float(vec_x_z));
+    printf("%f\n", __half2float(vec_x_w));
 
     return;
 }
