@@ -579,7 +579,6 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
         - Window idx gives local index
     */
     int token_idx = blockIdx.y;
-    int window_dim = gridDim.x * blockDim.y * blockDim.x;
     int window_idx = 2 * (blockIdx.x * blockDim.y * blockDim.x +
                           threadIdx.y * blockDim.x +
                           threadIdx.x);
