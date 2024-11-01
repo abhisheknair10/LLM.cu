@@ -369,16 +369,16 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
 
-    // printf("%f\n", rms);
+    printf("%f\n", rms);
     // printf("%f\n", __half2float(vec_x_y));
     // printf("%f\n", __half2float(vec_x_x));
     // printf("%f\n", __half2float(vec_x_z));
     // printf("%f\n", __half2float(vec_x_w));
 
-    printf("%f\n", __half2float(data_x));
-    printf("%f\n", __half2float(data_y));
-    printf("%f\n", __half2float(data_z));
-    printf("%f\n", __half2float(data_w));
+    // printf("%f\n", __half2float(data_x));
+    // printf("%f\n", __half2float(data_y));
+    // printf("%f\n", __half2float(data_z));
+    // printf("%f\n", __half2float(data_w));
 
     return;
 }
