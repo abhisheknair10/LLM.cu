@@ -10,7 +10,6 @@
 #include "llama3/llama3.cuh"
 
 typedef struct {
-    float *d_gnorm_cache;
     float *d_attq_cache;
     float *d_attk_cache;
     float *d_attv_cache;
@@ -101,4 +100,6 @@ __global__ void kernel_lm_head(
     float *X_out, __half *LM_HEAD, __half *d_feedforward_cache, int down_proj_out_dim);
 
 /* ************************************** Cuda Cache ************************************** */
+float *create_gmemcache(size_t mem_len, size_t type_size);
+
 CudaCache *init_cache(Llama3 *llama3_model);

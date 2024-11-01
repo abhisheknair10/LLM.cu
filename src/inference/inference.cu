@@ -96,7 +96,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     // Allocate Memory --------------------------------------------------------
     Tensor *PN_X = _create_intermediary_prenorm_tensor_copy();
 
-    float *d_gnorm_cache = create_gmemcache(2048 * 1024, sizeof(float));
     float *d_attq_cache = create_gmemcache(2048 * 4096, sizeof(float));
     float *d_attk_cache = create_gmemcache(2048 * 1024, sizeof(float));
     float *d_attv_cache = create_gmemcache(2048 * 1024, sizeof(float));
@@ -111,7 +110,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     float *next_token = create_gmemcache(128256 * 2048, sizeof(float));
 
     // Save pointers to Struct --------------------------------------------------------
-    Cache->d_gnorm_cache = d_gnorm_cache;
     Cache->d_attq_cache = d_attq_cache;
     Cache->d_attk_cache = d_attk_cache;
     Cache->d_attv_cache = d_attv_cache;
@@ -144,7 +142,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
-        deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
 
         //======================== COMPLETED AND CHECKED ========================
@@ -164,7 +162,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         add_norm(X, Cache->PN_X);
 
         // Post-attention normalization
-        deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
 
         // Feedforward
@@ -172,8 +170,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        CHECK_CUDA_ERROR();
-        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
@@ -258,7 +254,7 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
     return Y;
 }
 
-void deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
+void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
     cudaMemcpy(
         Y->d_fp16_tensor,
         X->d_fp16_tensor,
@@ -289,20 +285,18 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
     if (vw_embed_idx >= 1024) return;
 
     /*
-        - Coalesced load into shared memory of 1024 window
-        - For a 4096 1D vector, 1024 contiguous elements are loaded into shared memory 4 times
-        - Each loop adds the square of the virtual embedding value
+        - Coalesced load into shared memory of 1024 window with vectorized retrieval
+        - A 1024 thread block is used to retrieve 4096 elements. Each thread retrieves consecutive
+            indicies. Instead of looping and having 4 separate memory access transactions for each
+            window retrieval per thread, a singular call loading 4 __half's as 1 __half4 allows for
+            4 indicies to be retreived virtually as one data type.
     */
-    int tensor_offset;
-    float _sum_sq = 0.0f;
-    for (int i = 0; i < 4; i++) {
-        tensor_offset = (token_idx * 4096) + (i * 1024 + vw_embed_idx);
-        float tmp = __half2float(X[tensor_offset]);
+    __half4 data = ((const __half4 *)X)[token_idx * 1024 + vw_embed_idx];
+    shared_mem[vw_embed_idx] = __half2float(data.x) * __half2float(data.x) +
+                               __half2float(data.y) * __half2float(data.y) +
+                               __half2float(data.z) * __half2float(data.z) +
+                               __half2float(data.w) * __half2float(data.w);
 
-        _sum_sq += (tmp * tmp);
-    }
-
-    shared_mem[vw_embed_idx] = _sum_sq;
     __syncthreads();
 
     /*
@@ -339,14 +333,19 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
+    int tensor_offset;
     float rms = sqrtf(shared_mem[0] / 4096);
     __syncthreads();
-    for (int i = 0; i < 4; i++) {
-        tensor_offset = (token_idx * 4096) + (i * 1024 + vw_embed_idx);
-        X[tensor_offset] = __float2half(
-            __half2float(X[tensor_offset]) *
-            __half2float(RMSNorm[tensor_offset]) / rms);
-    }
+
+    __half4 norm_gain = ((const __half4 *)RMSNorm)[vw_embed_idx];
+    __half4 vec_x = ((const __half4 *)X)[token_idx * 1024 + vw_embed_idx];
+
+    vec_x.x = __float2half(__half2float(vec_x.x) * __half2float(norm_gain.x) / rms);
+    vec_x.y = __float2half(__half2float(vec_x.y) * __half2float(norm_gain.y) / rms);
+    vec_x.z = __float2half(__half2float(vec_x.z) * __half2float(norm_gain.z) / rms);
+    vec_x.w = __float2half(__half2float(vec_x.w) * __half2float(norm_gain.w) / rms);
+
+    ((__half4 *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
 
     return;
 }
