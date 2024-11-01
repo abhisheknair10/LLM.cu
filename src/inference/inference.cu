@@ -23,21 +23,12 @@
 
 const int MAX_THREADS_PER_BLOCK = 1024;
 
-__constant__ int EMBED_SIZE;
+__device__ int EMBED_SIZE;
 
 __device__ int d_NUM_TOKENS;
 int h_NUM_TOKENS;
 
 /* ************************************ HELPERS ************************************ */
-// Allocate global mem cache on device
-float *create_gmemcache(size_t mem_len, size_t type_size) {
-    float *d_gcache;
-
-    cudaMalloc(&d_gcache, mem_len * type_size);
-
-    return d_gcache;
-}
-
 void free_tensor_cuda(Tensor *t) {
     cudaFree(t->d_ndim);
     cudaFree(t->d_mem_len);
@@ -88,6 +79,15 @@ __global__ void check_embedding(float *fp16_tensor, int dim) {
 }
 
 /* ************************************* Cache ************************************* */
+// Allocate global mem cache on device
+float *create_gmemcache(size_t mem_len, size_t type_size) {
+    float *d_gcache;
+
+    cudaMalloc(&d_gcache, mem_len * type_size);
+
+    return d_gcache;
+}
+
 CudaCache *init_cache(Llama3 *llama3_model) {
     // Ahead Of Time memory allocations
     // Allocate once, use everywhere
@@ -96,10 +96,10 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     // Allocate Memory --------------------------------------------------------
     Tensor *PN_X = _create_intermediary_prenorm_tensor_copy();
 
-    float *d_gnorm_cache = create_gmemcache(200000000, sizeof(float));
-    float *d_attq_cache = create_gmemcache(50000000, sizeof(float));
-    float *d_attk_cache = create_gmemcache(10000000, sizeof(float));
-    float *d_attv_cache = create_gmemcache(10000000, sizeof(float));
+    float *d_gnorm_cache = create_gmemcache(2048 * 1024, sizeof(float));
+    float *d_attq_cache = create_gmemcache(2048 * 4096, sizeof(float));
+    float *d_attk_cache = create_gmemcache(2048 * 1024, sizeof(float));
+    float *d_attv_cache = create_gmemcache(2048 * 1024, sizeof(float));
 
     Tensor *Q = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
@@ -144,9 +144,10 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
-        copy_fp16_tensor(Cache->PN_X, X);
-        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X, Cache->d_gnorm_cache);
+        deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
 
+        //======================== COMPLETED AND CHECKED ========================
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
 
@@ -163,14 +164,16 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         add_norm(X, Cache->PN_X);
 
         // Post-attention normalization
-        copy_fp16_tensor(Cache->PN_X, X);
-        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X, Cache->d_gnorm_cache);
+        deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
 
         // Feedforward
         compute_feedforward(X, llama3_model->layers[i], Cache);
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+        CHECK_CUDA_ERROR();
+        break;
     }
 
     compute_layer_norm(llama3_model->norm, X, Cache->d_gnorm_cache);
@@ -192,7 +195,6 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     kernel_tokens_to_embeddings<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         X->d_fp16_tensor, llama3_model->embed_tokens->d_fp16_tensor, d_tokens);
-
     cudaDeviceSynchronize();
 
     // check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
@@ -201,7 +203,7 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     return;
 }
 
-__global__ void kernel_tokens_to_embeddings(__half *X_tensor, __half *Embed, int *tokens) {
+__global__ void kernel_tokens_to_embeddings(__half *X, __half *Embed, int *tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     int total_elements = d_NUM_TOKENS * EMBED_SIZE;
@@ -211,7 +213,7 @@ __global__ void kernel_tokens_to_embeddings(__half *X_tensor, __half *Embed, int
     int token_idx = idx / EMBED_SIZE;
     int embed_idx = idx % EMBED_SIZE;
 
-    X_tensor[(token_idx * EMBED_SIZE) + embed_idx] =
+    X[(token_idx * EMBED_SIZE) + embed_idx] =
         Embed[(tokens[token_idx + 1] * EMBED_SIZE) + embed_idx];
 
     return;
@@ -256,7 +258,7 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
     return Y;
 }
 
-void copy_fp16_tensor(Tensor *Y, Tensor *X) {
+void deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
     cudaMemcpy(
         Y->d_fp16_tensor,
         X->d_fp16_tensor,
@@ -266,107 +268,111 @@ void copy_fp16_tensor(Tensor *Y, Tensor *X) {
     return;
 }
 
-void compute_layer_norm(Tensor *RMSNorm, Tensor *X, float *d_gcache) {
-    int blocks_x = 4096 / MAX_THREADS_PER_BLOCK;
-    int blocks_y = h_NUM_TOKENS;
+void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
+    dim3 block(32, 32, 1);
+    dim3 grid(h_NUM_TOKENS);
 
-    dim3 blocks(blocks_x, blocks_y);
-    size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
-
-    kernel_compute_rms_norm<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
-        X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
+    kernel_compute_rms_norm<<<grid, block>>>(
+        RMSNorm->d_fp16_tensor, X->d_fp16_tensor);
     cudaDeviceSynchronize();
-
-    kernel_compute_norm_tensor<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        X->d_fp16_tensor, RMSNorm->d_fp16_tensor, d_gcache);
-    cudaDeviceSynchronize();
-
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
-}
-
-__global__ void kernel_compute_rms_norm(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache) {
-    extern __shared__ float shared_mem[];
-
-    int token_idx = blockIdx.y;
-    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (token_idx >= d_NUM_TOKENS) return;
-    if (embed_idx >= EMBED_SIZE) return;
-
-    // Convert __half to float and square
-    float x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
-    shared_mem[threadIdx.x] = x * x;
-    __syncthreads();
-
-    // Perform parallel reduction in shared memory
-    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-        if (threadIdx.x < stride) {
-            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
-        }
-        __syncthreads();
-    }
-
-    // Store partial sums in d_gcache
-    if (threadIdx.x == 0) {
-        d_gcache[blockIdx.y * gridDim.x + blockIdx.x] = shared_mem[0];
-    }
-    __syncthreads();
-
-    float rms = 0.0f;
-    float eps = 1e-5f;
-
-    // Compute the RMS value
-    if (threadIdx.x == 0 && blockIdx.x == 0) {
-        for (int i = 0; i < gridDim.x; i++) {
-            rms += d_gcache[blockIdx.y * gridDim.x + i];
-        }
-        rms = sqrtf((rms + eps) / (float)EMBED_SIZE);
-        d_gcache[blockIdx.y] = rms;
-    }
 
     return;
 }
 
-__global__ void kernel_compute_norm_tensor(__half *X_tensor, __half *RMSNorm_tensor, float *d_gcache) {
-    int token_idx = blockIdx.y;
-    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
+    __shared__ float shared_mem[1024];
+
+    int token_idx = blockIdx.x;
+    int vw_embed_idx = threadIdx.y * blockDim.x + threadIdx.x;
 
     if (token_idx >= d_NUM_TOKENS) return;
-    if (embed_idx >= EMBED_SIZE) return;
+    if (vw_embed_idx >= 1024) return;
 
-    // Normalize the input and write back
-    float rms = d_gcache[blockIdx.y];
-    float x = __half2float(X_tensor[(token_idx * EMBED_SIZE) + embed_idx]);
-    float scale = __half2float(RMSNorm_tensor[embed_idx]);
+    /*
+        - Coalesced load into shared memory of 1024 window
+        - For a 4096 1D vector, 1024 contiguous elements are loaded into shared memory 4 times
+        - Each loop adds the square of the virtual embedding value
+    */
+    int tensor_offset;
+    float _sum_sq = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        tensor_offset = (token_idx * 4096) + (i * 1024 + vw_embed_idx);
+        float tmp = __half2float(X[tensor_offset]);
 
-    float res = (x / rms) * scale;
-    X_tensor[(token_idx * EMBED_SIZE) + embed_idx] = __float2half(res);
+        _sum_sq += (tmp * tmp);
+    }
+
+    shared_mem[vw_embed_idx] = _sum_sq;
+    __syncthreads();
+
+    /*
+        - Parallel reduction along y-axis (maximize warp usage without warp divergence)
+        - For a 32 x 32 block dimension, the 1st warp will sum with the 16th warp and
+            recursively reduce
+    */
+    for (int offset = 512; offset > 32; offset /= 2) {
+        if (vw_embed_idx < offset) {
+            shared_mem[vw_embed_idx] += shared_mem[vw_embed_idx + offset];
+        }
+        __syncthreads();
+    }
+
+    /*
+        - Parallel reduction for 1 warp (divergent warp behavior) without using shared memory
+        - Warp level primitive usage
+        - Instead of utilizing shared memory to store intermediate reduction sums, inter-thread
+            memory access enables faster reduction
+        - For a given warp, the following will still not diverge with 0xffffff mask enabling the
+            same instruction for every thread in the warp
+        - Offset enables reduction to happen with left most indices lasting the longest. Least
+            significant indices still perform addition but add no value to context
+    */
+    if (vw_embed_idx < 32) {
+        float val = shared_mem[vw_embed_idx];
+        for (int offset = 16; offset > 0; offset /= 2) {
+            val += __shfl_down_sync(0xffffffff, val, offset);
+        }
+        if (vw_embed_idx == 0) shared_mem[0] = val;
+    }
+
+    /*
+        - Load rms norm for tensor and perform normalization for 1024 window
+        - Similar technique to when loading data from global memory
+    */
+    float rms = sqrtf(shared_mem[0] / 4096);
+    __syncthreads();
+    for (int i = 0; i < 4; i++) {
+        tensor_offset = (token_idx * 4096) + (i * 1024 + vw_embed_idx);
+        X[tensor_offset] = __float2half(
+            __half2float(X[tensor_offset]) *
+            __half2float(RMSNorm[tensor_offset]) / rms);
+    }
 
     return;
 }
 
 void add_norm(Tensor *X, Tensor *PN_X) {
-    dim3 blocks(4096 / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+    dim3 block(32, 32, 1);
+    dim3 grid(4, h_NUM_TOKENS);
 
-    add_norm<<<blocks, MAX_THREADS_PER_BLOCK>>>(
+    add_norm<<<grid, block>>>(
         X->d_fp16_tensor, PN_X->d_fp16_tensor);
-
     cudaDeviceSynchronize();
 
     return;
 }
 
 __global__ void add_norm(__half *X, __half *PN_X) {
-    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int token_idx = blockIdx.y;
+    int embed_idx = blockIdx.x * 1024 +
+                    threadIdx.y * blockDim.x +
+                    threadIdx.x;
 
-    if (embed_idx >= EMBED_SIZE) return;
     if (token_idx >= d_NUM_TOKENS) return;
+    if (embed_idx >= 4096) return;
 
-    X[token_idx * EMBED_SIZE + embed_idx] = __hadd(
-        X[token_idx * EMBED_SIZE + embed_idx],
-        PN_X[token_idx * EMBED_SIZE + embed_idx]);
+    int offset = token_idx * 4096 + embed_idx;
+    X[offset] = X[offset] + PN_X[offset];
 
     return;
 }
@@ -472,7 +478,7 @@ void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, 
 
 __global__ void kernel_compute_intermediate_attention_matmul(
     __half *Linear_tensor, int *Linear_shape,
-    __half *X_tensor, float *d_gcache) {
+    __half *X, float *d_gcache) {
     extern __shared__ float shared_mem[];
 
     int total_blocks_x = (EMBED_SIZE + blockDim.x - 1) / blockDim.x;
@@ -485,7 +491,7 @@ __global__ void kernel_compute_intermediate_attention_matmul(
     if (fcoord_idx >= Linear_shape[0]) return;
     if (embed_idx >= EMBED_SIZE) return;
 
-    float x = __half2float(X_tensor[token_idx * EMBED_SIZE + embed_idx]);
+    float x = __half2float(X[token_idx * EMBED_SIZE + embed_idx]);
     float f = __half2float(Linear_tensor[fcoord_idx * EMBED_SIZE + embed_idx]);
     shared_mem[threadIdx.x] = x * f;
     __syncthreads();
@@ -545,46 +551,64 @@ __global__ void kernel_compute_full_attention_tensors(
 
 /* ************************* Rotary Positional Embedding (RoPE) ************************* */
 void rope_scaling(Tensor *Q, Tensor *K) {
-    dim3 blocks;
+    dim3 block;
+    dim3 grid;
 
     // RoPE on Q
-    blocks = dim3(Q->shape[1] / (MAX_THREADS_PER_BLOCK * 2), h_NUM_TOKENS);
-    kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(Q->d_fp16_tensor);
+    block = dim3(32, 32, 1);
+    grid = dim3(2, h_NUM_TOKENS);
+    kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048);
 
     // RoPE on K
-    blocks = dim3(1, h_NUM_TOKENS);
-    kernel_rope_scaling<<<blocks, MAX_THREADS_PER_BLOCK>>>(K->d_fp16_tensor);
+    block = dim3(16, 16, 1);
+    grid = dim3(2, h_NUM_TOKENS);
+    kernel_rope_scaling<<<grid, block>>>(K->d_fp16_tensor, 512);
 
     cudaDeviceSynchronize();
-
-    // ------------------------- Checks -------------------------
-    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
-
-    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void kernel_rope_scaling(__half *tensor) {
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    int embed_idx = idx * 2;
+__global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) {
+    /*
+        - For Q [tokens, 4096], there are 1024 threads per block with 2 blocks representing one
+            transformed Q embedding
+        - For K [tokens, 1024], there are 256 threads per block with 2 blocks representing one
+            transformed K embedding
+        - Window dim gives half the transformed tensor embedding size
+        - Window idx gives local index
+    */
     int token_idx = blockIdx.y;
+    int window_dim = gridDim.x * blockDim.y * blockDim.x;
+    int window_idx = 2 * (blockIdx.x * blockDim.y * blockDim.x +
+                          threadIdx.y * blockDim.x +
+                          threadIdx.x);
 
-    if (embed_idx >= EMBED_SIZE) return;
+    if (window_idx >= transformed_embed_size) return;
     if (token_idx >= d_NUM_TOKENS) return;
 
-    int scaling_factor = 500000;
-    float even = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx]);
-    float odd = __half2float(tensor[token_idx * EMBED_SIZE + embed_idx + 1]);
+    // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
+    __half2 h2_val = ((const __half2 *)tensor)[window_idx];
 
-    float theta = token_idx * pow(scaling_factor, -2 * idx / EMBED_SIZE);
-    float cos_comp = cos(theta);
-    float sin_comp = sin(theta);
+    const int scaling_factor = 500000;
+    float theta = token_idx / powf(scaling_factor, ((float)window_idx) / ((float)transformed_embed_size));
+    float cos_comp = cosf(theta);
+    float sin_comp = sinf(theta);
 
-    tensor[token_idx * EMBED_SIZE + embed_idx] = __float2half((cos_comp * even) + (-1.0 * sin_comp * odd));
-    tensor[token_idx * EMBED_SIZE + embed_idx + 1] = __float2half((sin_comp * even) + (cos_comp * odd));
+    // Access both values interpreted as 1 and rotate vector pair
+    float even = __half2float(__low2half(h2_val));
+    float odd = __half2float(__high2half(h2_val));
+
+    float ret_even = (cos_comp * even) - (sin_comp * odd);
+    float ret_odd = (sin_comp * even) + (cos_comp * odd);
+
+    // Pack the two __half values into a single __half2
+    __half h_ret_even = __float2half(ret_even);
+    __half h_ret_odd = __float2half(ret_odd);
+    __half2 h2_result = __halves2half2(h_ret_even, h_ret_odd);
+
+    // Store rope encoded data back to tensor
+    ((__half2 *)tensor)[window_idx] = h2_result;
 
     return;
 }
