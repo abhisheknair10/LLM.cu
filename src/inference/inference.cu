@@ -346,16 +346,17 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
     uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
     uint64_t vec_x = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
 
-    __half norm_gain_x = (norm_gain >> 0) & 0xFFFF;
-    __half norm_gain_y = (norm_gain >> 16) & 0xFFFF;
-    __half norm_gain_z = (norm_gain >> 32) & 0xFFFF;
-    __half norm_gain_w = (norm_gain >> 48) & 0xFFFF;
+    __half norm_gain_x = __ushort_as_half((unsigned short)((norm_gain >> 0) & 0xFFFF));
+    __half norm_gain_y = __ushort_as_half((unsigned short)((norm_gain >> 16) & 0xFFFF));
+    __half norm_gain_z = __ushort_as_half((unsigned short)((norm_gain >> 32) & 0xFFFF));
+    __half norm_gain_w = __ushort_as_half((unsigned short)((norm_gain >> 48) & 0xFFFF));
 
-    __half vec_x_x = (vec_x >> 0) & 0xFFFF;
-    __half vec_x_y = (vec_x >> 16) & 0xFFFF;
-    __half vec_x_z = (vec_x >> 32) & 0xFFFF;
-    __half vec_x_w = (vec_x >> 48) & 0xFFFF;
+    __half vec_x_x = __ushort_as_half((unsigned short)((vec_x >> 0) & 0xFFFF));
+    __half vec_x_y = __ushort_as_half((unsigned short)((vec_x >> 16) & 0xFFFF));
+    __half vec_x_z = __ushort_as_half((unsigned short)((vec_x >> 32) & 0xFFFF));
+    __half vec_x_w = __ushort_as_half((unsigned short)((vec_x >> 48) & 0xFFFF));
 
+    // Perform RMS calculations and store
     vec_x_x = __float2half(__half2float(vec_x_x) * __half2float(norm_gain_x) / rms);
     vec_x_y = __float2half(__half2float(vec_x_y) * __half2float(norm_gain_y) / rms);
     vec_x_z = __float2half(__half2float(vec_x_z) * __half2float(norm_gain_z) / rms);
