@@ -338,7 +338,6 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    int tensor_offset;
     float rms = sqrtf(shared_mem[0] / 4096);
     __syncthreads();
 
