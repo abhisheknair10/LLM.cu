@@ -624,8 +624,8 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
     __half h_ret_even = __float2half(ret_even);
     __half h_ret_odd = __float2half(ret_odd);
 
-    printf("%f\n", ret_even);
-    printf("%f\n", ret_odd);
+    printf("%f\n", even);
+    printf("%f\n", odd);
     __half2 h2_result = __halves2half2(h_ret_even, h_ret_odd);
 
     // Store rope encoded data back to tensor
