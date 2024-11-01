@@ -294,10 +294,10 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
             4 indicies to be retreived virtually as one data type.
     */
     uint64_t data = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
-    __half data_x = (data >> 0) & 0xFFFF;
-    __half data_y = (data >> 16) & 0xFFFF;
-    __half data_z = (data >> 32) & 0xFFFF;
-    __half data_w = (data >> 48) & 0xFFFF;
+    __half data_x = __ushort_as_half((unsigned short)((data >> 0) & 0xFFFF));
+    __half data_y = __ushort_as_half((unsigned short)((data >> 16) & 0xFFFF));
+    __half data_z = __ushort_as_half((unsigned short)((data >> 32) & 0xFFFF));
+    __half data_w = __ushort_as_half((unsigned short)((data >> 48) & 0xFFFF));
 
     shared_mem[vw_embed_idx] = __half2float(data_x) * __half2float(data_x) +
                                __half2float(data_y) * __half2float(data_y) +
@@ -361,10 +361,10 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
     vec_x_z = __float2half(__half2float(vec_x_z) * __half2float(norm_gain_z) / rms);
     vec_x_w = __float2half(__half2float(vec_x_w) * __half2float(norm_gain_w) / rms);
 
-    vec_x = (uint64_t(__half_as_ushort(vec_x_x)) << 0) |
-            (uint64_t(__half_as_ushort(vec_x_y)) << 16) |
-            (uint64_t(__half_as_ushort(vec_x_z)) << 32) |
-            (uint64_t(__half_as_ushort(vec_x_w)) << 48);
+    vec_x = ((uint64_t)__half_as_ushort(vec_x_x) << 0) |
+            ((uint64_t)__half_as_ushort(vec_x_y) << 16) |
+            ((uint64_t)__half_as_ushort(vec_x_z) << 32) |
+            ((uint64_t)__half_as_ushort(vec_x_w) << 48);
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
 
@@ -373,6 +373,11 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
     // printf("%f\n", __half2float(vec_x_x));
     // printf("%f\n", __half2float(vec_x_z));
     // printf("%f\n", __half2float(vec_x_w));
+
+    printf("%f\n", __half2float(data_x));
+    printf("%f\n", __half2float(data_y));
+    printf("%f\n", __half2float(data_z));
+    printf("%f\n", __half2float(data_w));
 
     return;
 }
