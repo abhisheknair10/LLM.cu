@@ -170,6 +170,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+
+        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
@@ -216,6 +218,7 @@ __global__ void kernel_tokens_to_embeddings(__half *X, __half *Embed, int *token
 }
 
 /* ******************************* Layer Normalization ******************************* */
+// Helpers
 Tensor *_create_intermediary_prenorm_tensor_copy() {
     Tensor *Y = (Tensor *)malloc(sizeof(Tensor));
 
@@ -264,6 +267,7 @@ void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
     return;
 }
 
+// Compute RMS Norm
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
     dim3 block(32, 32, 1);
     dim3 grid(h_NUM_TOKENS);
@@ -338,38 +342,33 @@ __global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    float rms = sqrtf(shared_mem[0] / 4096);
+    float rms = sqrtf(shared_mem[0] / 4096.0f);
     __syncthreads();
 
     uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
-    uint64_t vec_x = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
 
     __half norm_gain_x = __ushort_as_half((unsigned short)((norm_gain >> 0) & 0xFFFF));
     __half norm_gain_y = __ushort_as_half((unsigned short)((norm_gain >> 16) & 0xFFFF));
     __half norm_gain_z = __ushort_as_half((unsigned short)((norm_gain >> 32) & 0xFFFF));
     __half norm_gain_w = __ushort_as_half((unsigned short)((norm_gain >> 48) & 0xFFFF));
 
-    __half vec_x_x = __ushort_as_half((unsigned short)((vec_x >> 0) & 0xFFFF));
-    __half vec_x_y = __ushort_as_half((unsigned short)((vec_x >> 16) & 0xFFFF));
-    __half vec_x_z = __ushort_as_half((unsigned short)((vec_x >> 32) & 0xFFFF));
-    __half vec_x_w = __ushort_as_half((unsigned short)((vec_x >> 48) & 0xFFFF));
-
     // Perform RMS calculations and store
-    vec_x_x = __float2half(__half2float(vec_x_x) * __half2float(norm_gain_x) / rms);
-    vec_x_y = __float2half(__half2float(vec_x_y) * __half2float(norm_gain_y) / rms);
-    vec_x_z = __float2half(__half2float(vec_x_z) * __half2float(norm_gain_z) / rms);
-    vec_x_w = __float2half(__half2float(vec_x_w) * __half2float(norm_gain_w) / rms);
+    data_x = __float2half(__half2float(data_x) * __half2float(norm_gain_x) / rms);
+    data_y = __float2half(__half2float(data_y) * __half2float(norm_gain_y) / rms);
+    data_z = __float2half(__half2float(data_z) * __half2float(norm_gain_z) / rms);
+    data_w = __float2half(__half2float(data_w) * __half2float(norm_gain_w) / rms);
 
-    vec_x = ((uint64_t)__half_as_ushort(vec_x_x) << 0) |
-            ((uint64_t)__half_as_ushort(vec_x_y) << 16) |
-            ((uint64_t)__half_as_ushort(vec_x_z) << 32) |
-            ((uint64_t)__half_as_ushort(vec_x_w) << 48);
+    data = ((uint64_t)__half_as_ushort(data_x) << 0) |
+           ((uint64_t)__half_as_ushort(data_y) << 16) |
+           ((uint64_t)__half_as_ushort(data_z) << 32) |
+           ((uint64_t)__half_as_ushort(data_w) << 48);
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
 
     return;
 }
 
+// Compute addition (skip connection)
 void add_norm(Tensor *X, Tensor *PN_X) {
     dim3 block(32, 32, 1);
     dim3 grid(4, h_NUM_TOKENS);
