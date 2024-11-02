@@ -437,6 +437,7 @@ Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
 void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
                          Llama3Layer *L3_Layer, Tensor *X,
                          CudaCache *Cache) {
+    /*
     // -------- Compute intermediate matmul in cache --------
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, Cache->d_attq_cache);
     _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, Cache->d_attk_cache);
@@ -450,6 +451,7 @@ void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
     _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, Cache->d_attv_cache);
 
     cudaDeviceSynchronize();
+    */
 
     // ------------------------- Checks -------------------------
     // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
