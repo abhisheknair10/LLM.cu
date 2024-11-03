@@ -378,10 +378,7 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     if (embed_idx >= 4096) return;
 
     int offset = token_idx * 4096 + embed_idx;
-    __half data = __hadd(X[offset], PN_X[offset]);
-    X[offset] = data;
-
-    printf("%f\n", __half2float(data));
+    X[offset] = __hadd(X[offset], PN_X[offset]);
 
     return;
 }
@@ -735,6 +732,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         }
 
         exp_sum += expf(shared_mem[idx]);
+        __syncthreads();
     }
     __syncthreads();
 
@@ -761,6 +759,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         for (int i = 0; i < 2; i++) {
             idx = i * blockDim.x + threadIdx.x;
             attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx] = expf(shared_mem[idx]) / softmax_den;
+            __syncthreads();
         }
     }
 
