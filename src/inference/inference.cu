@@ -115,6 +115,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->V = V;
 
     Cache->d_attention_score_cache = d_attention_score_cache;
+    Cache->d_feedforward_cache_gate = d_feedforward_cache_gate;
     Cache->d_feedforward_cache_up = d_feedforward_cache_up;
 
     Cache->next_token = next_token;
@@ -837,11 +838,9 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        printf("CUDA Error: %s\n", cudaGetErrorString(err));
-    }
+    CHECK_CUDA_ERROR();
 
     // Up projection computation
     grid = dim3(
