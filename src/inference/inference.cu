@@ -155,8 +155,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
         CHECK_CUDA_ERROR();
 
-        exit(1);
-
         // Output computation
         compute_output(llama3_model->layers[i], X);
 
@@ -735,7 +733,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
                 shared_mem[idx] = attention_scores[blockIdx.y * 2048 + head_idx * 32 + threadIdx.x];
             }
         } else {
-            shared_mem[idx] = -1e9f;
+            shared_mem[idx] = -INFINITY;
         }
 
         exp_sum += expf(shared_mem[idx]);
