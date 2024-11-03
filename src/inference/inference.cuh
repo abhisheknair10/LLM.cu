@@ -67,7 +67,13 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
     float *attention_scores, __half *K, __half *Q,
     int m, int n, int k,
-    int nheads, int causal_mask, int softmax);
+    int nheads, int causal_mask, int apply_softmax);
+
+__global__ void softmax_on_attention_scores(float *attention_scores, int m, int n);
+
+__global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
+    float *output, float *attention_scores, __half *V,
+    int m, int d_head, int nheads);
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
@@ -80,9 +86,6 @@ __global__ void kernel_down_proj_matmul(
 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache);
-
-__global__ void kernel_lm_head(
-    float *X_out, __half *LM_HEAD, __half *d_feedforward_cache, int down_proj_out_dim);
 
 /* ************************************** Cuda Cache ************************************** */
 float *create_gmemcache(size_t mem_len, size_t type_size);

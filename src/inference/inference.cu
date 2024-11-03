@@ -927,5 +927,8 @@ void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
         h_NUM_TOKENS, LM_HEAD->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
+    check_embedding<<<1, 1>>>(Cache->next_token, 128256);
+    cudaDeviceSynchronize();
+
     return;
 }
