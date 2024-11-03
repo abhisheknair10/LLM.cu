@@ -865,7 +865,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
 
     // Swiglu Activation
     grid = dim3(
-        (L3_Layer->mlp_up_proj->d_fp16_tensor + 1024 - 1) / 1024,
+        (L3_Layer->mlp_up_proj->shape[0] + 1024 - 1) / 1024,
         h_NUM_TOKENS);
 
     kernel_compute_swiglu<<<grid, block>>>(
