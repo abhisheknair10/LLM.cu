@@ -654,18 +654,17 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
         - `n` represents the independent dimension of the Q matrix (number of tokens).
         - `k` represents the common dimension (embedding dimension for each head).
     */
-    // Kernel start
-    //
+
     extern __shared__ float shared_mem[];
 
     float *Q_shmem = shared_mem;
     float *K_shmem = shared_mem + (TILE_SIZE * TILE_SIZE);
+    float *row_scores = shared_mem + 2 * TILE_SIZE * TILE_SIZE;  // Extra space for row scores
 
     int head_idx = blockIdx.z;
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    // Adjust row index for shared keys
     int key_row = row / 4;
     float score = 0.0f;
 
@@ -673,7 +672,6 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
         int tiled_col = tile_idx * TILE_SIZE + threadIdx.x;
         int tiled_row = tile_idx * TILE_SIZE + threadIdx.y;
 
-        // Load K tile (row-major) and Q tile (row-major) into shared memory
         if (key_row < (m / 4) && tiled_col < k) {
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[(head_idx * (m / 4) * k) + key_row * k + tiled_col]);
         } else {
@@ -688,7 +686,6 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
 
         __syncthreads();
 
-        // Compute partial product for this tile
         for (int i = 0; i < TILE_SIZE; ++i) {
             score += K_shmem[threadIdx.y * TILE_SIZE + i] * Q_shmem[i * TILE_SIZE + threadIdx.x];
         }
@@ -707,28 +704,54 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
 
     // Apply softmax if requested
     if (apply_softmax && row < m) {
+        // Load attention_scores row into shared memory for current row
+        if (col < n) {
+            row_scores[threadIdx.x] = attention_scores[(head_idx * m * n) + row * n + col];
+        } else {
+            row_scores[threadIdx.x] = -INFINITY;
+        }
+
+        __syncthreads();
+
+        // Step 1: Compute row-wise maximum using warp reduction
         float max_score = -INFINITY;
-        for (int i = 0; i < n; ++i) {
-            max_score = fmaxf(max_score, attention_scores[(head_idx * m * n) + row * n + i]);
+        for (int i = threadIdx.x; i < n; i += TILE_SIZE) {
+            max_score = fmaxf(max_score, row_scores[i]);
         }
+        max_score = warpReduceMax(max_score);
 
+        __syncthreads();
+
+        // Step 2: Compute sum of exponentials
         float sum_exp = 0.0f;
-        for (int i = 0; i < n; ++i) {
-            if (attention_scores[(head_idx * m * n) + row * n + i] != -INFINITY) {
-                float exp_score = expf(attention_scores[(head_idx * m * n) + row * n + i] - max_score);
-                attention_scores[(head_idx * m * n) + row * n + i] = exp_score;
-                sum_exp += exp_score;
-            }
+        for (int i = threadIdx.x; i < n; i += TILE_SIZE) {
+            row_scores[i] = expf(row_scores[i] - max_score);  // Exponentiate in-place
+            sum_exp += row_scores[i];
         }
+        sum_exp = warpReduceSum(sum_exp);
 
-        for (int i = 0; i < n; ++i) {
-            if (attention_scores[(head_idx * m * n) + row * n + i] != -INFINITY) {
-                attention_scores[(head_idx * m * n) + row * n + i] /= sum_exp;
-            }
+        __syncthreads();
+
+        // Step 3: Normalize each element in the row by the sum of exponentials
+        if (col < n) {
+            attention_scores[(head_idx * m * n) + row * n + col] = row_scores[threadIdx.x] / sum_exp;
         }
     }
+}
 
-    return;
+// Warp reduction functions
+__inline__ __device__ float warpReduceMax(float val) {
+    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+        val = fmaxf(val, __shfl_down_sync(0xffffffff, val, offset));
+    }
+    return val;
+}
+
+__inline__ __device__ float warpReduceSum(float val) {
+    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
+        val += __shfl_down_sync(0xffffffff, val, offset);
+    }
+    return val;
 }
 
 __global__ void softmax_on_attention_scores(float *attention_scores, int m, int n) {
