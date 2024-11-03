@@ -155,6 +155,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
         CHECK_CUDA_ERROR();
 
+        exit(1);
+
         // Output computation
         compute_output(llama3_model->layers[i], X);
 
@@ -397,13 +399,10 @@ __global__ void kernel_standard_tiled_gemm(
         - m represents the independent dimension of the input matrix
         - n represents the independent dimenion of the transformation matrix
         - k represents the common dimension of the 2 matrices
-        - Function calls are written in Math notation like how Math notation implies column major
-            order of matrices
-        - The notation of transforming a input tensor is written as: O = matmul(Transform, X(T))
-        - However, within each kernel, the output is computed as: O = matmul(X, Transform)
+        - Within each kernel, the output is computed as: O = matmul(X, Transform)
         - Transposing the transformation tensor is not required as virtual indexing allows for
             intended navigation along rows and columns of either tensors
-        - Order of variables within kernels respect computation order
+        - Order of variables within kernels obey order of computation
     */
     // Kernel start
     //
@@ -427,7 +426,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Load tile of Transform into shared memory
         if (t * TILE_SIZE + threadIdx.y < k && col < n) {
-            int T_idx = (t * TILE_SIZE + threadIdx.y) * n + col;
+            int T_idx = t * TILE_SIZE * n + threadIdx.y * n + col;
             T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Transform[T_idx]);
         } else {
             T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -538,15 +537,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
 
-    // Query computation
-    /*
-    Wq = (4096, 4096)
-    X - (1, 4096)
-
-    Q - 1, (4096)
-    */
-
-    // Query computation
+    // Output computation
     grid = dim3(
         (L3_Layer->self_attn_o_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
@@ -634,13 +625,20 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         nheads);
 
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
-    kernel_compute_masked_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
-        Cache->d_attention_score_cache, K->d_fp16_tensor, Q->d_fp16_tensor,
-        h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE,
-        nheads, 1, 1);
+    kernel_compute_masked_gmq_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
+        Cache->d_attention_score_cache, Q->d_fp16_tensor, K->d_fp16_tensor,
+        h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE, nheads);
     cudaDeviceSynchronize();
 
-    // Resolve attention scores to value
+    // Masking and softmax
+    block = dim3(MAX_THREADS_PER_BLOCK);
+    grid = dim3(h_NUM_TOKENS, nheads);
+
+    shared_mem_size = (2048 + 1024) * sizeof(float);
+    kernel_masking_softmax<<<grid, blockS, shared_mem_size>>>(
+        Cache->d_attention_score_cache, 1, 1);
+
+    // Resolution of attention scores
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
         (128 + TILE_SIZE - 1) / TILE_SIZE,
@@ -655,14 +653,13 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     return;
 }
 
-__global__ void kernel_compute_masked_attention_scores_tiled_matmul(
-    float *attention_scores, __half *K, __half *Q,
-    int m, int n, int k, int TILE_SIZE,
-    int nheads, int causal_mask, int apply_softmax) {
+__global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
+    float *attention_scores, __half *Q, __half *K,
+    int m, int n, int k, int TILE_SIZE, int nheads) {
     /*
         - Each head operates independently of other heads.
-        - `m` represents the independent dimension of the K matrix (number of tokens).
-        - `n` represents the independent dimension of the Q matrix (number of tokens).
+        - `m` represents the independent dimension of the Q matrix (number of tokens).
+        - `n` represents the independent dimension of the K matrix (number of tokens).
         - `k` represents the common dimension (embedding dimension for each head).
     */
 
@@ -670,14 +667,108 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
 
     float *Q_shmem = shared_mem;
     float *K_shmem = shared_mem + (TILE_SIZE * TILE_SIZE);
-    float *row_scores = shared_mem + 2 * TILE_SIZE * TILE_SIZE;  // Extra space for row scores
 
     int head_idx = blockIdx.z;
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    int key_row = row / 4;
-    float score = 0.0f;
+    // Loop over tiles
+    float value = 0.0f;
+    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
+        int embedding_idx = t * TILE_SIZE + threadIdx.x;
+
+        // Load tile of Q into shared memory
+        if (row < m && embedding_idx < k) {
+            int Q_idx = row * nheads * k + head_idx * k + embedding_idx;
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[Q_idx]);
+        } else {
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+
+        // Load tile of K into shared memory (transposed)
+        if (col < n && embedding_idx < k) {
+            int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + embedding_idx;
+            K_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(K[K_idx]);
+        } else {
+            K_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+        }
+
+        __syncthreads();
+
+        // Compute partial sums
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[threadIdx.x * TILE_SIZE + i];
+        }
+
+        __syncthreads();
+    }
+
+    // Write the result to shared memory
+    if (row < m && col < n) {
+        int O_idx = row * nheads * n + head_idx * n + col;
+        attention_scores[O_idx] = value / sqrtf((float)k);
+    }
+
+    return;
+}
+
+__global__ void kernel_masking_softmax(__half *attention_scores, int masking, int softmax) {
+    extern __shared__ float shared_mem[];
+
+    float *buffer = shared_mem + 2048;
+
+    int token_idx = blockIdx.x;
+    int head_idx = blockIdx.y;
+
+    int idx;
+    float exp_sum = 0.0f;
+    for (int i = 0; i < 2; i++) {
+        idx = i * blockDim.x + threadIdx.x;
+
+        if (idx >= d_NUM_TOKENS) {
+            shared_mem[idx] = 0.0f;
+            continue;
+        }
+
+        if (mask) {
+            if (idx <= token_idx) {
+                shared_mem[idx] = attention_scores[idx];
+            }
+        } else {
+            shared_mem[idx] = -1e9f;
+        }
+
+        exp_sums += expf(shared_mem[idx]);
+    }
+    __syncthreads();
+
+    buffer[threadIdx.x] = exp_sums;
+
+    if (softmax) {
+        for (int offset = 512; offset > 32; offset /= 2) {
+            if (threadIdx.x < offset) {
+                buffer[threadIdx.xs] += buffer[threadIdx.x + offset];
+            }
+            __syncthreads();
+        }
+
+        if (threadIdx.x < 32) {
+            float val = buffer[threadIdx.x];
+            for (int offset = 16; offset > 0; offset /= 2) {
+                val += __shfl_down_sync(0xffffffff, val, offset);
+            }
+            if (threadIdx.x == 0) buffer[0] = val;
+        }
+        __syncthreads();
+
+        float softmax_den = buffer[0];
+        for (int i = 0; i < 2; i++) {
+            idx = i * blockDim.x + threadIdx.x;
+            attention_scores[idx] = expf(shared_mem[idx]) / softmax_den;
+
+            printf("%f, %f\n", shared_mem[idx], expf(shared_mem[idx]) / softmax_den);
+        }
+    }
 
     return;
 }

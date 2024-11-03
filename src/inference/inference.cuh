@@ -64,10 +64,11 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size);
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache);
 
-__global__ void kernel_compute_masked_attention_scores_tiled_matmul(
-    float *attention_scores, __half *K, __half *Q,
-    int m, int n, int k, int TILE_SIZE,
-    int nheads, int causal_mask, int apply_softmax);
+__global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
+    float *attention_scores, __half *Q, __half *K,
+    int m, int n, int k, int TILE_SIZE, int nheads);
+
+__global__ void kernel_masking_softmax(__half *attention_scores, int masking, int softmax);
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
