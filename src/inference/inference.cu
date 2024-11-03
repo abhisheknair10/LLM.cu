@@ -635,7 +635,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     grid = dim3(h_NUM_TOKENS, nheads);
 
     shared_mem_size = (2048 + 1024) * sizeof(float);
-    kernel_masking_softmax<<<grid, blockS, shared_mem_size>>>(
+    kernel_masking_softmax<<<grid, block, shared_mem_size>>>(
         Cache->d_attention_score_cache, 1, 1);
 
     // Resolution of attention scores
