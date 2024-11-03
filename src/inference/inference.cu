@@ -103,7 +103,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     float *d_attention_score_cache = create_gmemcache(2048 * 2048, sizeof(float));
     float *d_feedforward_cache = create_gmemcache(14336 * 2048, sizeof(float));
 
-    float *next_token = create_gmemcache(128256 * 2048, sizeof(float));
+    float *next_token = create_gmemcache(128256 * 2048, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -628,8 +628,8 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
     kernel_compute_masked_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
-        Cache->d_attention_score_cache->d_fp16_tensor, K->d_fp16_tensor, Q->d_fp16_tensor,
-        h_NUM_TOKENS, h_NUM_TOKENS, 128,
+        Cache->d_attention_score_cache, K->d_fp16_tensor, Q->d_fp16_tensor,
+        h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE,
         nheads, 1, 1);
     cudaDeviceSynchronize();
 
@@ -642,13 +642,13 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
-        h_NUM_TOKENS, 128, nheads);
+        h_NUM_TOKENS, 128, nheads, TILE_SIZE);
     cudaDeviceSynchronize();
 }
 
 __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
     float *attention_scores, __half *K, __half *Q,
-    int m, int n, int k,
+    int m, int n, int k, int TILE_SIZE,
     int nheads, int causal_mask, int apply_softmax) {
     /*
         - Each head operates independently of other heads.
@@ -781,7 +781,7 @@ __global__ void softmax_on_attention_scores(float *attention_scores, int m, int 
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
-    int m, int d_head, int nheads) {
+    int m, int d_head, int nheads, int TILE_SIZE) {
     extern __shared__ float shared_mem[];
 
     float *attention_shmem = shared_mem;

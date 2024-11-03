@@ -19,7 +19,7 @@ typedef struct {
     float *d_attention_score_cache;
     float *d_feedforward_cache;
 
-    float *next_token;
+    __half *next_token;
 } CudaCache;
 
 /* ********************************* Inference Code ********************************* */
