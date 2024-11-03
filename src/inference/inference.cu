@@ -850,7 +850,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Define thread and grid dimensions
     dim3 block(MAX_THREADS_PER_BLOCK);
-    dim3 grid((EMBED_SIZE + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+    dim3 grid((4096 + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
     // Shared memory size in bytes
     size_t shared_mem_size = 2 * MAX_THREADS_PER_BLOCK * sizeof(float);
