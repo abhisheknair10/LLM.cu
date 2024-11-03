@@ -69,10 +69,14 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
     int m, int n, int k,
     int nheads, int causal_mask, int apply_softmax);
 
+__inline__ __device__ float warpReduceMax(float val);
+
+__inline__ __device__ float warpReduceSum(float val);
+
 __global__ void softmax_on_attention_scores(float *attention_scores, int m, int n);
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
-    float *output, float *attention_scores, __half *V,
+    __half *output, float *attention_scores, __half *V,
     int m, int d_head, int nheads);
 
 /* ********************************* Feed Forward Network ********************************* */

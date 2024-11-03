@@ -526,7 +526,7 @@ void compute_qkv_tensors(
 
 void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    TILE_SIZE = 32;
+    int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
@@ -545,7 +545,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_o_proj->d_fp16_tensor,
+        X->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_o_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
@@ -628,7 +628,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
     kernel_compute_masked_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
-        CudaCache->d_attention_score_cache->d_fp16_tensor, K->d_fp16_tensor, Q->d_fp16_tensor,
+        Cache->d_attention_score_cache->d_fp16_tensor, K->d_fp16_tensor, Q->d_fp16_tensor,
         h_NUM_TOKENS, h_NUM_TOKENS, 128,
         nheads, 1, 1);
     cudaDeviceSynchronize();
@@ -641,7 +641,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         nheads);
 
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, CudaCache->d_attention_score_cache, V->d_fp16_tensor,
+        X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
         h_NUM_TOKENS, 128, nheads);
     cudaDeviceSynchronize();
 }
@@ -780,7 +780,7 @@ __global__ void softmax_on_attention_scores(float *attention_scores, int m, int 
 }
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
-    float *output, float *attention_scores, __half *V,
+    __half *output, float *attention_scores, __half *V,
     int m, int d_head, int nheads) {
     extern __shared__ float shared_mem[];
 
@@ -822,7 +822,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     // Store the final result in the output matrix
     if (row < m && col < d_head) {
-        output[(head_idx * m * d_head) + row * d_head + col] = result;
+        output[(head_idx * m * d_head) + row * d_head + col] = __float2half(result);
     }
 }
 
@@ -929,7 +929,7 @@ __global__ void kernel_down_proj_matmul(
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
     // Declare common variables
-    TILE_SIZE = 32;
+    int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
