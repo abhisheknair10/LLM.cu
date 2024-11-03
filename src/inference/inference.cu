@@ -157,13 +157,16 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
+        CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+        CHECK_CUDA_ERROR();
 
         // Post-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
+        CHECK_CUDA_ERROR();
 
         // Feedforward
         compute_feedforward(X, llama3_model->layers[i], Cache);
@@ -646,7 +649,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
-        h_NUM_TOKENS, 128, nheads, TILE_SIZE);
+        h_NUM_TOKENS, h_NUM_TOKENS, 128, nheads, TILE_SIZE);
     cudaDeviceSynchronize();
 
     return;
@@ -772,19 +775,56 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
-    int m, int d_head, int nheads, int TILE_SIZE) {
+    int m, int k, int d_head, int nheads, int TILE_SIZE) {
+    // Kernel start
+    //
     extern __shared__ float shared_mem[];
-
     float *attention_shmem = shared_mem;
     float *V_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
     int head_idx = blockIdx.z;
+    int V_head_idx = head_idx / 4;
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    float result = 0.0f;
+    float value = 0.0f;
 
-    return;
+    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
+        int k_idx = t * TILE_SIZE + threadIdx.x;  // K dimension index
+
+        // Load attention_scores into shared memory
+        if (row < m && k_idx < k) {
+            int attn_idx = head_idx * m * k + row * k + k_idx;
+            attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[attn_idx];
+        } else {
+            attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+
+        // Load V into shared memory
+        int V_row = k_idx;
+        int V_col = col;
+        if (V_row < k && V_col < d_head) {
+            int V_idx = V_head_idx * k * d_head + V_row * d_head + V_col;
+            V_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(V[V_idx]);
+        } else {
+            V_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+        }
+
+        __syncthreads();
+
+        // Compute partial sums
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    // Write the result to the output tensor
+    if (row < m && col < d_head) {
+        int output_idx = head_idx * m * d_head + row * d_head + col;
+        output[output_idx] = __float2half(value);
+    }
 }
 
 /* ********************************* Feed Forward Network ********************************* */

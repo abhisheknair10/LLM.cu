@@ -20,9 +20,6 @@
 const int MODEL_NUM_LAYERS = 32;
 const bool TEST = false;
 
-__global__ void model_param_checker(__half *fp16_tensor, int *mem_len);
-__global__ void tokens_checker(int *tokens);
-
 int main() {
     // Initialize the Llama3 model
     Llama3 *llama3_model = init_llama3(MODEL_NUM_LAYERS);
@@ -76,34 +73,8 @@ int main() {
 
     inference(llama3_model, X, d_tokens, tokens, Cache);
 
-    if (TEST) {
-        // Check the 0th index of the k_proj tensor of the first layer
-        model_param_checker<<<1, 1>>>(
-            llama3_model->layers[0]->mlp_down_proj->d_fp16_tensor, llama3_model->layers[0]->mlp_down_proj->d_mem_len);
-        cudaDeviceSynchronize();
-
-        // Check if tokens have been stored in CUDA
-        tokens_checker<<<1, 1>>>(d_tokens);
-        cudaDeviceSynchronize();
-    }
-
     // Free the model resources
     free_llama3(llama3_model);
 
     return 0;
-}
-
-// CUDA kernel to check the 0th index of the fp16 tensor in the k_proj
-__global__ void model_param_checker(__half *fp16_tensor, int *mem_len) {
-    printf("The 0th index of the fp16_tensor (mlp_down_proj): %f\n", __half2float(fp16_tensor[0]));
-    printf("Mem Len: %d\n", *mem_len);
-}
-
-// CUDA kernel to check the tokens
-__global__ void tokens_checker(int *tokens) {
-    printf("Number of Tokens: %d\n", tokens[0] - 1);
-    for (int i = 1; i < tokens[0]; i++) {
-        printf("%d, ", tokens[i]);
-    }
-    printf("\n");
 }

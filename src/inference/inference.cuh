@@ -72,7 +72,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
-    int m, int d_head, int nheads, int TILE_SIZE);
+    int m, int k, int d_head, int nheads, int TILE_SIZE);
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
