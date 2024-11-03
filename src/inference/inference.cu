@@ -151,6 +151,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
         CHECK_CUDA_ERROR();
 
+        break;
+
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
         CHECK_CUDA_ERROR();
