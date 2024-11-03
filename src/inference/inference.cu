@@ -837,6 +837,9 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
+    CHECK_CUDA_ERROR();
+    cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     // Up projection computation
     grid = dim3(
@@ -878,7 +881,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
 }
 
 __device__ float sigmoid(float x) {
-    return 1 / (1 + exp(-x));
+    return 1 / (1 + expf(-x));
 }
 
 __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim) {
