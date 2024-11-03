@@ -89,7 +89,7 @@ float *create_gmemcache(size_t mem_len, size_t type_size) {
 }
 
 __half *create_gmemcache(size_t mem_len, size_t type_size) {
-    float *d_gcache;
+    __half *d_gcache;
 
     cudaMalloc(&d_gcache, mem_len * type_size);
 
