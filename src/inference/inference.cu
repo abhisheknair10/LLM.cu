@@ -848,50 +848,47 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
+    // Define thread and grid dimensions
     dim3 blockDim(MAX_THREADS_PER_BLOCK);
-    dim3 gridDim((4096 + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+    dim3 gridDim((EMBED_SIZE + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
+    // Shared memory size in bytes
     size_t shared_mem_size = 2 * MAX_THREADS_PER_BLOCK * sizeof(float);
 
-    // Gate and up projection
+    // Kernel for gate and up projection
     kernel_gate_up_proj<<<gridDim, blockDim, shared_mem_size>>>(
         Cache->d_feedforward_cache, L3_Layer->mlp_up_proj->d_fp16_tensor,
         L3_Layer->mlp_gate_proj->d_fp16_tensor, X->d_fp16_tensor);
     cudaDeviceSynchronize();
 
-    // Down projection
+    // Kernel for down projection
     int down_proj_out_dim = L3_Layer->mlp_down_proj->shape[0];
-    dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
     dim3 gridDim_down((down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
-    kernel_down_proj_matmul<<<gridDim_down, blockDim_down>>>(
+    kernel_down_proj_matmul<<<gridDim_down, blockDim>>>(
         X->d_fp16_tensor, L3_Layer->mlp_down_proj->d_fp16_tensor,
         Cache->d_feedforward_cache, down_proj_out_dim);
     cudaDeviceSynchronize();
-
-    return;
 }
 
 __global__ void kernel_gate_up_proj(
     float *d_feedforward_cache, __half *Proj_Up, __half *Proj_Gate, __half *X) {
-    int token_idx = blockIdx.z;
-    int fcoord_idx = blockIdx.y;
+    int token_idx = blockIdx.y;
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     extern __shared__ float shared_mem[];
 
-    // Ensure we are within valid index bounds
-    if (token_idx >= d_NUM_TOKENS || fcoord_idx >= EMBED_SIZE || embed_idx >= EMBED_SIZE) {
+    if (token_idx >= d_NUM_TOKENS || embed_idx >= EMBED_SIZE) {
         return;
     }
 
-    // Compute gate projection
+    // Load input and projection values
     float x = __half2float(X[token_idx * EMBED_SIZE + embed_idx]);
-    float gate_w = __half2float(Proj_Gate[fcoord_idx * EMBED_SIZE + embed_idx]);
-    float gate_proj = x * gate_w;
+    float gate_w = __half2float(Proj_Gate[embed_idx]);
+    float up_w = __half2float(Proj_Up[embed_idx]);
 
-    // Compute up projection
-    float up_w = __half2float(Proj_Up[fcoord_idx * EMBED_SIZE + embed_idx]);
+    // Compute gate and up projections
+    float gate_proj = x * gate_w;
     float up_proj = x * up_w;
 
     // Store partial sums in shared memory for reduction
@@ -899,7 +896,7 @@ __global__ void kernel_gate_up_proj(
     shared_mem[blockDim.x + threadIdx.x] = up_proj;
     __syncthreads();
 
-    // Parallel reduction within the block for both gate and up
+    // Parallel reduction within the block
     for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
         if (threadIdx.x < stride) {
             shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
@@ -908,19 +905,15 @@ __global__ void kernel_gate_up_proj(
         __syncthreads();
     }
 
-    // Apply SiLU to the gate projection and add to the up projection
     if (threadIdx.x == 0) {
-        int idx = token_idx * EMBED_SIZE + fcoord_idx;
-
-        // Final gate and up projections after reduction
+        int idx = token_idx * EMBED_SIZE + blockIdx.x;
         float gate_final = shared_mem[0];
         float up_final = shared_mem[blockDim.x];
 
         // Apply SiLU to gate projection
-        float sigmoid = 1.0f / (1.0f + expf(-gate_final));
-        float silu_gate = gate_final * sigmoid;
+        float silu_gate = gate_final / (1.0f + expf(-gate_final));
 
-        // Add SiLU(gate) and up projection
+        // Write to feedforward cache
         d_feedforward_cache[idx] = silu_gate + up_final;
     }
 }
@@ -934,7 +927,6 @@ __global__ void kernel_down_proj_matmul(
         return;
     }
 
-    // Compute the dot product between d_feedforward_cache and the down projection matrix Proj_Down
     float result = 0.0f;
     for (int i = 0; i < EMBED_SIZE; ++i) {
         float cache_val = d_feedforward_cache[token_idx * EMBED_SIZE + i];
@@ -942,7 +934,7 @@ __global__ void kernel_down_proj_matmul(
         result += cache_val * down_proj_val;
     }
 
-    // Store the result back in X_out
+    // Write result back to output
     X_out[token_idx * down_proj_out_dim + down_proj_idx] = __float2half(result);
 }
 
