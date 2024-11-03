@@ -712,14 +712,10 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
             K_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
         }
 
-        __syncthreads();
-
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
             value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[threadIdx.x * TILE_SIZE + i];
         }
-
-        __syncthreads();
     }
 
     // Write the result to shared memory
@@ -758,7 +754,6 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         }
 
         exp_sum += expf(shared_mem[idx]);
-        __syncthreads();
     }
     __syncthreads();
 
