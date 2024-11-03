@@ -732,7 +732,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
         if (causal_mask) {
             if (idx <= token_idx) {
-                shared_mem[idx] = attention_scores[idx];
+                shared_mem[idx] = attention_scores[blockIdx.y * 2048 + head_idx * 32 + threadIdx.x];
             }
         } else {
             shared_mem[idx] = -1e9f;
@@ -764,7 +764,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         float softmax_den = buffer[0];
         for (int i = 0; i < 2; i++) {
             idx = i * blockDim.x + threadIdx.x;
-            attention_scores[idx] = expf(shared_mem[idx]) / softmax_den;
+            attention_scores[blockIdx.y * 2048 + head_idx * 32 + threadIdx.x] = expf(shared_mem[idx]) / softmax_den;
 
             printf("%f, %f\n", shared_mem[idx], expf(shared_mem[idx]) / softmax_den);
         }
