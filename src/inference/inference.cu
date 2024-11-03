@@ -151,8 +151,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
         CHECK_CUDA_ERROR();
 
-        break;
-
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
         CHECK_CUDA_ERROR();
@@ -460,7 +458,6 @@ __global__ void kernel_standard_tiled_gemm(
     if (row < m && col < n) {
         int O_idx = row * n + col;
         O[O_idx] = __float2half(value);
-        printf("%f\n", value);
     }
 
     return;
@@ -721,6 +718,7 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
             score = -INFINITY;
         }
         attention_scores[(head_idx * m * n) + row * n + col] = score;
+        printf("%f\n", scores);
     }
 
     __syncthreads();
