@@ -80,16 +80,8 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
-float *create_gmemcache_float(size_t mem_len, size_t type_size) {
-    float *d_gcache;
-
-    cudaMalloc(&d_gcache, mem_len * type_size);
-
-    return d_gcache;
-}
-
-__half *create_gmemcache_half(size_t mem_len, size_t type_size) {
-    __half *d_gcache;
+void *create_gmemcache(size_t mem_len, size_t type_size) {
+    void *d_gcache;
 
     cudaMalloc(&d_gcache, mem_len * type_size);
 
@@ -108,10 +100,12 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
-    float *d_attention_score_cache = create_gmemcache_float(2048 * 2048, sizeof(float));
-    float *d_feedforward_cache = create_gmemcache_float(14336 * 2048, sizeof(float));
+    float *d_attention_score_cache = (float *)create_gmemcache(2048 * 2048, sizeof(float));
 
-    __half *next_token = create_gmemcache_half(128256 * 2048, sizeof(__half));
+    __half *d_feedforward_cache_gate = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
+    __half *d_feedforward_cache_up = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
+
+    __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -121,7 +115,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->V = V;
 
     Cache->d_attention_score_cache = d_attention_score_cache;
-    Cache->d_feedforward_cache = d_feedforward_cache;
+    Cache->d_feedforward_cache_up = d_feedforward_cache_up;
 
     Cache->next_token = next_token;
 
@@ -175,8 +169,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
         CHECK_CUDA_ERROR();
-
-        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
@@ -831,14 +823,85 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
+    /*
+    torch.matmul(
+        torch.functional.F.silu(
+            torch.matmul(
+                embedding_after_edit_normalized,
+                w1.T
+            )
+        ) *
+        torch.matmul(
+            embedding_after_edit_normalized,
+            w3.T
+        ),
+        w2.T
+    )
+    */
+    // Declare common variables
+    int TILE_SIZE = 32;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 grid;
+
+    // Gate projection computation
+    grid = dim3(
+        (L3_Layer->mlp_gate_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
+
+    // Up projection computation
+    grid = dim3(
+        (L3_Layer->mlp_up_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        Cache->d_feedforward_cache_up, X->d_fp16_tensor, L3_Layer->mlp_up_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->mlp_up_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
+
+    // Swiglu Activation
+    grid = dim3(
+        (L3_Layer->mlp_up_proj->d_fp16_tensor + 1024 - 1) / 1024,
+        h_NUM_TOKENS);
+
+    kernel_compute_swiglu<<<grid, block>>>(
+        Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
+        L3_Layer->mlp_up_proj->shape[0]);
+    cudaDeviceSynchronize();
+
+    // Final output feedforward output computation
+    grid = dim3(
+        (L3_Layer->mlp_down_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        X->d_fp16_tensor, Cache->d_feedforward_cache_up, L3_Layer->mlp_down_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->mlp_down_proj->shape[0], L3_Layer->mlp_up_proj->shape[0], TILE_SIZE);
+    cudaDeviceSynchronize();
+
+    return;
 }
 
-__global__ void kernel_gate_up_proj(
-    float *d_feedforward_cache, __half *Proj_Up, __half *Proj_Gate, __half *X) {
+__device__ float sigmoid(float x) {
+    return 1 / (1 + exp(-x));
 }
 
-__global__ void kernel_down_proj_matmul(
-    __half *X_out, __half *Proj_Down, float *d_feedforward_cache, int down_proj_out_dim) {
+__global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim) {
+    int flat_thread_idx = threadIdx.y * blockDim.x + threadIdx.x;
+    int embed_idx = blockIdx.x * blockDim.y * blockDim.x + flat_thread_idx;
+    int token_idx = blockIdx.y;
+
+    float gate_val = __half2float(gate[token_idx * embed_dim + embed_idx]);
+    float up_val = __half2float(up[token_idx * embed_dim + embed_idx]);
+
+    output[token_idx * embed_dim + embed_idx] = __float2half(
+        sigmoid(gate_val) * up_val);
+
+    return;
 }
 
 /* ********************************* Language Model Head ********************************* */

@@ -18,7 +18,6 @@
 #define CLEAR_TERMINAL() system("clear")
 
 const int MODEL_NUM_LAYERS = 32;
-const bool TEST = false;
 
 int main() {
     // Initialize the Llama3 model
