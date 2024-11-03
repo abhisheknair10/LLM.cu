@@ -849,23 +849,25 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Define thread and grid dimensions
-    dim3 blockDim(MAX_THREADS_PER_BLOCK);
-    dim3 gridDim((EMBED_SIZE + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+    dim3 block(MAX_THREADS_PER_BLOCK);
+    dim3 grid((EMBED_SIZE + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
 
     // Shared memory size in bytes
     size_t shared_mem_size = 2 * MAX_THREADS_PER_BLOCK * sizeof(float);
 
     // Kernel for gate and up projection
-    kernel_gate_up_proj<<<gridDim, blockDim, shared_mem_size>>>(
+    kernel_gate_up_proj<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache, L3_Layer->mlp_up_proj->d_fp16_tensor,
         L3_Layer->mlp_gate_proj->d_fp16_tensor, X->d_fp16_tensor);
     cudaDeviceSynchronize();
 
     // Kernel for down projection
-    int down_proj_out_dim = L3_Layer->mlp_down_proj->shape[0];
-    dim3 gridDim_down((down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+    block = dim3(L3_Layer->mlp_down_proj->shape[0]);
+    grid = dim3(
+        (down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK,
+        h_NUM_TOKENS);
 
-    kernel_down_proj_matmul<<<gridDim_down, blockDim>>>(
+    kernel_down_proj_matmul<<<grid, block>>>(
         X->d_fp16_tensor, L3_Layer->mlp_down_proj->d_fp16_tensor,
         Cache->d_feedforward_cache, down_proj_out_dim);
     cudaDeviceSynchronize();
