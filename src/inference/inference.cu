@@ -164,10 +164,14 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+
+        break;
     }
 
+    /*
     compute_layer_norm(llama3_model->norm, X);
     compute_lm_head(X, llama3_model->lm_head, Cache);
+    */
 
     printCudaMemoryInfo();
 
@@ -437,6 +441,7 @@ __global__ void kernel_standard_tiled_gemm(
     if (row < m && col < n) {
         int O_idx = row * n + col;
         O[O_idx] = __float2half(value);
+        printf("%f\n", value);
     }
 
     return;
