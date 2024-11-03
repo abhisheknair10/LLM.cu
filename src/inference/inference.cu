@@ -175,6 +175,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
         CHECK_CUDA_ERROR();
+
+        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
