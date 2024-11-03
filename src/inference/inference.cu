@@ -381,7 +381,7 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     __half data = __hadd(X[offset], PN_X[offset]);
     X[offset] = data;
 
-    printf("%f", __half2float(data));
+    printf("%f\n", __half2float(data));
 
     return;
 }
