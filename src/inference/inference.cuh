@@ -82,7 +82,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
 __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim);
 
 /* ********************************* Language Model Head ********************************* */
-void compute_lm_head(Tensor *X, Tensor *LM_Head, CudaCache *Cache);
+void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);
 
 /* ************************************** Cuda Cache ************************************** */
 CudaCache *init_cache(Llama3 *llama3_model);
