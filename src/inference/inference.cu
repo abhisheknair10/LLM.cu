@@ -635,6 +635,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     shared_mem_size = (2048 + 1024) * sizeof(float);
     kernel_masking_softmax<<<grid, block, shared_mem_size>>>(
         Cache->d_attention_score_cache, 1, 1);
+    cudaDeviceSynchronize();
 
     // Resolution of attention scores
     block = dim3(TILE_SIZE, TILE_SIZE);
@@ -730,7 +731,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
         if (causal_mask) {
             if (idx <= token_idx) {
-                shared_mem[idx] = attention_scores[blockIdx.y * 2048 + head_idx * 32 + threadIdx.x];
+                shared_mem[idx] = attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx];
             }
         } else {
             shared_mem[idx] = -INFINITY;
@@ -762,7 +763,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         float softmax_den = buffer[0];
         for (int i = 0; i < 2; i++) {
             idx = i * blockDim.x + threadIdx.x;
-            attention_scores[blockIdx.y * 2048 + head_idx * 32 + threadIdx.x] = expf(shared_mem[idx]) / softmax_den;
+            attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx] = expf(shared_mem[idx]) / softmax_den;
         }
     }
 
