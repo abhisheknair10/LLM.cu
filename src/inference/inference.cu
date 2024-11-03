@@ -718,7 +718,7 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
             score = -INFINITY;
         }
         attention_scores[(head_idx * m * n) + row * n + col] = score;
-        printf("%f\n", scores);
+        printf("%f\n", score);
     }
 
     __syncthreads();
