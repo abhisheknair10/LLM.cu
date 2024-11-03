@@ -823,21 +823,6 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
-    /*
-    torch.matmul(
-        torch.functional.F.silu(
-            torch.matmul(
-                embedding_after_edit_normalized,
-                w1.T
-            )
-        ) *
-        torch.matmul(
-            embedding_after_edit_normalized,
-            w3.T
-        ),
-        w2.T
-    )
-    */
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
@@ -861,7 +846,9 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_up, X->d_fp16_tensor, L3_Layer->mlp_up_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_up_proj->shape[0], 4096, TILE_SIZE);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     // Swiglu Activation
     grid = dim3(
@@ -871,7 +858,9 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_compute_swiglu<<<grid, block>>>(
         Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
         L3_Layer->mlp_up_proj->shape[0]);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     // Final output feedforward output computation
     grid = dim3(
@@ -881,7 +870,9 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->d_feedforward_cache_up, L3_Layer->mlp_down_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_down_proj->shape[0], L3_Layer->mlp_up_proj->shape[0], TILE_SIZE);
+    CHECK_CUDA_ERROR();
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     return;
 }
