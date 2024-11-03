@@ -317,9 +317,11 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             significant indices still perform addition but add no value to context
     */
     if (vw_embed_idx < 32) {
+        __syncthreads();
         float val = shared_mem[vw_embed_idx];
         for (int offset = 16; offset > 0; offset /= 2) {
             val += __shfl_down_sync(0xffffffff, val, offset);
+            __syncthreads();
         }
         if (vw_embed_idx == 0) shared_mem[0] = val;
     }
