@@ -103,7 +103,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     float *d_attention_score_cache = create_gmemcache(2048 * 2048, sizeof(float));
     float *d_feedforward_cache = create_gmemcache(14336 * 2048, sizeof(float));
 
-    float *next_token = create_gmemcache(128256 * 2048, sizeof(__half));
+    __half *next_token = create_gmemcache(128256 * 2048, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;

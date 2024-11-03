@@ -66,7 +66,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
 __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
     float *attention_scores, __half *K, __half *Q,
-    int m, int n, int k,
+    int m, int n, int k, int TILE_SIZE,
     int nheads, int causal_mask, int apply_softmax);
 
 __inline__ __device__ float warpReduceMax(float val);
@@ -77,7 +77,7 @@ __global__ void softmax_on_attention_scores(float *attention_scores, int m, int 
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
-    int m, int d_head, int nheads);
+    int m, int d_head, int nheads, int TILE_SIZE);
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
