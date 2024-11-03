@@ -712,7 +712,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     return;
 }
 
-__global__ void kernel_masking_softmax(__half *attention_scores, int masking, int softmax) {
+__global__ void kernel_masking_softmax(float *attention_scores, int causal_mask, int softmax) {
     extern __shared__ float shared_mem[];
 
     float *buffer = shared_mem + 2048;
@@ -730,7 +730,7 @@ __global__ void kernel_masking_softmax(__half *attention_scores, int masking, in
             continue;
         }
 
-        if (mask) {
+        if (causal_mask) {
             if (idx <= token_idx) {
                 shared_mem[idx] = attention_scores[idx];
             }
@@ -738,16 +738,16 @@ __global__ void kernel_masking_softmax(__half *attention_scores, int masking, in
             shared_mem[idx] = -1e9f;
         }
 
-        exp_sums += expf(shared_mem[idx]);
+        exp_sum += expf(shared_mem[idx]);
     }
     __syncthreads();
 
-    buffer[threadIdx.x] = exp_sums;
+    buffer[threadIdx.x] = exp_sum;
 
     if (softmax) {
         for (int offset = 512; offset > 32; offset /= 2) {
             if (threadIdx.x < offset) {
-                buffer[threadIdx.xs] += buffer[threadIdx.x + offset];
+                buffer[threadIdx.x] += buffer[threadIdx.x + offset];
             }
             __syncthreads();
         }
@@ -812,7 +812,7 @@ void compute_lm_head(Tensor *X, Tensor *LM_Head, CudaCache *Cache) {
 
     // Query computation
     grid = dim3(
-        (LM_HEAD->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (LM_Head->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
