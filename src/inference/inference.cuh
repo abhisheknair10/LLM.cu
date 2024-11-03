@@ -92,6 +92,4 @@ __global__ void kernel_down_proj_matmul(
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache);
 
 /* ************************************** Cuda Cache ************************************** */
-float *create_gmemcache(size_t mem_len, size_t type_size);
-
 CudaCache *init_cache(Llama3 *llama3_model);

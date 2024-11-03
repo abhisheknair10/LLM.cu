@@ -88,6 +88,14 @@ float *create_gmemcache(size_t mem_len, size_t type_size) {
     return d_gcache;
 }
 
+__half *create_gmemcache(size_t mem_len, size_t type_size) {
+    float *d_gcache;
+
+    cudaMalloc(&d_gcache, mem_len * type_size);
+
+    return d_gcache;
+}
+
 CudaCache *init_cache(Llama3 *llama3_model) {
     // Ahead Of Time memory allocations
     // Allocate once, use everywhere
