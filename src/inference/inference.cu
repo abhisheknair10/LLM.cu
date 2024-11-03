@@ -547,7 +547,7 @@ void compute_qkv_tensors(
 void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
     int TILE_SIZE = 32;
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
 
@@ -646,7 +646,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
         nheads);
 
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     kernel_compute_masked_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
         Cache->d_attention_score_cache, K->d_fp16_tensor, Q->d_fp16_tensor,
         h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE,
@@ -950,7 +950,7 @@ __global__ void kernel_down_proj_matmul(
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
     // Declare common variables
     int TILE_SIZE = 32;
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
 
