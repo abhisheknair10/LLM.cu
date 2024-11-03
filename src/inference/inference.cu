@@ -72,7 +72,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
             }
         }
         printf("%d\n", max);
-        printf("\n\n\n\n\n");
+        printf("\n\n");
     }
 
     return;
@@ -148,32 +148,25 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
-        CHECK_CUDA_ERROR();
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
-        CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        CHECK_CUDA_ERROR();
 
         // Post-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
-        CHECK_CUDA_ERROR();
 
         // Feedforward
         compute_feedforward(X, llama3_model->layers[i], Cache);
-        CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        CHECK_CUDA_ERROR();
     }
 
     compute_layer_norm(llama3_model->norm, X);
-
     compute_lm_head(X, llama3_model->lm_head, Cache);
 
     printCudaMemoryInfo();
