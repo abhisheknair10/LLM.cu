@@ -862,7 +862,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     cudaDeviceSynchronize();
 
     // Kernel for down projection
-    block = dim3(L3_Layer->mlp_down_proj->shape[0]);
+    int down_proj_out_dim = L3_Layer->mlp_down_proj->shape[0];
     grid = dim3(
         (down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK,
         h_NUM_TOKENS);
