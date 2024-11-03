@@ -96,10 +96,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     // Allocate Memory --------------------------------------------------------
     Tensor *PN_X = _create_intermediary_prenorm_tensor_copy();
 
-    float *d_attq_cache = create_gmemcache(2048 * 4096, sizeof(float));
-    float *d_attk_cache = create_gmemcache(2048 * 1024, sizeof(float));
-    float *d_attv_cache = create_gmemcache(2048 * 1024, sizeof(float));
-
     Tensor *Q = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
@@ -110,10 +106,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     float *next_token = create_gmemcache(128256 * 2048, sizeof(float));
 
     // Save pointers to Struct --------------------------------------------------------
-    Cache->d_attq_cache = d_attq_cache;
-    Cache->d_attk_cache = d_attk_cache;
-    Cache->d_attv_cache = d_attv_cache;
-
     Cache->PN_X = PN_X;
 
     Cache->Q = Q;
@@ -145,9 +137,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
 
-        //======================== COMPLETED AND CHECKED ========================
         // Attention tensor computation
-        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X, Cache);
+        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
 
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
@@ -156,7 +147,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
         // Output computation
-        compute_output(llama3_model->layers[i], X, Cache);
+        compute_output(llama3_model->layers[i], X);
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
@@ -192,16 +183,13 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     int blocks = (total_threads + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK;
 
     kernel_tokens_to_embeddings<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        X->d_fp16_tensor, llama3_model->embed_tokens->d_fp16_tensor, d_tokens);
+        X->d_fp16_tensor, d_tokens, llama3_model->embed_tokens->d_fp16_tensor);
     cudaDeviceSynchronize();
-
-    // check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void kernel_tokens_to_embeddings(__half *X, __half *Embed, int *tokens) {
+__global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     int total_elements = d_NUM_TOKENS * EMBED_SIZE;
@@ -273,13 +261,13 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
     dim3 grid(h_NUM_TOKENS);
 
     kernel_compute_rms_norm<<<grid, block>>>(
-        RMSNorm->d_fp16_tensor, X->d_fp16_tensor);
+        X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
     cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X) {
+__global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     __shared__ float shared_mem[1024];
 
     int token_idx = blockIdx.x;
@@ -395,6 +383,68 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     return;
 }
 
+/* ***************************** General Matrix Multiplication **************************** */
+__global__ void kernel_standard_tiled_gemm(
+    __half *O, __half *X, __half *Transform, int m, int n, int k, int TILE_SIZE) {
+    /*
+        - m represents the independent dimension of the input matrix
+        - n represents the independent dimenion of the transformation matrix
+        - k represents the common dimension of the 2 matrices
+        - Function calls are written in Math notation like how Math notation implies column major
+            order of matrices
+        - The notation of transforming a input tensor is written as: O = matmul(Transform, X(T))
+        - However, within each kernel, the output is computed as: O = matmul(X, Transform)
+        - Transposing the transformation tensor is not required as virtual indexing allows for
+            intended navigation along rows and columns of either tensors
+        - Order of variables within kernels respect computation order
+    */
+    // Kernel start
+    //
+    extern __shared__ float shared_mem[];
+    float *X_shmem = shared_mem;
+    float *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
+
+    int row = blockIdx.y * TILE_SIZE + threadIdx.y;
+    int col = blockIdx.x * TILE_SIZE + threadIdx.x;
+
+    // Loop over tiles
+    float value = 0.0f;
+    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
+        // Load tile of X into shared memory
+        if (row < m && t * TILE_SIZE + threadIdx.x < k) {
+            int X_idx = row * k + t * TILE_SIZE + threadIdx.x;
+            X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(X[X_idx]);
+        } else {
+            X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+
+        // Load tile of Transform into shared memory
+        if (t * TILE_SIZE + threadIdx.y < k && col < n) {
+            int T_idx = (t * TILE_SIZE + threadIdx.y) * n + col;
+            T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Transform[T_idx]);
+        } else {
+            T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+
+        __syncthreads();
+
+        // Compute partial sums
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    // Write the result to global memory
+    if (row < m && col < n) {
+        int O_idx = row * n + col;
+        O[O_idx] = __float2half(value);
+    }
+
+    return;
+}
+
 /* ***************************** Attention Tensor Computation **************************** */
 Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
     Tensor *Attention_Tensor = (Tensor *)malloc(sizeof(Tensor));
@@ -434,139 +484,72 @@ Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
     return Attention_Tensor;
 }
 
-void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
-                         Llama3Layer *L3_Layer, Tensor *X,
-                         CudaCache *Cache) {
+void compute_qkv_tensors(
+    Tensor *Q, Tensor *K, Tensor *V,
+    Llama3Layer *L3_Layer, Tensor *X) {
+    // Declare common variables
+    TILE_SIZE = 32;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 grid;
+
+    // Query computation
+    grid = dim3(
+        (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        Q->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_q_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
+
+    // Key computation
+    grid = dim3(
+        (L3_Layer->self_attn_k_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        K->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_k_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
+
+    // Value computation
+    grid = dim3(
+        (L3_Layer->self_attn_v_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        V->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_v_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
+
+    return;
+}
+
+void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
+    // Declare common variables
+    TILE_SIZE = 32;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 grid;
+
+    // Query computation
     /*
-    // -------- Compute intermediate matmul in cache --------
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_q_proj, X, Cache->d_attq_cache);
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_k_proj, X, Cache->d_attk_cache);
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_v_proj, X, Cache->d_attv_cache);
+    Wq = (4096, 4096)
+    X - (1, 4096)
 
-    cudaDeviceSynchronize();
-
-    // -------- Compute full matmul in output tensors --------
-    _abstract_full_attensor_kernel_call(Q, L3_Layer->self_attn_q_proj, Cache->d_attq_cache);
-    _abstract_full_attensor_kernel_call(K, L3_Layer->self_attn_k_proj, Cache->d_attk_cache);
-    _abstract_full_attensor_kernel_call(V, L3_Layer->self_attn_v_proj, Cache->d_attv_cache);
-
-    cudaDeviceSynchronize();
+    Q - 1, (4096)
     */
 
-    // ------------------------- Checks -------------------------
-    // check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
-    // cudaDeviceSynchronize();
+    // Query computation
+    grid = dim3(
+        (L3_Layer->self_attn_o_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    // check_embedding<<<1, 1>>>(K->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
-
-    // check_embedding<<<1, 1>>>(V->d_fp16_tensor, 1024);
-    // cudaDeviceSynchronize();
-
-    return;
-}
-
-void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
-    _abstract_intermediate_attensor_kernel_call(L3_Layer->self_attn_o_proj, X, Cache->d_attq_cache);
-    cudaDeviceSynchronize();
-
-    _abstract_full_attensor_kernel_call(X, L3_Layer->self_attn_o_proj, Cache->d_attq_cache);
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        X->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_o_proj->d_fp16_tensor,
+        h_NUM_TOKENS, L3_Layer->self_attn_o_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
     return;
-}
-
-void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, float *d_gcache) {
-    // Function start
-    //
-    int blockx, blocky, blockz;
-    dim3 blocks;
-
-    blockx = 4096 / MAX_THREADS_PER_BLOCK;
-    blocky = Proj_Layer->shape[0];
-    blockz = h_NUM_TOKENS;
-
-    blocks = dim3(blockx, blocky, blockz);
-
-    size_t shared_mem_size = MAX_THREADS_PER_BLOCK * sizeof(float);
-
-    kernel_compute_intermediate_attention_matmul<<<blocks, MAX_THREADS_PER_BLOCK, shared_mem_size>>>(
-        Proj_Layer->d_fp16_tensor, Proj_Layer->d_shape, X->d_fp16_tensor, d_gcache);
-
-    return;
-}
-
-__global__ void kernel_compute_intermediate_attention_matmul(
-    __half *Linear_tensor, int *Linear_shape,
-    __half *X, float *d_gcache) {
-    extern __shared__ float shared_mem[];
-
-    int total_blocks_x = (EMBED_SIZE + blockDim.x - 1) / blockDim.x;
-
-    int token_idx = blockIdx.z;
-    int fcoord_idx = blockIdx.y;
-    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (token_idx >= d_NUM_TOKENS) return;
-    if (fcoord_idx >= Linear_shape[0]) return;
-    if (embed_idx >= EMBED_SIZE) return;
-
-    float x = __half2float(X[token_idx * EMBED_SIZE + embed_idx]);
-    float f = __half2float(Linear_tensor[fcoord_idx * EMBED_SIZE + embed_idx]);
-    shared_mem[threadIdx.x] = x * f;
-    __syncthreads();
-
-    // Reduction
-    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-        if (threadIdx.x < stride) {
-            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
-        }
-        __syncthreads();
-    }
-
-    if (threadIdx.x == 0) {
-        int cache_idx = token_idx * Linear_shape[0] * total_blocks_x +
-                        fcoord_idx * total_blocks_x +
-                        blockIdx.x;
-        d_gcache[cache_idx] = shared_mem[0];
-    }
-}
-
-void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer, float *d_gcache) {
-    // Function start
-    //
-    int blockx, blocky;
-    dim3 blocks;
-
-    blockx = Proj_Layer->shape[0] / MAX_THREADS_PER_BLOCK;
-    blocky = h_NUM_TOKENS;
-    blocks = dim3(blockx, blocky);
-
-    kernel_compute_full_attention_tensors<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        Attention_Tensor->d_fp16_tensor, Proj_Layer->d_shape, d_gcache);
-
-    return;
-}
-
-__global__ void kernel_compute_full_attention_tensors(
-    __half *O_tensor, int *Linear_shape, float *d_gcache) {
-    int total_blocks_x = (EMBED_SIZE + blockDim.x - 1) / blockDim.x;
-
-    int token_idx = blockIdx.y;
-    int fcoord_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (token_idx >= d_NUM_TOKENS) return;
-    if (fcoord_idx >= Linear_shape[0]) return;
-
-    float sum = 0.0f;
-    for (int i = 0; i < total_blocks_x; i++) {
-        int cache_idx = token_idx * Linear_shape[0] * total_blocks_x +
-                        fcoord_idx * total_blocks_x +
-                        i;
-        sum += d_gcache[cache_idx];
-    }
-
-    O_tensor[token_idx * Linear_shape[0] + fcoord_idx] = __float2half(sum);
 }
 
 /* ************************* Rotary Positional Embedding (RoPE) ************************* */
@@ -634,150 +617,196 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
+    // Attention score computation
+    TILE_SIZE = 32;
     int nheads = 32;
-    int nkheads = 8;
-    int num_tokens = h_NUM_TOKENS;
-    int head_dim = 128;
+    dim3 block(TILE_SIZE, TILE_SIZE);
+    dim3 grid(
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
+        nheads);
 
-    // Kernel 1: Compute attention scores and apply softmax
-    int blockSize1 = head_dim;
-    int gridSize1_x = (num_tokens + blockSize1 - 1) / blockSize1;
-    dim3 grid1(gridSize1_x, num_tokens, nheads);
-    size_t shared_mem_size1 = blockSize1 * sizeof(float);
-
-    kernel_compute_attention_scores_softmax<<<grid1, blockSize1, shared_mem_size1>>>(
-        Cache->d_attention_score_cache, Q->d_fp16_tensor, K->d_fp16_tensor,
-        num_tokens, nheads, nkheads, head_dim, 1, 1);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    kernel_compute_masked_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
+        CudaCache->d_attention_score_cache, K->d_fp16_tensor, Q->d_fp16_tensor,
+        h_NUM_TOKENS, h_NUM_TOKENS, 128,
+        nheads, 1, 1);
     cudaDeviceSynchronize();
 
-    // Kernel 2: Multiply attention weights with V
-    int blockSize2 = head_dim;
-    dim3 grid2(1, num_tokens, nheads);
-    size_t shared_mem_size2 = 0;
+    // Softmax computation
+    dim3 block(1);
+    dim3 grid(h_NUM_TOKENS, 1, nheads);
 
-    kernel_compute_attention_output<<<grid2, blockSize2, shared_mem_size2>>>(
-        X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
-        num_tokens, nheads, nkheads, head_dim);
+    softmax_on_attention_scores<<<grid, block>>>(
+        attention_scores, h_NUM_TOKENS, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
-    return;
+    // Resolve attention scores to value
+    dim3 block(TILE_SIZE, TILE_SIZE);
+    dim3 grid((128 + TILE_SIZE - 1) / TILE_SIZE, (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE, nheads);
+
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem_size>>>(
+        X->d_fp16_tensor, CudaCache->d_attention_score_cache, V->d_fp16_tensor,
+        h_NUM_TOKENS, 128, nheads);
+    cudaDeviceSynchronize();
 }
 
-__global__ void kernel_compute_attention_scores_softmax(
-    float *attention_scores, __half *Q, __half *K,
-    int num_tokens, int nheads, int nkheads, int head_dim,
-    uint8_t scaling, uint8_t automask) {
-    // Kernel Start
+__global__ void kernel_compute_masked_attention_scores_tiled_matmul(
+    float *attention_scores, __half *K, __half *Q,
+    int m, int n, int k,
+    int nheads, int causal_mask, int apply_softmax) {
+    /*
+        - Each head operates independently of other heads.
+        - `m` represents the independent dimension of the K matrix (number of tokens).
+        - `n` represents the independent dimension of the Q matrix (number of tokens).
+        - `k` represents the common dimension (embedding dimension for each head).
+    */
+    // Kernel start
     //
     extern __shared__ float shared_mem[];
 
-    int h = blockIdx.z;
-    int i = blockIdx.y;
-    int j_start = blockIdx.x * blockDim.x;
-    int tid = threadIdx.x;
+    float *Q_shmem = shared_mem;
+    float *K_shmem = shared_mem + (TILE_SIZE * TILE_SIZE);
 
-    if (i >= num_tokens || h >= nheads)
-        return;
+    int head_idx = blockIdx.z;
+    int row = blockIdx.y * TILE_SIZE + threadIdx.y;
+    int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    int kv_head = h / (nheads / nkheads);
+    // Adjust row index for shared keys
+    int key_row = row / 4;
+    float score = 0.0f;
 
-    // Compute attention scores for a chunk of keys
-    for (int j = j_start + tid; j < num_tokens; j += blockDim.x) {
-        if (j >= num_tokens)
-            continue;
+    for (int tile_idx = 0; tile_idx < (k + TILE_SIZE - 1) / TILE_SIZE; ++tile_idx) {
+        int tiled_col = tile_idx * TILE_SIZE + threadIdx.x;
+        int tiled_row = tile_idx * TILE_SIZE + threadIdx.y;
 
-        // Dot product over head_dim
-        float dot_product = 0.0f;
-        for (int d = 0; d < head_dim; ++d) {
-            int Q_idx = i * nheads * head_dim + h * head_dim + d;
-            int K_idx = j * nkheads * head_dim + kv_head * head_dim + d;
-
-            float q_val = __half2float(Q[Q_idx]);
-            float k_val = __half2float(K[K_idx]);
-            dot_product += q_val * k_val;
+        // Load K tile (row-major) and Q tile (row-major) into shared memory
+        if (key_row < (m / 4) && tiled_col < k) {
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[(head_idx * (m / 4) * k) + key_row * k + tiled_col]);
+        } else {
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
-        // Apply scaling
-        if (scaling) {
-            dot_product /= sqrtf((float)head_dim);
-        }
-
-        // Apply mask
-        if (automask && j > i) {
-            dot_product = -1e9f;
-        }
-
-        // Store the raw attention score
-        int score_idx = h * num_tokens * num_tokens + i * num_tokens + j;
-        shared_mem[tid] = dot_product;
-
-        __syncthreads();
-
-        // Compute max for numerical stability
-        float max_score = -1e9f;
-        for (int k = 0; k < blockDim.x && (j_start + k) < num_tokens; ++k) {
-            max_score = fmaxf(max_score, shared_mem[k]);
+        if (col < n && tiled_row < k) {
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[(head_idx * m * k) + tiled_row * n + col]);
+        } else {
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
         __syncthreads();
 
-        // Subtract max and exponentiate
+        // Compute partial product for this tile
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            score += K_shmem[threadIdx.y * TILE_SIZE + i] * Q_shmem[i * TILE_SIZE + threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    if (row < m && col < n) {
+        if (causal_mask && col > row) {
+            score = -INFINITY;
+        }
+        attention_scores[(head_idx * m * n) + row * n + col] = score;
+    }
+
+    __syncthreads();
+
+    // Apply softmax if requested
+    if (apply_softmax && row < m) {
+        float max_score = -INFINITY;
+        for (int i = 0; i < n; ++i) {
+            max_score = fmaxf(max_score, attention_scores[(head_idx * m * n) + row * n + i]);
+        }
+
         float sum_exp = 0.0f;
-        float exp_score = expf(shared_mem[tid] - max_score);
-        shared_mem[tid] = exp_score;
-
-        __syncthreads();
-
-        // Compute sum of exponentials
-        for (int k = 0; k < blockDim.x && (j_start + k) < num_tokens; ++k) {
-            sum_exp += shared_mem[k];
+        for (int i = 0; i < n; ++i) {
+            if (attention_scores[(head_idx * m * n) + row * n + i] != -INFINITY) {
+                float exp_score = expf(attention_scores[(head_idx * m * n) + row * n + i] - max_score);
+                attention_scores[(head_idx * m * n) + row * n + i] = exp_score;
+                sum_exp += exp_score;
+            }
         }
 
-        __syncthreads();
-
-        // Normalize to get softmax probabilities
-        float attention_weight = exp_score / (sum_exp + 1e-6f);
-
-        attention_scores[score_idx] = attention_weight;
+        for (int i = 0; i < n; ++i) {
+            if (attention_scores[(head_idx * m * n) + row * n + i] != -INFINITY) {
+                attention_scores[(head_idx * m * n) + row * n + i] /= sum_exp;
+            }
+        }
     }
 
     return;
 }
 
-__global__ void kernel_compute_attention_output(
-    __half *output, float *attention_scores, __half *V,
-    int num_tokens, int nheads, int nkheads, int head_dim) {
-    // Kernel start
-    //
-    extern __shared__ float shared_V[];
+__global__ void softmax_on_attention_scores(float *attention_scores, int m, int n) {
+    int row = blockIdx.x;
+    int head_idx = blockIdx.z;
 
-    int h = blockIdx.z;
-    int i = blockIdx.y;
-    int d = threadIdx.x;
-
-    if (i >= num_tokens) return;
-    if (h >= nheads) return;
-    if (d >= head_dim) return;
-
-    int kv_head = h / (nheads / nkheads);
-
-    float output_val = 0.0f;
-
-    // Loop over all keys to compute the weighted sum
-    for (int j = 0; j < num_tokens; ++j) {
-        int score_idx = h * num_tokens * num_tokens + i * num_tokens + j;
-        float attn_weight = attention_scores[score_idx];
-
-        int V_idx = j * nkheads * head_dim + kv_head * head_dim + d;
-        float v_val = __half2float(V[V_idx]);
-
-        output_val += attn_weight * v_val;
+    float max_score = -INFINITY;
+    for (int col = 0; col < n; ++col) {
+        max_score = fmaxf(max_score, attention_scores[(head_idx * m * n) + row * n + col]);
     }
 
-    int output_idx = i * nheads * head_dim + h * head_dim + d;
-    output[output_idx] = __float2half(output_val);
+    float sum_exp = 0.0f;
+    for (int col = 0; col < n; ++col) {
+        float exp_score = expf(attention_scores[(head_idx * m * n) + row * n + col] - max_score);
+        attention_scores[(head_idx * m * n) + row * n + col] = exp_score;
+        sum_exp += exp_score;
+    }
+
+    for (int col = 0; col < n; ++col) {
+        attention_scores[(head_idx * m * n) + row * n + col] /= sum_exp;
+    }
 
     return;
+}
+
+__global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
+    float *output, float *attention_scores, __half *V,
+    int m, int d_head, int nheads) {
+    extern __shared__ float shared_mem[];
+
+    float *attention_shmem = shared_mem;
+    float *V_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
+
+    int head_idx = blockIdx.z;
+    int row = blockIdx.y * TILE_SIZE + threadIdx.y;
+    int col = blockIdx.x * TILE_SIZE + threadIdx.x;
+
+    float result = 0.0f;
+
+    for (int tile_idx = 0; tile_idx < (m + TILE_SIZE - 1) / TILE_SIZE; ++tile_idx) {
+        int tiled_col = tile_idx * TILE_SIZE + threadIdx.x;
+        int tiled_row = tile_idx * TILE_SIZE + threadIdx.y;
+
+        // Load tile from attention_scores and V into shared memory
+        if (row < m && tiled_col < m) {
+            attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[(head_idx * m * m) + row * m + tiled_col];
+        } else {
+            attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+
+        if (tiled_row < m && col < d_head) {
+            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[(head_idx * m * d_head) + tiled_row * d_head + col]);
+        } else {
+            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+
+        __syncthreads();
+
+        // Compute partial result for the output
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            result += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
+        }
+
+        __syncthreads();
+    }
+
+    // Store the final result in the output matrix
+    if (row < m && col < d_head) {
+        output[(head_idx * m * d_head) + row * d_head + col] = result;
+    }
 }
 
 /* ********************************* Feed Forward Network ********************************* */
@@ -882,37 +911,21 @@ __global__ void kernel_down_proj_matmul(
 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
-    int out_dim = LM_HEAD->shape[0];
-    dim3 blockDim_down(MAX_THREADS_PER_BLOCK);
-    dim3 gridDim_down((out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
+    // Declare common variables
+    TILE_SIZE = 32;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
+    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 grid;
 
-    kernel_lm_head<<<gridDim_down, blockDim_down>>>(
-        Cache->next_token, LM_HEAD->d_fp16_tensor,
-        X->d_fp16_tensor, out_dim);
-    cudaDeviceSynchronize();
+    // Query computation
+    grid = dim3(
+        (LM_HEAD->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    check_embedding<<<1, 1>>>(Cache->next_token, 128256);
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
+        Cache->next_token, X->d_fp16_tensor, LM_HEAD->d_fp16_tensor,
+        h_NUM_TOKENS, LM_HEAD->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
     return;
-}
-
-__global__ void kernel_lm_head(
-    float *X_out, __half *LM_HEAD, __half *d_feedforward_cache, int down_proj_out_dim) {
-    int token_idx = blockIdx.y;
-    int down_proj_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (token_idx >= d_NUM_TOKENS || down_proj_idx >= down_proj_out_dim) {
-        return;
-    }
-
-    float result = 0.0f;
-    for (int i = 0; i < EMBED_SIZE; ++i) {
-        float cache_val = d_feedforward_cache[token_idx * EMBED_SIZE + i];
-        float down_proj_val = __half2float(LM_HEAD[down_proj_idx * EMBED_SIZE + i]);
-        result += cache_val * down_proj_val;
-    }
-
-    // Store the result back in X_out
-    X_out[token_idx * down_proj_out_dim + down_proj_idx] = __float2half(result);
 }

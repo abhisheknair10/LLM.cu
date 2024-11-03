@@ -10,10 +10,6 @@
 #include "llama3/llama3.cuh"
 
 typedef struct {
-    float *d_attq_cache;
-    float *d_attk_cache;
-    float *d_attv_cache;
-
     Tensor *PN_X;
 
     Tensor *Q;
@@ -32,7 +28,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 /* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens);
 
-__global__ void kernel_tokens_to_embeddings(__half *X, __half *Embed, int *tokens);
+__global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed);
 
 /* ******************************* Layer Normalization ******************************* */
 Tensor *_create_intermediary_prenorm_tensor_copy();
@@ -41,31 +37,24 @@ void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X);
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X);
 
-__global__ void kernel_compute_rms_norm(__half *RMSNorm, __half *X);
+__global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm);
 
 void add_norm(Tensor *X, Tensor *PN_X);
 
 __global__ void add_norm(__half *X, __half *PN_X);
 
+/* ***************************** General Matrix Multiplication **************************** */
+__global__ void kernel_standard_tiled_gemm(
+    __half *O, __half *X, __half *Transform, int m, int n, int k, int TILE_SIZE);
+
 /* ***************************** Attention Tensor Computation **************************** */
 Tensor *_create_intermediary_attention_tensor(Tensor *Linear);
 
-void compute_qkv_tensors(Tensor *Q, Tensor *K, Tensor *V,
-                         Llama3Layer *L3_Layer, Tensor *X,
-                         CudaCache *Cache);
+void compute_qkv_tensors(
+    Tensor *Q, Tensor *K, Tensor *V,
+    Llama3Layer *L3_Layer, Tensor *X);
 
-void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache);
-
-void _abstract_intermediate_attensor_kernel_call(Tensor *Proj_Layer, Tensor *X, float *d_gcache);
-
-__global__ void kernel_compute_intermediate_attention_matmul(
-    __half *Linear, int *Linear_shape,
-    __half *X, float *d_gcache);
-
-void _abstract_full_attensor_kernel_call(Tensor *Attention_Tensor, Tensor *Proj_Layer, float *d_gcache);
-
-__global__ void kernel_compute_full_attention_tensors(
-    __half *O_tensor, int *Linear_shape, float *d_gcache);
+void compute_output(Llama3Layer *L3_Layer, Tensor *X);
 
 /* ************************* Rotary Positional Embedding (RoPE) ************************* */
 void rope_scaling(Tensor *Q, Tensor *K);
@@ -75,14 +64,10 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size);
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache);
 
-__global__ void kernel_compute_attention_scores_softmax(
-    float *attention_scores, __half *Q, __half *K,
-    int num_tokens, int nheads, int nkheads, int head_dim,
-    uint8_t scaling, uint8_t automask);
-
-__global__ void kernel_compute_attention_output(
-    __half *output, float *attention_scores, __half *V,
-    int num_tokens, int nheads, int nkheads, int head_dim);
+__global__ void kernel_compute_masked_attention_scores_tiled_matmul(
+    float *attention_scores, __half *K, __half *Q,
+    int m, int n, int k,
+    int nheads, int causal_mask, int softmax);
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
