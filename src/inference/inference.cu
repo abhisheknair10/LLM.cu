@@ -136,60 +136,46 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
-        printf("1\n");
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
-        printf("2\n");
         CHECK_CUDA_ERROR();
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
-        printf("3\n");
         CHECK_CUDA_ERROR();
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
-        printf("4\n");
         CHECK_CUDA_ERROR();
 
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
-        printf("5\n");
         CHECK_CUDA_ERROR();
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
-        printf("6\n");
         CHECK_CUDA_ERROR();
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
-        printf("7\n");
         CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        printf("8\n");
         CHECK_CUDA_ERROR();
 
         // Post-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
-        printf("9\n");
         CHECK_CUDA_ERROR();
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
-        printf("10\n");
         CHECK_CUDA_ERROR();
 
         // Feedforward
         compute_feedforward(X, llama3_model->layers[i], Cache);
-        printf("11\n");
         CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        printf("12\n");
         CHECK_CUDA_ERROR();
     }
-
-    printf("13\n");
 
     compute_layer_norm(llama3_model->norm, X);
     compute_lm_head(llama3_model->lm_head, X, Cache);
@@ -758,7 +744,6 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
     __syncthreads();
 
     buffer[threadIdx.x] = exp_sum;
-
     if (softmax) {
         for (int offset = 512; offset > 32; offset /= 2) {
             if (threadIdx.x < offset) {
