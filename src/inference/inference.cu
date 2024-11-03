@@ -143,17 +143,13 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
-        CHECK_CUDA_ERROR();
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
-        CHECK_CUDA_ERROR();
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
-        CHECK_CUDA_ERROR();
 
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
-        CHECK_CUDA_ERROR();
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
@@ -161,17 +157,13 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
-        CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        CHECK_CUDA_ERROR();
 
         // Post-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
-        CHECK_CUDA_ERROR();
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
-        CHECK_CUDA_ERROR();
 
         // Feedforward
         compute_feedforward(X, llama3_model->layers[i], Cache);
@@ -183,11 +175,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     }
 
     compute_layer_norm(llama3_model->norm, X);
-    CHECK_CUDA_ERROR();
 
     compute_lm_head(X, llama3_model->lm_head, Cache);
-
-    CHECK_CUDA_ERROR();
 
     printCudaMemoryInfo();
 
@@ -662,6 +651,8 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
         h_NUM_TOKENS, 128, nheads, TILE_SIZE);
     cudaDeviceSynchronize();
+
+    return;
 }
 
 __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
@@ -688,113 +679,6 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
     int key_row = row / 4;
     float score = 0.0f;
 
-    for (int tile_idx = 0; tile_idx < (k + TILE_SIZE - 1) / TILE_SIZE; ++tile_idx) {
-        int tiled_col = tile_idx * TILE_SIZE + threadIdx.x;
-        int tiled_row = tile_idx * TILE_SIZE + threadIdx.y;
-
-        if (key_row < (m / 4) && tiled_col < k) {
-            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[(head_idx * (m / 4) * k) + key_row * k + tiled_col]);
-        } else {
-            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
-        }
-
-        if (col < n && tiled_row < k) {
-            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[(head_idx * m * k) + tiled_row * n + col]);
-        } else {
-            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
-        }
-
-        __syncthreads();
-
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            score += K_shmem[threadIdx.y * TILE_SIZE + i] * Q_shmem[i * TILE_SIZE + threadIdx.x];
-        }
-
-        __syncthreads();
-    }
-
-    if (row < m && col < n) {
-        if (causal_mask && col > row) {
-            score = -INFINITY;
-        }
-        attention_scores[(head_idx * m * n) + row * n + col] = score;
-        printf("%f\n", score);
-    }
-
-    __syncthreads();
-
-    // Apply softmax if requested
-    if (apply_softmax && row < m) {
-        // Load attention_scores row into shared memory for current row
-        if (col < n) {
-            row_scores[threadIdx.x] = attention_scores[(head_idx * m * n) + row * n + col];
-        } else {
-            row_scores[threadIdx.x] = -INFINITY;
-        }
-
-        __syncthreads();
-
-        // Step 1: Compute row-wise maximum using warp reduction
-        float max_score = -INFINITY;
-        for (int i = threadIdx.x; i < n; i += TILE_SIZE) {
-            max_score = fmaxf(max_score, row_scores[i]);
-        }
-        max_score = warpReduceMax(max_score);
-
-        __syncthreads();
-
-        // Step 2: Compute sum of exponentials
-        float sum_exp = 0.0f;
-        for (int i = threadIdx.x; i < n; i += TILE_SIZE) {
-            row_scores[i] = expf(row_scores[i] - max_score);  // Exponentiate in-place
-            sum_exp += row_scores[i];
-        }
-        sum_exp = warpReduceSum(sum_exp);
-
-        __syncthreads();
-
-        // Step 3: Normalize each element in the row by the sum of exponentials
-        if (col < n) {
-            attention_scores[(head_idx * m * n) + row * n + col] = row_scores[threadIdx.x] / sum_exp;
-        }
-    }
-}
-
-// Warp reduction functions
-__inline__ __device__ float warpReduceMax(float val) {
-    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
-        val = fmaxf(val, __shfl_down_sync(0xffffffff, val, offset));
-    }
-    return val;
-}
-
-__inline__ __device__ float warpReduceSum(float val) {
-    for (int offset = warpSize / 2; offset > 0; offset /= 2) {
-        val += __shfl_down_sync(0xffffffff, val, offset);
-    }
-    return val;
-}
-
-__global__ void softmax_on_attention_scores(float *attention_scores, int m, int n) {
-    int row = blockIdx.x;
-    int head_idx = blockIdx.z;
-
-    float max_score = -INFINITY;
-    for (int col = 0; col < n; ++col) {
-        max_score = fmaxf(max_score, attention_scores[(head_idx * m * n) + row * n + col]);
-    }
-
-    float sum_exp = 0.0f;
-    for (int col = 0; col < n; ++col) {
-        float exp_score = expf(attention_scores[(head_idx * m * n) + row * n + col] - max_score);
-        attention_scores[(head_idx * m * n) + row * n + col] = exp_score;
-        sum_exp += exp_score;
-    }
-
-    for (int col = 0; col < n; ++col) {
-        attention_scores[(head_idx * m * n) + row * n + col] /= sum_exp;
-    }
-
     return;
 }
 
@@ -812,135 +696,23 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     float result = 0.0f;
 
-    for (int tile_idx = 0; tile_idx < (m + TILE_SIZE - 1) / TILE_SIZE; ++tile_idx) {
-        int tiled_col = tile_idx * TILE_SIZE + threadIdx.x;
-        int tiled_row = tile_idx * TILE_SIZE + threadIdx.y;
-
-        // Load tile from attention_scores and V into shared memory
-        if (row < m && tiled_col < m) {
-            attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[(head_idx * m * m) + row * m + tiled_col];
-        } else {
-            attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
-        }
-
-        if (tiled_row < m && col < d_head) {
-            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[(head_idx * m * d_head) + tiled_row * d_head + col]);
-        } else {
-            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
-        }
-
-        __syncthreads();
-
-        // Compute partial result for the output
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            result += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
-        }
-
-        __syncthreads();
-    }
-
-    // Store the final result in the output matrix
-    if (row < m && col < d_head) {
-        output[(head_idx * m * d_head) + row * d_head + col] = __float2half(result);
-    }
+    return;
 }
 
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
-    // Define thread and grid dimensions
-    dim3 block(MAX_THREADS_PER_BLOCK);
-    dim3 grid((4096 + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK, h_NUM_TOKENS);
-
-    // Shared memory size in bytes
-    size_t shared_mem_size = 2 * MAX_THREADS_PER_BLOCK * sizeof(float);
-
-    // Kernel for gate and up projection
-    kernel_gate_up_proj<<<grid, block, shared_mem_size>>>(
-        Cache->d_feedforward_cache, L3_Layer->mlp_up_proj->d_fp16_tensor,
-        L3_Layer->mlp_gate_proj->d_fp16_tensor, X->d_fp16_tensor);
-    cudaDeviceSynchronize();
-
-    // Kernel for down projection
-    int down_proj_out_dim = L3_Layer->mlp_down_proj->shape[0];
-    grid = dim3(
-        (down_proj_out_dim + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK,
-        h_NUM_TOKENS);
-
-    kernel_down_proj_matmul<<<grid, block>>>(
-        X->d_fp16_tensor, L3_Layer->mlp_down_proj->d_fp16_tensor,
-        Cache->d_feedforward_cache, down_proj_out_dim);
-    cudaDeviceSynchronize();
 }
 
 __global__ void kernel_gate_up_proj(
     float *d_feedforward_cache, __half *Proj_Up, __half *Proj_Gate, __half *X) {
-    int token_idx = blockIdx.y;
-    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    extern __shared__ float shared_mem[];
-
-    if (token_idx >= d_NUM_TOKENS || embed_idx >= EMBED_SIZE) {
-        return;
-    }
-
-    // Load input and projection values
-    float x = __half2float(X[token_idx * EMBED_SIZE + embed_idx]);
-    float gate_w = __half2float(Proj_Gate[embed_idx]);
-    float up_w = __half2float(Proj_Up[embed_idx]);
-
-    // Compute gate and up projections
-    float gate_proj = x * gate_w;
-    float up_proj = x * up_w;
-
-    // Store partial sums in shared memory for reduction
-    shared_mem[threadIdx.x] = gate_proj;
-    shared_mem[blockDim.x + threadIdx.x] = up_proj;
-    __syncthreads();
-
-    // Parallel reduction within the block
-    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-        if (threadIdx.x < stride) {
-            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + stride];
-            shared_mem[blockDim.x + threadIdx.x] += shared_mem[blockDim.x + threadIdx.x + stride];
-        }
-        __syncthreads();
-    }
-
-    if (threadIdx.x == 0) {
-        int idx = token_idx * EMBED_SIZE + blockIdx.x;
-        float gate_final = shared_mem[0];
-        float up_final = shared_mem[blockDim.x];
-
-        // Apply SiLU to gate projection
-        float silu_gate = gate_final / (1.0f + expf(-gate_final));
-
-        // Write to feedforward cache
-        d_feedforward_cache[idx] = silu_gate + up_final;
-    }
 }
 
 __global__ void kernel_down_proj_matmul(
     __half *X_out, __half *Proj_Down, float *d_feedforward_cache, int down_proj_out_dim) {
-    int token_idx = blockIdx.y;
-    int down_proj_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (token_idx >= d_NUM_TOKENS || down_proj_idx >= down_proj_out_dim) {
-        return;
-    }
-
-    float result = 0.0f;
-    for (int i = 0; i < EMBED_SIZE; ++i) {
-        float cache_val = d_feedforward_cache[token_idx * EMBED_SIZE + i];
-        float down_proj_val = __half2float(Proj_Down[down_proj_idx * EMBED_SIZE + i]);
-        result += cache_val * down_proj_val;
-    }
-
-    // Write result back to output
-    X_out[token_idx * down_proj_out_dim + down_proj_idx] = __float2half(result);
 }
 
 /* ********************************* Language Model Head ********************************* */
-void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
+void compute_lm_head(Tensor *X, Tensor *LM_Head, CudaCache *Cache) {
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
@@ -953,8 +725,8 @@ void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->next_token, X->d_fp16_tensor, LM_HEAD->d_fp16_tensor,
-        h_NUM_TOKENS, LM_HEAD->shape[0], 4096, TILE_SIZE);
+        Cache->next_token, X->d_fp16_tensor, LM_Head->d_fp16_tensor,
+        h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(Cache->next_token, 128256);

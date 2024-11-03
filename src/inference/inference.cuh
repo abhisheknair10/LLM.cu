@@ -69,12 +69,6 @@ __global__ void kernel_compute_masked_attention_scores_tiled_matmul(
     int m, int n, int k, int TILE_SIZE,
     int nheads, int causal_mask, int apply_softmax);
 
-__inline__ __device__ float warpReduceMax(float val);
-
-__inline__ __device__ float warpReduceSum(float val);
-
-__global__ void softmax_on_attention_scores(float *attention_scores, int m, int n);
-
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
     int m, int d_head, int nheads, int TILE_SIZE);
@@ -89,7 +83,7 @@ __global__ void kernel_down_proj_matmul(
     __half *X_out, __half *Proj_Down, float *d_feedforward_cache, int down_proj_out_dim);
 
 /* ********************************* Language Model Head ********************************* */
-void compute_lm_head(Tensor *X, Tensor *LM_HEAD, CudaCache *Cache);
+void compute_lm_head(Tensor *X, Tensor *LM_Head, CudaCache *Cache);
 
 /* ************************************** Cuda Cache ************************************** */
 CudaCache *init_cache(Llama3 *llama3_model);
