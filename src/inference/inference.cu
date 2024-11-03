@@ -80,7 +80,7 @@ __global__ void check_embedding(float *fp16_tensor, int dim) {
 
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
-float *create_gmemcache(size_t mem_len, size_t type_size) {
+float *create_gmemcache_float(size_t mem_len, size_t type_size) {
     float *d_gcache;
 
     cudaMalloc(&d_gcache, mem_len * type_size);
@@ -88,7 +88,7 @@ float *create_gmemcache(size_t mem_len, size_t type_size) {
     return d_gcache;
 }
 
-__half *create_gmemcache(size_t mem_len, size_t type_size) {
+__half *create_gmemcache_half(size_t mem_len, size_t type_size) {
     __half *d_gcache;
 
     cudaMalloc(&d_gcache, mem_len * type_size);
@@ -108,10 +108,10 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
-    float *d_attention_score_cache = create_gmemcache(2048 * 2048, sizeof(float));
-    float *d_feedforward_cache = create_gmemcache(14336 * 2048, sizeof(float));
+    float *d_attention_score_cache = create_gmemcache_float(2048 * 2048, sizeof(float));
+    float *d_feedforward_cache = create_gmemcache_float(14336 * 2048, sizeof(float));
 
-    __half *next_token = create_gmemcache(128256 * 2048, sizeof(__half));
+    __half *next_token = create_gmemcache_half(128256 * 2048, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
