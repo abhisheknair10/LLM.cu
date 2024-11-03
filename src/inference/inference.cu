@@ -168,10 +168,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         break;
     }
 
-    /*
     compute_layer_norm(llama3_model->norm, X);
     compute_lm_head(X, llama3_model->lm_head, Cache);
-    */
 
     printCudaMemoryInfo();
 
