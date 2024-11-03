@@ -351,7 +351,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
            ((uint64_t)__half_as_ushort(data_z) << 32) |
            ((uint64_t)__half_as_ushort(data_w) << 48);
 
-    ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = vec_x;
+    ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = data;
 
     return;
 }
@@ -488,7 +488,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    TILE_SIZE = 32;
+    int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
@@ -499,7 +499,7 @@ void compute_qkv_tensors(
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Q->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_q_proj->d_fp16_tensor,
+        Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
 
     // Key computation
@@ -508,7 +508,7 @@ void compute_qkv_tensors(
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        K->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_k_proj->d_fp16_tensor,
+        K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
 
     // Value computation
@@ -517,7 +517,7 @@ void compute_qkv_tensors(
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        V->d_fp16_tensor, X->d_fp16_tensor, L3_layer->self_attn_v_proj->d_fp16_tensor,
+        V->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_v_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
@@ -618,7 +618,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
     // Attention score computation
-    TILE_SIZE = 32;
+    int TILE_SIZE = 32;
     int nheads = 32;
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid(
@@ -628,16 +628,18 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE;
     kernel_compute_masked_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
-        CudaCache->d_attention_score_cache, K->d_fp16_tensor, Q->d_fp16_tensor,
+        CudaCache->d_attention_score_cache->d_fp16_tensor, K->d_fp16_tensor, Q->d_fp16_tensor,
         h_NUM_TOKENS, h_NUM_TOKENS, 128,
         nheads, 1, 1);
     cudaDeviceSynchronize();
 
     // Resolve attention scores to value
-    dim3 block(TILE_SIZE, TILE_SIZE);
-    dim3 grid((128 + TILE_SIZE - 1) / TILE_SIZE, (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE, nheads);
+    block = dim3(TILE_SIZE, TILE_SIZE);
+    grid = dim3(
+        (128 + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
+        nheads);
 
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, CudaCache->d_attention_score_cache, V->d_fp16_tensor,
         h_NUM_TOKENS, 128, nheads);
