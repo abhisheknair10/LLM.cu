@@ -510,6 +510,7 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
 
     // Key computation
     grid = dim3(
@@ -519,6 +520,7 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
 
     // Value computation
     grid = dim3(
