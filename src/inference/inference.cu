@@ -633,14 +633,6 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         nheads, 1, 1);
     cudaDeviceSynchronize();
 
-    // Softmax computation
-    dim3 block(1);
-    dim3 grid(h_NUM_TOKENS, 1, nheads);
-
-    softmax_on_attention_scores<<<grid, block>>>(
-        attention_scores, h_NUM_TOKENS, h_NUM_TOKENS);
-    cudaDeviceSynchronize();
-
     // Resolve attention scores to value
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid((128 + TILE_SIZE - 1) / TILE_SIZE, (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE, nheads);
