@@ -164,12 +164,10 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-
-        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
-    compute_lm_head(X, llama3_model->lm_head, Cache);
+    compute_lm_head(llama3_model->lm_head, X, Cache);
 
     printCudaMemoryInfo();
 
@@ -380,7 +378,9 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     if (embed_idx >= 4096) return;
 
     int offset = token_idx * 4096 + embed_idx;
-    X[offset] = X[offset] + PN_X[offset];
+    X[offset] = __hadd(X[offset], PN_X[offset]);
+
+    printf("");s
 
     return;
 }
@@ -890,7 +890,7 @@ __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, 
 }
 
 /* ********************************* Language Model Head ********************************* */
-void compute_lm_head(Tensor *X, Tensor *LM_Head, CudaCache *Cache) {
+void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
