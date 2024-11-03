@@ -458,6 +458,7 @@ __global__ void kernel_standard_tiled_gemm(
     if (row < m && col < n) {
         int O_idx = row * n + col;
         O[O_idx] = __float2half(value);
+        printf("%f\n", value);
     }
 
     return;
