@@ -25,7 +25,7 @@ typedef struct {
 } CudaCache;
 
 struct c_half4 {
-    float x, y, z, w;
+    __half x, y, z, w;
 };
 
 /* ********************************* Inference Code ********************************* */
