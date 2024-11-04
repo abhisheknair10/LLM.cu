@@ -513,10 +513,8 @@ void compute_qkv_tensors(
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    /*
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
-    */
 
     return;
 }
