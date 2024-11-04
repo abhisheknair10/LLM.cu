@@ -647,55 +647,64 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     return;
 }
 
+// Adjusted Kernel to Handle 4 Queries per Key
 __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     float *attention_scores, __half *Q, __half *K,
-    int m, int n, int k, int TILE_SIZE, int nheads) {
+    int m, int n, int k, int TILE_SIZE, int nheads, int queries_per_key) {
     /*
-        - Each head operates independently of other heads.
-        - `m` represents the independent dimension of the Q matrix (number of tokens).
-        - `n` represents the independent dimension of the K matrix (number of tokens).
-        - `k` represents the common dimension (embedding dimension for each head).
+        - Each head has multiple queries per key.
+        - `m` represents the number of tokens (rows in Q).
+        - `n` represents the number of tokens (columns in K).
+        - `k` represents the embedding dimension for each head.
+        - `nheads` represents the number of attention heads.
+        - `queries_per_key` represents the number of queries per key (e.g., 4).
     */
-
     extern __shared__ float shared_mem[];
-
     float *Q_shmem = shared_mem;
     float *K_shmem = shared_mem + (TILE_SIZE * TILE_SIZE);
 
-    int head_idx = blockIdx.z;
+    int total_heads = nheads * queries_per_key;
+    int head_query_idx = blockIdx.z;
+
+    int head_idx = head_query_idx / queries_per_key;
+    int query_idx = head_query_idx % queries_per_key;
+
+    // Compute row and column indices for Q and K
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    // Loop over tiles
+    // Loop over tiles of the K dimension
     float value = 0.0f;
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         int embedding_idx = t * TILE_SIZE + threadIdx.x;
 
-        // Load tile of Q into shared memory
+        // Load a tile of Q into shared memory
         if (row < m && embedding_idx < k) {
-            int Q_idx = row * nheads * k + head_idx * k + embedding_idx;
+            int Q_idx = row * (nheads * queries_per_key) * k + head_query_idx * k + embedding_idx;
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[Q_idx]);
         } else {
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
-        // Load tile of K into shared memory (transposed)
+        // Load a tile of K into shared memory
         if (col < n && embedding_idx < k) {
-            int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + embedding_idx;
-            K_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(K[K_idx]);
+            int K_idx = col * nheads * k + head_idx * k + embedding_idx;
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[K_idx]);
         } else {
-            K_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+        }
+        __syncthreads();
+
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x];
         }
 
-        // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[threadIdx.x * TILE_SIZE + i];
-        }
+        __syncthreads();
     }
 
-    // Write the result to shared memory
+    // Compute the final attention score and write to global memory
     if (row < m && col < n) {
-        int O_idx = row * nheads * n + head_idx * n + col;
+        int O_idx = row * (nheads * queries_per_key) * n + head_query_idx * n + col;
         attention_scores[O_idx] = value / sqrtf((float)k);
     }
 
@@ -764,21 +773,28 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
     int m, int k, int d_head, int nheads, int TILE_SIZE) {
-    // Kernel start
-    //
+    /*
+        - Computes the matrix multiplication: output = attention_scores * V
+        - All tensors are in row-major order with no prior transposing.
+        - Handles multiple queries per key by mapping head_idx to V_head_idx.
+        - Each block handles one head-query combination.
+    */
+
+    // Allocate shared memory
     extern __shared__ float shared_mem[];
     float *attention_shmem = shared_mem;
     float *V_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
+    // Calculate head and query indices
     int head_idx = blockIdx.z;
     int V_head_idx = head_idx / 4;
+
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     float value = 0.0f;
-
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
-        int k_idx = t * TILE_SIZE + threadIdx.x;  // K dimension index
+        int k_idx = t * TILE_SIZE + threadIdx.x;
 
         // Load attention_scores into shared memory
         if (row < m && k_idx < k) {
@@ -789,30 +805,29 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         }
 
         // Load V into shared memory
-        int V_row = k_idx;
+        int V_row = t * TILE_SIZE + threadIdx.y;
         int V_col = col;
+
         if (V_row < k && V_col < d_head) {
             int V_idx = V_head_idx * k * d_head + V_row * d_head + V_col;
-            V_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(V[V_idx]);
+            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
-            V_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
-
         __syncthreads();
 
-        // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
             value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
         }
-
         __syncthreads();
     }
 
-    // Write the result to the output tensor
     if (row < m && col < d_head) {
         int output_idx = head_idx * m * d_head + row * d_head + col;
         output[output_idx] = __float2half(value);
     }
+
+    return;
 }
 
 /* ********************************* Feed Forward Network ********************************* */
