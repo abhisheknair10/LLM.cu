@@ -360,14 +360,16 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     data_z = __float2half(__half2float(data_z) * __half2float(norm_gain_z) / rms);
     data_w = __float2half(__half2float(data_w) * __half2float(norm_gain_w) / rms);
 
+    /*
     data = ((uint64_t)__half_as_ushort(data_x) << 0) |
            ((uint64_t)__half_as_ushort(data_y) << 16) |
            ((uint64_t)__half_as_ushort(data_z) << 32) |
            ((uint64_t)__half_as_ushort(data_w) << 48);
+    */
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = data;
 
-    printf("Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_w));
+    printf("Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_x));
 
     return;
 }
