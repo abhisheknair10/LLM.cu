@@ -279,12 +279,11 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             window retrieval per thread, a singular call loading 4 __half's as 1 uint64_t allows for
             4 indicies to be retreived virtually as one data type.
     */
-    uint64_t data = ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
-    __half data_x = __ushort_as_half((unsigned short)((data >> 0) & 0xFFFF));
-    __half data_y = __ushort_as_half((unsigned short)((data >> 16) & 0xFFFF));
-    __half data_z = __ushort_as_half((unsigned short)((data >> 32) & 0xFFFF));
-    __half data_w = __ushort_as_half((unsigned short)((data >> 48) & 0xFFFF));
-
+    c_half4 data = ((c_half4 *)X)[token_idx * 1024 + vw_embed_idx];
+    shared_mem[vw_embed_idx] = __half2float(data.x) * __half2float(data.x) +
+                               __half2float(data.y) * __half2float(data.y) +
+                               __half2float(data.z) * __half2float(data.z) +
+                               __half2float(data.w) * __half2float(data.w);
     __syncthreads();
 
     /*
@@ -323,28 +322,18 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-5);
+    float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-05);
     __syncthreads();
 
-    uint64_t norm_gain = ((uint64_t *)RMSNorm)[vw_embed_idx];
-
-    __half norm_gain_x = __ushort_as_half((unsigned short)((norm_gain >> 0) & 0xFFFF));
-    __half norm_gain_y = __ushort_as_half((unsigned short)((norm_gain >> 16) & 0xFFFF));
-    __half norm_gain_z = __ushort_as_half((unsigned short)((norm_gain >> 32) & 0xFFFF));
-    __half norm_gain_w = __ushort_as_half((unsigned short)((norm_gain >> 48) & 0xFFFF));
+    c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
     // Perform RMS calculations and store
-    data_x = __float2half(__half2float(data_x) * __half2float(norm_gain_x) / rms);
-    data_y = __float2half(__half2float(data_y) * __half2float(norm_gain_y) / rms);
-    data_z = __float2half(__half2float(data_z) * __half2float(norm_gain_z) / rms);
-    data_w = __float2half(__half2float(data_w) * __half2float(norm_gain_w) / rms);
+    data.x = __float2half(__half2float(data.x) * __half2float(norm_gain.x) / rms);
+    data.y = __float2half(__half2float(data.y) * __half2float(norm_gain.y) / rms);
+    data.z = __float2half(__half2float(data.z) * __half2float(norm_gain.z) / rms);
+    data.w = __float2half(__half2float(data.w) * __half2float(norm_gain.w) / rms);
 
-    data = ((uint64_t)__half_as_ushort(data_x) << 0) |
-           ((uint64_t)__half_as_ushort(data_y) << 16) |
-           ((uint64_t)__half_as_ushort(data_z) << 32) |
-           ((uint64_t)__half_as_ushort(data_w) << 48);
-
-    ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = data;
+    ((c_half4 *)X)[token_idx * 1024 + vw_embed_idx] = data;
 
     return;
 }
