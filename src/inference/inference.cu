@@ -340,7 +340,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     // Perform RMS calculations and store
     data_x = __float2half(__half2float(data_x) * __half2float(norm_gain_x) / rms);
     data_y = __float2half(__half2float(data_y) * __half2float(norm_gain_y) / rms);
-    data_z = __float2halsf(__half2float(data_z) * __half2float(norm_gain_z) / rms);
+    data_z = __float2half(__half2float(data_z) * __half2float(norm_gain_z) / rms);
     data_w = __float2half(__half2float(data_w) * __half2float(norm_gain_w) / rms);
 
     data = ((uint64_t)__half_as_ushort(data_x) << 0) |
