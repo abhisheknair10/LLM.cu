@@ -421,8 +421,8 @@ __global__ void kernel_standard_tiled_gemm(
         __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
+        for (int i = 0; i < TILE_SIZE; i++) {
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
         }
 
         __syncthreads();
@@ -487,8 +487,8 @@ void compute_qkv_tensors(
 
     // Query computation
     grid = dim3(
-        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
-        (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE);
+        (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
