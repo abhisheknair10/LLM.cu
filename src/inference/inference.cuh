@@ -16,7 +16,7 @@ typedef struct {
     Tensor *K;
     Tensor *V;
 
-    __half *d_attention_score_cache;
+    float *d_attention_score_cache;
 
     __half *d_feedforward_cache_gate;
     __half *d_feedforward_cache_up;
@@ -25,7 +25,7 @@ typedef struct {
 } CudaCache;
 
 struct c_half4 {
-    __half x, y, z, w;
+    float x, y, z, w;
 };
 
 /* ********************************* Inference Code ********************************* */
@@ -71,13 +71,13 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size);
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache);
 
 __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
-    __half *attention_scores, __half *Q, __half *K,
+    float *attention_scores, __half *Q, __half *K,
     int m, int n, int k, int TILE_SIZE, int nheads);
 
-__global__ void kernel_masking_softmax(__half *attention_scores, int causal_mask, int softmax);
+__global__ void kernel_masking_softmax(float *attention_scores, int causal_mask, int softmax);
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
-    __half *output, __half *attention_scores, __half *V,
+    __half *output, float *attention_scores, __half *V,
     int m, int k, int d_head, int nheads, int TILE_SIZE);
 
 /* ********************************* Feed Forward Network ********************************* */
