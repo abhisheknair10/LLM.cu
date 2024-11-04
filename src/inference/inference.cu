@@ -255,9 +255,6 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-    cudaDeviceSynchronize();
-
     return;
 }
 
