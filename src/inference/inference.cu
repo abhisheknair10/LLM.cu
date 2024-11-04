@@ -397,8 +397,8 @@ __global__ void kernel_standard_tiled_gemm(
     float *X_shmem = shared_mem;
     float *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
-    int row = blockIdx.x * TILE_SIZE + threadIdx.x;
-    int col = blockIdx.y * TILE_SIZE + threadIdx.y;
+    int row = blockIdx.y * TILE_SIZE + threadIdx.y;
+    int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     // Loop over tiles
     float value = 0.0f;
@@ -413,16 +413,16 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Load tile of Transform into shared memory
         if ((t * TILE_SIZE + threadIdx.y) < k && col < n) {
-            int T_idx = col * k + t * TILE_SIZE + threadIdx.y;
-            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(Transform[T_idx]);
+            int T_idx = t * TILE_SIZE + threadIdx.y * k + col;
+            T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Transform[T_idx]);
         } else {
-            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+            T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
         __syncthreads();
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; i++) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.y];
         }
 
         __syncthreads();
@@ -487,8 +487,8 @@ void compute_qkv_tensors(
 
     // Query computation
     grid = dim3(
-        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
-        (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE);
+        (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
