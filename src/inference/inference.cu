@@ -414,8 +414,8 @@ __global__ void kernel_standard_tiled_gemm(
         }
 
         // Load tile of Transform into shared memory
-        if (t * TILE_SIZE + threadIdx.y < k && col < n) {
-            int T_idx = t * TILE_SIZE * n + threadIdx.y * n + col;
+        if ((t * TILE_SIZE + threadIdx.y) < k && col < n) {
+            int T_idx = col * k + (t * TILE_SIZE + threadIdx.y);
             T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Transform[T_idx]);
         } else {
             T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -425,7 +425,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
         }
 
         __syncthreads();
