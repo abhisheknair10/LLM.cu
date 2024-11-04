@@ -429,7 +429,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[row * n + col] = __float2half(value);
+        O[row * n + col] = __float2half(value / 2.0f);
     }
 
     return;
