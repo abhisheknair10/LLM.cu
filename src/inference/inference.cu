@@ -132,7 +132,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
-        exit(1);
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
@@ -158,7 +157,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
@@ -293,7 +291,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     */
     for (int offset = 512; offset > 32; offset /= 2) {
         if (vw_embed_idx < offset) {
-            shared_mem[vw_embed_idx] += shared_mem[vw_embed_idx + offset];
+            shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
         __syncthreads();
     }
@@ -324,7 +322,6 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     */
     float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-05);
     __syncthreads();
-
     c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
     // Perform RMS calculations and store
