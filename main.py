@@ -53,7 +53,7 @@ with torch.no_grad():
         (lm_head): Linear(in_features=4096, out_features=128256, bias=False)
     )
     """
-    model.model.embed_tokens.weights = model.model.embed_tokens.weights.float()
+    model.model.embed_tokens.weight = model.model.embed_tokens.weight.float()
     X = model.model.embed_tokens(X.float()).half()
     X = model.model.layers[0].input_layernorm(X)
     Q = model.model.layers[0].self_attn.q_proj(X)
