@@ -393,15 +393,16 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    __shared__ float X_shmem[32 * 32];
-    __shared__ float T_shmem[32 * 32];
+    extern __shared__ float shared_mem[];
+    float *X_shmem = shared_mem;
+    float *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     // Loop over tiles
     float value = 0.0f;
-    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
+    for (int t = 0; t < ((k + TILE_SIZE - 1) / TILE_SIZE); ++t) {
         // Load tile of X into shared memory
         if (row < m && t * TILE_SIZE + threadIdx.x < k) {
             int X_idx = row * k + t * TILE_SIZE + threadIdx.x;
