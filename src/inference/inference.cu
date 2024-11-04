@@ -257,7 +257,7 @@ void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
 
 // Compute RMS Norm
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
-    dim3 block(32, 32, 1);
+    dim3 block(1024);
     dim3 grid(h_NUM_TOKENS);
 
     kernel_compute_rms_norm<<<grid, block>>>(
@@ -271,7 +271,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     __shared__ float shared_mem[1024];
 
     int token_idx = blockIdx.x;
-    int vw_embed_idx = threadIdx.y * blockDim.x + threadIdx.x;
+    int vw_embed_idx = threadIdx.x;
 
     if (token_idx >= d_NUM_TOKENS) return;
     if (vw_embed_idx >= 1024) return;
@@ -283,11 +283,18 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             window retrieval per thread, a singular call loading 4 __half's as 1 uint64_t allows for
             4 indicies to be retreived virtually as one data type.
     */
-    uint64_t data = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
-    __half data_x = __ushort_as_half((unsigned short)((data >> 0) & 0xFFFF));
-    __half data_y = __ushort_as_half((unsigned short)((data >> 16) & 0xFFFF));
-    __half data_z = __ushort_as_half((unsigned short)((data >> 32) & 0xFFFF));
-    __half data_w = __ushort_as_half((unsigned short)((data >> 48) & 0xFFFF));
+    // uint64_t data = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
+    // __half data_x = __ushort_as_half((unsigned short)((data >> 0) & 0xFFFF));
+    // __half data_y = __ushort_as_half((unsigned short)((data >> 16) & 0xFFFF));
+    // __half data_z = __ushort_as_half((unsigned short)((data >> 32) & 0xFFFF));
+    // __half data_w = __ushort_as_half((unsigned short)((data >> 48) & 0xFFFF));
+
+    int idx = 1024 * vw_embed_idx;
+
+    __half data_x = X[token_idx * 4096 + idx * 4 + 0];
+    __half data_y = X[token_idx * 4096 + idx * 4 + 1];
+    __half data_z = X[token_idx * 4096 + idx * 4 + 2];
+    __half data_w = X[token_idx * 4096 + idx * 4 + 3];
 
     shared_mem[vw_embed_idx] = __half2float(data_x) * __half2float(data_x) +
                                __half2float(data_y) * __half2float(data_y) +
@@ -335,12 +342,17 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-5);
     __syncthreads();
 
-    uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
+    // uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
 
-    __half norm_gain_x = __ushort_as_half((unsigned short)((norm_gain >> 0) & 0xFFFF));
-    __half norm_gain_y = __ushort_as_half((unsigned short)((norm_gain >> 16) & 0xFFFF));
-    __half norm_gain_z = __ushort_as_half((unsigned short)((norm_gain >> 32) & 0xFFFF));
-    __half norm_gain_w = __ushort_as_half((unsigned short)((norm_gain >> 48) & 0xFFFF));
+    // __half norm_gain_x = __ushort_as_half((unsigned short)((norm_gain >> 0) & 0xFFFF));
+    // __half norm_gain_y = __ushort_as_half((unsigned short)((norm_gain >> 16) & 0xFFFF));
+    // __half norm_gain_z = __ushort_as_half((unsigned short)((norm_gain >> 32) & 0xFFFF));
+    // __half norm_gain_w = __ushort_as_half((unsigned short)((norm_gain >> 48) & 0xFFFF));
+
+    __half norm_gain_x = RMSNorm[vw_embed_idx * 4 + 0];
+    __half norm_gain_y = RMSNorm[vw_embed_idx * 4 + 1];
+    __half norm_gain_z = RMSNorm[vw_embed_idx * 4 + 2];
+    __half norm_gain_w = RMSNorm[vw_embed_idx * 4 + 3];
 
     // Perform RMS calculations and store
     data_x = __float2half(__half2float(data_x) * __half2float(norm_gain_x) / rms);
