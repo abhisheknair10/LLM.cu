@@ -113,7 +113,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
-    float *d_attention_score_cache = (float *)create_gmemcache(2048 * 2048, sizeof(float));
+    __half *d_attention_score_cache = (__half *)create_gmemcache(2048 * 2048, sizeof(__half));
 
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
@@ -279,7 +279,7 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
 }
 
 __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
-    __shared__ float shared_mem[1024];
+    __shared__ __half shared_mem[1024];
 
     int token_idx = blockIdx.x;
     int vw_embed_idx = threadIdx.x;
@@ -295,10 +295,10 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             4 indicies to be retreived virtually as one data type.
     */
     c_half4 data = ((c_half4 *)X)[token_idx * 1024 + vw_embed_idx];
-    shared_mem[vw_embed_idx] = __half2float(data.x) * __half2float(data.x) +
-                               __half2float(data.y) * __half2float(data.y) +
-                               __half2float(data.z) * __half2float(data.z) +
-                               __half2float(data.w) * __half2float(data.w);
+    shared_mem[vw_embed_idx] = __hadd_rn(
+        __hadd_rn(__hmul_rn(data.x, data.x), __hmul_rn(data.y, data.y)),
+        __hadd_rn(__hmul_rn(data.z, data.z), __hmul_rn(data.w, data.w)));
+
     __syncthreads();
 
     /*
@@ -308,7 +308,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     */
     for (int offset = 512; offset > 32; offset /= 2) {
         if (vw_embed_idx < offset) {
-            shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
+            shared_mem[vw_embed_idx] = __hadd_rn(shared_mem[vw_embed_idx], shared_mem[offset + vw_embed_idx]);
         }
         __syncthreads();
     }
@@ -325,9 +325,9 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     */
     if (vw_embed_idx < 32) {
         __syncthreads();
-        float val = shared_mem[vw_embed_idx];
+        __half val = shared_mem[vw_embed_idx];
         for (int offset = 16; offset > 0; offset /= 2) {
-            val += __shfl_down_sync(0xffffffff, val, offset);
+            val = __hadd_rn(val, __shfl_down_sync(0xffffffff, val, offset));
             __syncthreads();
         }
         if (vw_embed_idx == 0) shared_mem[0] = val;
@@ -337,15 +337,15 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-05);
+    __half rms = hsqrt_rn(__hadd_rn(__hdiv(shared_mem[0], __float2half(4096.0f)), __float2half(1e-05)));
     __syncthreads();
     c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
     // Perform RMS calculations and store
-    data.x = __float2half(__half2float(data.x) * __half2float(norm_gain.x) / rms);
-    data.y = __float2half(__half2float(data.y) * __half2float(norm_gain.y) / rms);
-    data.z = __float2half(__half2float(data.z) * __half2float(norm_gain.z) / rms);
-    data.w = __float2half(__half2float(data.w) * __half2float(norm_gain.w) / rms);
+    data.x = __hdiv(__hmul_rn(data.x, norm_gain.x), rms);
+    data.y = __hdiv(__hmul_rn(data.y, norm_gain.y), rms);
+    data.z = __hdiv(__hmul_rn(data.z, norm_gain.z), rms);
+    data.w = __hdiv(__hmul_rn(data.w, norm_gain.w), rms);
 
     ((c_half4 *)X)[token_idx * 1024 + vw_embed_idx] = data;
 
@@ -374,7 +374,7 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     if (embed_idx >= 4096) return;
 
     int offset = token_idx * 4096 + embed_idx;
-    X[offset] = __hadd(X[offset], PN_X[offset]);
+    X[offset] = __hadd_rn(X[offset], PN_X[offset]);
 
     return;
 }
@@ -422,7 +422,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value = __hadd_rn(value, __hmul_rn(X_shmem[threadIdx.y * TILE_SIZE + i], T_shmem[i * TILE_SIZE + threadIdx.x]))
+            value = __hadd_rn(value, __hmul_rn(X_shmem[threadIdx.y * TILE_SIZE + i], T_shmem[i * TILE_SIZE + threadIdx.x]));
         }
         __syncthreads();
     }
@@ -479,7 +479,7 @@ void compute_qkv_tensors(
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
     int TILE_SIZE = 32;
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
 
@@ -576,7 +576,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
     if (window_idx >= transformed_embed_size) return;
     if (token_idx >= d_NUM_TOKENS) return;
 
-    // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
+    // Each thread loads 2 __half values as one 4-byte value into half2
     __half2 h2_val = ((const __half2 *)tensor)[window_idx];
 
     const float scaling_factor = 500000.0f;
@@ -584,17 +584,15 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
     float cos_comp = cosf(theta);
     float sin_comp = sinf(theta);
 
-    // Access both values interpreted as 1 and rotate vector pair
-    float even = __half2float(__low2half(h2_val));
-    float odd = __half2float(__high2half(h2_val));
+    // Access both values in h2_val and apply rotation
+    __half even = __low2half(h2_val);
+    __half odd = __high2half(h2_val);
 
-    float ret_even = (cos_comp * even) - (sin_comp * odd);
-    float ret_odd = (sin_comp * even) + (cos_comp * odd);
+    __half ret_even = __hsub_rn(__hmul_rn(__float2half(cos_comp), even), __hmul_rn(__float2half(sin_comp), odd));
+    __half ret_odd = __hadd_rn(__hmul_rn(__float2half(sin_comp), even), __hmul_rn(__float2half(cos_comp), odd));
 
     // Pack the two __half values into a single __half2
-    __half h_ret_even = __float2half(ret_even);
-    __half h_ret_odd = __float2half(ret_odd);
-    __half2 h2_result = __halves2half2(h_ret_even, h_ret_odd);
+    __half2 h2_result = __halves2half2(ret_even, ret_odd);
 
     // Store rope encoded data back to tensor
     ((__half2 *)tensor)[window_idx] = h2_result;
@@ -613,7 +611,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
         nheads);
 
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     kernel_compute_masked_gmq_attention_scores_tiled_matmul<<<grid, block, shared_mem_size>>>(
         Cache->d_attention_score_cache, Q->d_fp16_tensor, K->d_fp16_tensor,
         h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE, nheads);
@@ -623,7 +621,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     block = dim3(MAX_THREADS_PER_BLOCK);
     grid = dim3(h_NUM_TOKENS, nheads);
 
-    shared_mem_size = (2048 + 1024) * sizeof(float);
+    shared_mem_size = (2048 + 1024) * sizeof(__half);
     kernel_masking_softmax<<<grid, block, shared_mem_size>>>(
         Cache->d_attention_score_cache, 1, 1);
     cudaDeviceSynchronize();
@@ -644,7 +642,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 }
 
 __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
-    float *attention_scores, __half *Q, __half *K,
+    __half *attention_scores, __half *Q, __half *K,
     int m, int n, int k, int TILE_SIZE, int nheads) {
     /*
         - Each head operates independently of other heads.
@@ -655,64 +653,65 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
     extern __shared__ __half shared_mem[];
 
-    float *Q_shmem = shared_mem;
-    float *K_shmem = shared_mem + (TILE_SIZE * TILE_SIZE);
+    __half *Q_shmem = shared_mem;
+    __half *K_shmem = shared_mem + (TILE_SIZE * TILE_SIZE);
 
     int head_idx = blockIdx.z;
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     // Loop over tiles
-    float value = 0.0f;
+    __half value = 0.0f;
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         int embedding_idx = t * TILE_SIZE + threadIdx.x;
 
         // Load tile of Q into shared memory
         if (row < m && embedding_idx < k) {
             int Q_idx = row * nheads * k + head_idx * k + embedding_idx;
-            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[Q_idx]);
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = Q[Q_idx];
         } else {
-            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __float2half(0.0f);
         }
 
         // Load tile of K into shared memory (transposed)
         if (col < n && embedding_idx < k) {
             int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + embedding_idx;
-            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[K_idx]);
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = K[K_idx];
         } else {
-            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __float2half(0.0f);
         }
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x];
+            value = __hadd_rn(value, __hmul_rn(Q_shmem[threadIdx.y * TILE_SIZE + i], K_shmem[i * TILE_SIZE + threadIdx.x]));
         }
     }
 
     // Write the result to shared memory
     if (row < m && col < n) {
         int O_idx = row * nheads * n + head_idx * n + col;
-        attention_scores[O_idx] = value / sqrtf((float)k);
+        __half h_k_sqrt = __float2half(sqrtf((float)k));
+        attention_scores[O_idx] = __hdiv(value, h_k_sqrt);
     }
 
     return;
 }
 
-__global__ void kernel_masking_softmax(float *attention_scores, int causal_mask, int softmax) {
+__global__ void kernel_masking_softmax(__half *attention_scores, int causal_mask, int softmax) {
     extern __shared__ __half shared_mem[];
 
-    float *buffer = shared_mem + 2048;
+    __half *buffer = shared_mem + 2048;
 
     int token_idx = blockIdx.x;
     int head_idx = blockIdx.y;
 
     int idx;
-    float exp_sum = 0.0f;
+    __half exp_sum = 0.0f;
     for (int i = 0; i < 2; i++) {
         idx = i * blockDim.x + threadIdx.x;
 
         if (idx >= d_NUM_TOKENS) {
-            shared_mem[idx] = 0.0f;
+            shared_mem[idx] = __float2half(0.0f);
             continue;
         }
 
@@ -724,7 +723,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
             shared_mem[idx] = -INFINITY;
         }
 
-        exp_sum += expf(shared_mem[idx]);
+        exp_sum = __hadd_rn(exp_sum, __float2half(expf(__half2float(shared_mem[idx]))));
     }
     __syncthreads();
 
@@ -732,24 +731,24 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
     if (softmax) {
         for (int offset = 512; offset > 32; offset /= 2) {
             if (threadIdx.x < offset) {
-                buffer[threadIdx.x] += buffer[threadIdx.x + offset];
+                buffer[threadIdx.x] = __hadd_rn(buffer[threadIdx.x], buffer[threadIdx.x + offset])
             }
             __syncthreads();
         }
 
         if (threadIdx.x < 32) {
-            float val = buffer[threadIdx.x];
+            __half val = buffer[threadIdx.x];
             for (int offset = 16; offset > 0; offset /= 2) {
-                val += __shfl_down_sync(0xffffffff, val, offset);
+                val = __hadd_rn(val, __shfl_down_sync(0xffffffff, val, offset));
             }
             if (threadIdx.x == 0) buffer[0] = val;
         }
         __syncthreads();
 
-        float softmax_den = buffer[0];
+        __half softmax_den = __float2half(buffer[0]);
         for (int i = 0; i < 2; i++) {
             idx = i * blockDim.x + threadIdx.x;
-            attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx] = expf(shared_mem[idx]) / softmax_den;
+            attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx] = __hdiv(__float2half(expf(__half2float(shared_mem[idx]))), softmax_den);
             __syncthreads();
         }
     }
@@ -758,21 +757,20 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 }
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
-    __half *output, float *attention_scores, __half *V,
+    __half *output, __half *attention_scores, __half *V,
     int m, int k, int d_head, int nheads, int TILE_SIZE) {
     // Kernel start
     //
     extern __shared__ __half shared_mem[];
-    float *attention_shmem = shared_mem;
-    float *V_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
+    __half *attention_shmem = shared_mem;
+    __half *V_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
     int head_idx = blockIdx.z;
     int V_head_idx = head_idx / 4;
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    float value = 0.0f;
-
+    __half value = 0.0f;
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         int k_idx = t * TILE_SIZE + threadIdx.x;  // K dimension index
 
@@ -798,7 +796,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
+            value = __hadd(value, __hmul(attention_shmem[threadIdx.y * TILE_SIZE + i], V_shmem[i * TILE_SIZE + threadIdx.x]));
         }
 
         __syncthreads();
@@ -807,7 +805,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     // Write the result to the output tensor
     if (row < m && col < d_head) {
         int output_idx = head_idx * m * d_head + row * d_head + col;
-        output[output_idx] = __float2half(value);
+        output[output_idx] = value;
     }
 }
 
@@ -870,11 +868,13 @@ __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, 
     int embed_idx = blockIdx.x * blockDim.y * blockDim.x + flat_thread_idx;
     int token_idx = blockIdx.y;
 
-    float gate_val = __half2float(gate[token_idx * embed_dim + embed_idx]);
-    float up_val = __half2float(up[token_idx * embed_dim + embed_idx]);
+    __half gate_val = gate[token_idx * embed_dim + embed_idx];
+    __half up_val = up[token_idx * embed_dim + embed_idx];
 
-    output[token_idx * embed_dim + embed_idx] = __float2half(
-        sigmoid(gate_val) * up_val);
+    output[token_idx * embed_dim + embed_idx] = __hmul_rn(
+        __float2half_rn(
+            sigmoid(__half2float(gate_val))),
+        up_val);
 
     return;
 }
