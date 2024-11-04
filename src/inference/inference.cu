@@ -430,8 +430,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[((blockIdx.y * blockDim.y + threadIdx.y) * k) +
-          (blockIdx.x * blockDim.x) + threadIdx.x] = __float2half(value);
+        O[row * k + col] = __float2half(value);
     }
 
     return;
