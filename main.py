@@ -58,8 +58,9 @@ with torch.no_grad():
     Q = model.model.layers[0].self_attn.q_proj(X)
     Q_m = torch.matmul(
         X,
-        model.model.layers[0].self_attn.q_proj.weight
+        model.model.layers[0].self_attn.q_proj.weight.t()
     )
 
     SMART_PRINT(Q)
+    SMART_PRINT(Q_m)
     print(torch.allclose(Q_m, Q, atol=1e-2))
