@@ -394,7 +394,7 @@ __global__ void kernel_standard_tiled_gemm(
     // Kernel start
     //
     __shared__ float X_shmem[TILE_SIZE * TILE_SIZE];
-    __shared__ float X_shmem[TILE_SIZE * TILE_SIZE];
+    __shared__ float T_shmem[TILE_SIZE * TILE_SIZE];
 
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
