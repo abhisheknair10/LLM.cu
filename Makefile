@@ -22,7 +22,7 @@ INCLUDES = $(shell find $(SRC_DIR) -type d -exec echo -I{} \;)
 OBJS = $(C_OBJS) $(CU_OBJS)
 
 # Final target
-all: clean $(OUTPUT_DIR)/output.out
+all: $(OUTPUT_DIR)/output.out
 
 # Run the program
 run: all $(OUTPUT_DIR)/output.out
