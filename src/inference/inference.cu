@@ -56,7 +56,7 @@ void printCudaMemoryInfo() {
 
     return;
 }
-/*
+
 // Kernel to check and print the embeddings
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
@@ -70,7 +70,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-*/
+/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
@@ -90,7 +90,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-
+*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -155,7 +155,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
-
+        exit(1);
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
 
@@ -393,43 +393,44 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    extern __shared__ float shared_mem[];
-    float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
+    extern __shared__ __half shared_mem[];
+    __half *X_shmem = shared_mem;
+    __half *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     // Loop over tiles
-    float value = 0.0f;
+    __half value = 0.0f;
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; t++) {
         // Load tile of X into shared memory
         if (row < m && t * TILE_SIZE + threadIdx.x < k) {
             int X_idx = row * k + t * TILE_SIZE + threadIdx.x;
-            X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(X[X_idx]);
+            X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = X[X_idx];
         } else {
-            X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+            X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __float2half(0.0f);
         }
 
         // Load tile of Transform into shared memory
         if ((t * TILE_SIZE + threadIdx.x) < k && col < n) {
             int T_idx = col * k + t * TILE_SIZE + threadIdx.y;
-            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = Transform[T_idx];
         } else {
-            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __float2half(0.0f);
         }
         __syncthreads();
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; i++) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
+            value = __hadd_rn(value
+                __hmul_rn(X_shmem[threadIdx.y * TILE_SIZE + i], T_shmem[threadIdx.x * TILE_SIZE + i]));
         }
         __syncthreads();
     }
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[row * n + col] = __float2half(value);
+        O[row * n + col] = value;
     }
 
     return;
@@ -510,10 +511,9 @@ void compute_qkv_tensors(
         V->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_v_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
-    /*
+
     check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
-    */
 
     return;
 }
