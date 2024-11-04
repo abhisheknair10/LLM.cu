@@ -59,8 +59,8 @@ void printCudaMemoryInfo() {
 
 // Kernel to check and print the embeddings
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
-        printf("Token %d embeddings:\n", token_idx + 1);
+    for (int token_idx = 0; token_idx < 4096; token_idx++) {
+        printf("Token %d embeddings:\n", token_idx);
         for (int i = 0; i < dim; i++) {
             printf("%f, ", __half2float(fp16_tensor[token_idx * dim + i]));
         }
@@ -513,7 +513,7 @@ void compute_qkv_tensors(
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    check_embedding<<<1, 1>>>(L3_Layer->self_attn_q_proj->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
     return;
