@@ -393,9 +393,8 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    extern __shared__ float shared_mem[];
-    float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
+    __shared__ float X_shmem[TILE_SIZE * TILE_SIZE];
+    __shared__ float X_shmem[TILE_SIZE * TILE_SIZE];
 
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
@@ -429,7 +428,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[row * n + col] = __float2half(value / 2.0f);
+        O[row * n + col] = __float2half(value);
     }
 
     return;
@@ -480,7 +479,7 @@ void compute_qkv_tensors(
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
     // Query computation
@@ -523,7 +522,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
     // Output computation
@@ -816,7 +815,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
     // Gate projection computation
@@ -884,7 +883,7 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE, TILE_SIZE, 1);
+    dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
     // Query computation
