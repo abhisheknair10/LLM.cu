@@ -139,6 +139,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
+        exit(1);
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
