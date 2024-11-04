@@ -354,7 +354,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = data;
 
-    printf("Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, data_w);
+    printf("Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_w));
 
     return;
 }
