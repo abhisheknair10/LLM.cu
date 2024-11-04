@@ -386,8 +386,9 @@ __global__ void kernel_standard_tiled_gemm(
         - m represents the independent dimension of the input matrix
         - n represents the independent dimenion of the transformation matrix
         - k represents the common dimension of the 2 matrices
-        - Within each kernel, the function is called as matmul(X, Transform), but internally, matmul(X, Transform.T)
-            is computed
+        - Within each kernel, the output is computed as: O = matmul(X, Transform)
+        - Transposing the transformation tensor is not required as virtual indexing allows for
+            intended navigation along rows and columns of either tensors
         - Order of variables within kernels obey order of computation
     */
     // Kernel start
@@ -401,7 +402,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Loop over tiles
     float value = 0.0f;
-    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; t++) {
+    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; t += TILE_SIZE) {
         // Load tile of X into shared memory
         if (row < m && t * TILE_SIZE + threadIdx.x < k) {
             int X_idx = row * k + t * TILE_SIZE + threadIdx.x;
@@ -412,19 +413,18 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Load tile of Transform into shared memory
         if ((t * TILE_SIZE + threadIdx.y) < k && col < n) {
-            int s = t * TILE_SIZE + threadIdx.y;
-            int T_idx = col * k + s;
-            T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Transform[T_idx]);
+            int T_idx = col * k + t * TILE_SIZE + threadIdx.y;
+            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(Transform[T_idx]);
         } else {
-            T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+            T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
         }
-
         __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; i++) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
         }
+
         __syncthreads();
     }
 
