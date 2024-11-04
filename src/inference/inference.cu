@@ -412,7 +412,7 @@ __global__ void kernel_standard_tiled_gemm(
         }
 
         // Load tile of Transform into shared memory
-        if ((t * TILE_SIZE + threadIdx.y) < k && col < n) {
+        if ((t * TILE_SIZE + threadIdx.x) < k && col < n) {
             int T_idx = col * n + t * TILE_SIZE * n + threadIdx.x;
             T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(Transform[T_idx]);
         } else {
