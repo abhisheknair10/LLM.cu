@@ -127,12 +127,12 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     free(h_tokens);
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
-    exit(1);
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
+        exit(1);
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
@@ -177,9 +177,6 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 
     kernel_tokens_to_embeddings<<<blocks, MAX_THREADS_PER_BLOCK>>>(
         X->d_fp16_tensor, d_tokens, llama3_model->embed_tokens->d_fp16_tensor);
-    cudaDeviceSynchronize();
-
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
     return;

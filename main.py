@@ -16,6 +16,12 @@ model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
 input_text = "The largest ocean in the world is the"
 X = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
 
+
+def SMART_PRINT(tensor):
+    print(tensor.shape)
+    print(tensor)
+
+
 # Generate output
 with torch.no_grad():
     """
@@ -50,5 +56,4 @@ with torch.no_grad():
     X = model.model.embed_tokens(X)
 
     X = model.model.layers[0].input_layernorm(X)
-    print(X.shape)
-    print(X)
+    SMART_PRINT(X)
