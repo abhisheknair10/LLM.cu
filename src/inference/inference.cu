@@ -422,7 +422,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; i++) {
-            value += X_shmem[i * TILE_SIZE + threadIdx.x] * T_shmem[threadIdx.y * TILE_SIZE + ii * TILE_SIZE + threadIdx.x];
+            value += X_shmem[i * TILE_SIZE + threadIdx.x] * T_shmem[threadIdx.y * TILE_SIZE + i * TILE_SIZE + threadIdx.x];
         }
         __syncthreads();
     }
