@@ -337,7 +337,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    __half rms = hsqrt_rn(__hadd_rn(__hdiv(shared_mem[0], __float2half(4096.0f)), __float2half(1e-05)));
+    __half rms = hsqrt(__hadd_rn(__hdiv(shared_mem[0], __float2half(4096.0f)), __float2half(1e-05)));
     __syncthreads();
     c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
@@ -731,7 +731,7 @@ __global__ void kernel_masking_softmax(__half *attention_scores, int causal_mask
     if (softmax) {
         for (int offset = 512; offset > 32; offset /= 2) {
             if (threadIdx.x < offset) {
-                buffer[threadIdx.x] = __hadd_rn(buffer[threadIdx.x], buffer[threadIdx.x + offset])
+                buffer[threadIdx.x] = __hadd_rn(buffer[threadIdx.x], buffer[threadIdx.x + offset]);
             }
             __syncthreads();
         }
