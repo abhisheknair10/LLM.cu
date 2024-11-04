@@ -71,7 +71,6 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
     return;
 }
 /*
-
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
@@ -156,7 +155,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
-
+        exit(1);
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
 
