@@ -61,17 +61,10 @@ void printCudaMemoryInfo() {
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
-        int max = 0;
-        float curr_max = 0.0f;
         for (int i = 0; i < dim; i++) {
-            float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
-
-            if (embedding > curr_max) {
-                curr_max = embedding;
-                max = i;
-            }
+            printf("%f, ", fp16_tensor[token_idx * dim + i]);
         }
-        printf("%d\n", max);
+        printf("\n");
         printf("\n\n");
     }
 
@@ -264,6 +257,9 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
     cudaDeviceSynchronize();
 
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
+
     return;
 }
 
@@ -349,11 +345,6 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
            ((uint64_t)__half_as_ushort(data_w) << 48);
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = data;
-
-    printf("(0)Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_x));
-    printf("(1)Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_y));
-    printf("(2)Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_z));
-    printf("(3)Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, __half2float(data_w));
 
     return;
 }
