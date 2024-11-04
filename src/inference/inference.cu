@@ -386,9 +386,8 @@ __global__ void kernel_standard_tiled_gemm(
         - m represents the independent dimension of the input matrix
         - n represents the independent dimenion of the transformation matrix
         - k represents the common dimension of the 2 matrices
-        - Within each kernel, the output is computed as: O = matmul(X, Transform)
-        - Transposing the transformation tensor is not required as virtual indexing allows for
-            intended navigation along rows and columns of either tensors
+        - Within each kernel, the function is called as matmul(X, Transform), but internally, matmul(X, Transform.T)
+            is computed
         - Order of variables within kernels obey order of computation
     */
     // Kernel start
@@ -421,8 +420,8 @@ __global__ void kernel_standard_tiled_gemm(
         __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
+        for (int i = 0; i < TILE_SIZE; i++) {
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
         }
     }
 
