@@ -56,5 +56,10 @@ with torch.no_grad():
     X = model.model.embed_tokens(X)
     X = model.model.layers[0].input_layernorm(X)
     Q = model.model.layers[0].self_attn.q_proj(X)
+    Q_m = torch.matmul(
+        X,
+        model.model.layers[0].self_attn.q_proj.weight
+    )
 
     SMART_PRINT(Q)
+    print(Q_m == Q)
