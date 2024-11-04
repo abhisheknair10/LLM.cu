@@ -62,5 +62,5 @@ with torch.no_grad():
     )
 
     SMART_PRINT(Q)
-    SMART_PRINT(Q_m)
+    SMART_PRINT(Q_m.t())
     print(torch.allclose(Q_m, Q, atol=1e-2))
