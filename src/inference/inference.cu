@@ -279,7 +279,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             window retrieval per thread, a singular call loading 4 __half's as 1 uint64_t allows for
             4 indicies to be retreived virtually as one data type.
     */
-    uint64_t data = ((const uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
+    uint64_t data = ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx];
     __half data_x = __ushort_as_half((unsigned short)((data >> 0) & 0xFFFF));
     __half data_y = __ushort_as_half((unsigned short)((data >> 16) & 0xFFFF));
     __half data_z = __ushort_as_half((unsigned short)((data >> 32) & 0xFFFF));
@@ -326,7 +326,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-5);
     __syncthreads();
 
-    uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
+    uint64_t norm_gain = ((uint64_t *)RMSNorm)[vw_embed_idx];
 
     __half norm_gain_x = __ushort_as_half((unsigned short)((norm_gain >> 0) & 0xFFFF));
     __half norm_gain_y = __ushort_as_half((unsigned short)((norm_gain >> 16) & 0xFFFF));

@@ -54,6 +54,5 @@ with torch.no_grad():
     )
     """
     X = model.model.embed_tokens(X)
-
     X = model.model.layers[0].input_layernorm(X)
     SMART_PRINT(X)
