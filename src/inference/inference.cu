@@ -253,6 +253,9 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
     dim3 block(1024);
     dim3 grid(h_NUM_TOKENS);
 
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
+
     kernel_compute_rms_norm<<<grid, block>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
     cudaDeviceSynchronize();
