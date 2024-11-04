@@ -164,6 +164,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+        break;
     }
 
     compute_layer_norm(llama3_model->norm, X);
@@ -330,7 +331,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    float rms = sqrtf(shared_mem[0] / 4096.0f);
+    float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-5);
     __syncthreads();
 
     uint64_t norm_gain = ((const uint64_t *)RMSNorm)[vw_embed_idx];
@@ -352,6 +353,8 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
            ((uint64_t)__half_as_ushort(data_w) << 48);
 
     ((uint64_t *)X)[token_idx * 1024 + vw_embed_idx] = data;
+
+    printf("Token: %d, %d, %f\n", token_idx, token_idx * 1024 + vw_embed_idx, data_w);
 
     return;
 }
@@ -498,7 +501,6 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Key computation
     grid = dim3(
@@ -508,7 +510,6 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Value computation
     grid = dim3(
@@ -831,7 +832,6 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Up projection computation
     grid = dim3(
