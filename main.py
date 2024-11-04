@@ -10,11 +10,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+model = AutoModelForCausalLM.from_pretrained(model_name).half().to(device)
 
 # Define input text
 input_text = "The largest ocean in the world is the"
-X = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
+X = tokenizer(input_text, return_tensors="pt").input_ids.half().to(device)
 
 
 def SMART_PRINT(tensor):
