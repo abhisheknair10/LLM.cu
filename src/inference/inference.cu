@@ -480,7 +480,7 @@ void compute_qkv_tensors(
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
     int TILE_SIZE = 32;
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE, 1);
     dim3 grid;
 
