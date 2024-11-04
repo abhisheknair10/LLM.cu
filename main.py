@@ -53,7 +53,8 @@ with torch.no_grad():
         (lm_head): Linear(in_features=4096, out_features=128256, bias=False)
     )
     """
-    X = model.model.embed_tokens(X)
+    model.model.embed_tokens.weights = model.model.embed_tokens.weights.float()
+    X = model.model.embed_tokens(X.float()).half()
     X = model.model.layers[0].input_layernorm(X)
     Q = model.model.layers[0].self_attn.q_proj(X)
     Q_m = torch.matmul(
@@ -62,4 +63,4 @@ with torch.no_grad():
     )
 
     SMART_PRINT(Q)
-    print(Q_m == Q)
+    print(torch.allclose(Q_m, Q, atol=1e-2))
