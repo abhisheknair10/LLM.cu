@@ -96,7 +96,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 void *create_gmemcache(size_t mem_len, size_t type_size) {
     void *d_gcache;
 
-    cudaMalloc(&d_gcache, mem_len * type_size);
+    cudaMalloc((void **)&d_gcache, mem_len * type_size);
 
     return d_gcache;
 }
@@ -231,17 +231,17 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
     *(Y->ndim) = 2;
 
     Y->mem_len = (int *)malloc(sizeof(int));
-    *(Y->mem_len) = 4096 * 2048;
+    *(Y->mem_len) = 2048 * 4096;
 
     Y->shape = (int *)malloc(sizeof(int) * 2);
     Y->shape[0] = 2048;
     Y->shape[1] = 4096;
 
     // Allocate CUDA memory
-    cudaMalloc(&d_ndim, sizeof(int));
-    cudaMalloc(&d_mem_len, sizeof(int));
-    cudaMalloc(&d_shape, sizeof(int) * (*(Y->ndim)));
-    cudaMalloc(&d_fp16_tensor, sizeof(__half) * (*(Y->mem_len)));
+    cudaMalloc((void **)&d_ndim, sizeof(int));
+    cudaMalloc((void **)&d_mem_len, sizeof(int));
+    cudaMalloc((void **)&d_shape, sizeof(int) * (*(Y->ndim)));
+    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(Y->mem_len)));
 
     // Copy data to device
     cudaMemcpy(d_ndim, Y->ndim, sizeof(int), cudaMemcpyHostToDevice);
@@ -447,17 +447,17 @@ Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
     *(Attention_Tensor->ndim) = 2;
 
     Attention_Tensor->mem_len = (int *)malloc(sizeof(int));
-    *(Attention_Tensor->mem_len) = Linear->shape[0] * 2048;
+    *(Attention_Tensor->mem_len) = 2048 * Linear->shape[0];
 
     Attention_Tensor->shape = (int *)malloc(sizeof(int) * 2);
     Attention_Tensor->shape[0] = 2048;
     Attention_Tensor->shape[1] = Linear->shape[0];
 
     // Allocate CUDA memory
-    cudaMalloc(&d_ndim, sizeof(int));
-    cudaMalloc(&d_mem_len, sizeof(int));
-    cudaMalloc(&d_shape, sizeof(int) * 2);
-    cudaMalloc(&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
+    cudaMalloc((void **)&d_ndim, sizeof(int));
+    cudaMalloc((void **)&d_mem_len, sizeof(int));
+    cudaMalloc((void **)&d_shape, sizeof(int) * 2);
+    cudaMalloc((void **)&d_fp16_tensor, sizeof(__half) * (*(Attention_Tensor->mem_len)));
 
     // Copy data to device
     cudaMemcpy(d_ndim, Attention_Tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
@@ -512,7 +512,7 @@ void compute_qkv_tensors(
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(L3_Layer->self_attn_q_proj->d_fp16_tensor, 4096);
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
     return;
