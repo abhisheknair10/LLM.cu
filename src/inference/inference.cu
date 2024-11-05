@@ -59,7 +59,7 @@ void printCudaMemoryInfo() {
 
 // Kernel to check and print the embeddings
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
+    for (int token_idx = 0; token_idx < 4096; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
         for (int i = 0; i < dim; i++) {
             printf("%f, ", __half2float(fp16_tensor[token_idx * dim + i]));
