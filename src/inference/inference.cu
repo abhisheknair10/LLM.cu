@@ -271,9 +271,6 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
     dim3 block(1024);
     dim3 grid(h_NUM_TOKENS);
 
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-    cudaDeviceSynchronize();
-
     kernel_compute_rms_norm<<<grid, block>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
     cudaDeviceSynchronize();
@@ -298,7 +295,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - A 1024 thread block is used to retrieve 4096 elements. Each thread retrieves consecutive
             indicies. Instead of looping and having 4 separate memory access transactions for each
             window retrieval per thread, a singular call loading 4 __half's as 1 uint64_t allows for
-            4 indicies to be retreived virtually as one data type.
+            4 indicies to be retrieved virtually as one data type.
     */
     c_half4 data = ((c_half4 *)X)[token_idx * 1024 + vw_embed_idx];
     shared_mem[vw_embed_idx] = __half2float(data.x) * __half2float(data.x) +
@@ -312,7 +309,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - For a 32 x 32 block dimension, the 1st warp will sum with the 16th warp and
             recursively reduce
     */
-    for (int offset = 512; offset > 32; offset /= 2) {
+    for (int offset = 512; offset > 0; offset /= 2) {
         if (vw_embed_idx < offset) {
             shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
@@ -329,6 +326,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Offset enables reduction to happen with left most indices lasting the longest. Least
             significant indices still perform addition but add no value to context
     */
+    /*
     if (vw_embed_idx < 32) {
         __syncthreads();
         float val = shared_mem[vw_embed_idx];
@@ -338,6 +336,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         }
         if (vw_embed_idx == 0) shared_mem[0] = val;
     }
+    */
 
     /*
         - Load rms norm for tensor and perform normalization for 1024 window
