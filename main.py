@@ -62,7 +62,9 @@ with torch.no_grad():
         model.model.layers[0].self_attn.q_proj.weight.t())
     """
 
-    SMART_PRINT(Q)
+    SMART_PRINT(X)
+    """
     SMART_PRINT(Q_m)
     print(torch.allclose(Q_m, Q, atol=1e-2))
     print(model.model.layers[0].self_attn.q_proj.bias)
+    """
