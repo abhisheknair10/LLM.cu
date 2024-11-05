@@ -662,11 +662,9 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     // Loop over tiles
     float value = 0.0f;
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
-        int embedding_idx = t * TILE_SIZE + threadIdx.x;
-
         // Load tile of Q into shared memory
         if (row < m && embedding_idx < k) {
-            int Q_idx = row * nheads * k + head_idx * k + embedding_idx;
+            int Q_idx = row * nheads * k + head_idx * k + t * TILE_SIZE + threadIdx.x;
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[Q_idx]);
         } else {
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -674,7 +672,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
         // Load tile of K into shared memory (transposed)
         if (col < n && embedding_idx < k) {
-            int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + embedding_idx;
+            int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + t * TILE_SIZE + threadIdx.y;
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[K_idx]);
         } else {
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -771,7 +769,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     float value = 0.0f;
 
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
-        int k_idx = t * TILE_SIZE + threadIdx.x;  // K dimension index
+        int k_idx = t * TILE_SIZE + threadIdx.x;
 
         // Load attention_scores into shared memory
         if (row < m && k_idx < k) {
