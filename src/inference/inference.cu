@@ -309,7 +309,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - For a 32 x 32 block dimension, the 1st warp will sum with the 16th warp and
             recursively reduce
     */
-    for (int offset = 512; offset > 16; offset /= 2) {
+    for (int offset = 512; offset >= 32; offset /= 2) {
         if (vw_embed_idx < offset) {
             shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
