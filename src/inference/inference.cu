@@ -777,7 +777,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     float value = 0.0f;
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         // Load attention_scores into shared memory
-        if (row < m && k_idx < k) {
+        if (row < m && (t * TILE_SIZE + threadIdx.x) < k) {
             int attn_idx = head_idx * m * k + row * k + t * TILE_SIZE + threadIdx.x;
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[attn_idx];
         } else {
@@ -785,7 +785,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         }
 
         // Load V into shared memory into shared memory
-        if (k_idx < k && col < n) {
+        if ((t * TILE_SIZE + threadIdx.x) < k && col < n) {
             int V_idx = (head_idx * k * n / 4) + (t * TILE_SIZE + threadIdx.x) * n + col;
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
