@@ -617,8 +617,11 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     cudaDeviceSynchronize();
 
     // Masking and softmax
+    // 32, 20, 20
     block = dim3(MAX_THREADS_PER_BLOCK);
-    grid = dim3(h_NUM_TOKENS, nheads);
+    grid = dim3(
+        (h_NUM_TOKENS + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK,
+        nheads);
 
     shared_mem_size = (2048 + 1024) * sizeof(float);
     kernel_masking_softmax<<<grid, block, shared_mem_size>>>(
