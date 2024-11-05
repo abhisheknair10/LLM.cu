@@ -381,17 +381,6 @@ __global__ void add_norm(__half *X, __half *PN_X) {
 /* ***************************** General Matrix Multiplication **************************** */
 __global__ void kernel_standard_tiled_gemm(
     __half *O, __half *X, __half *Transform, int m, int n, int k, int TILE_SIZE) {
-    /*
-        - m represents the independent dimension of the input matrix
-        - n represents the independent dimenion of the transformation matrix
-        - k represents the common dimension of the 2 matrices
-        - Within each kernel, the output is computed as: O = matmul(X, Transform)
-        - Transposing the transformation tensor is not required as virtual indexing allows
-          for intended navigation along rows and columns of either tensors
-        - Order of variables within kernels obey order of computation
-    */
-    // Kernel start
-    //
     extern __shared__ float shared_mem[];
     float *X_shmem = shared_mem;
     float *T_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
@@ -399,7 +388,6 @@ __global__ void kernel_standard_tiled_gemm(
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    // Loop over tiles
     float value = 0.0f;
     for (int t = 0; t < ((k + TILE_SIZE - 1) / TILE_SIZE); ++t) {
         // Load tile of X into shared memory
@@ -410,9 +398,9 @@ __global__ void kernel_standard_tiled_gemm(
             X_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
-        // Load tile of Transform into shared memory
-        if (col < n && (t * TILE_SIZE + threadIdx.x) < k) {
-            int T_idx = col * k + t * TILE_SIZE + threadIdx.x;
+        // Load tile of Transform into shared memory and transpose it
+        if ((t * TILE_SIZE + threadIdx.y) < k && col < n) {
+            int T_idx = (t * TILE_SIZE + threadIdx.y) * n + col;
             T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(Transform[T_idx]);
         } else {
             T_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
@@ -421,18 +409,16 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.y];
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
         }
         __syncthreads();
     }
 
-    // Write the result to global memory
     if (row < m && col < n) {
         O[row * n + col] = __float2half(value);
     }
-
-    return;
 }
+
 
 /* ***************************** Attention Tensor Computation **************************** */
 Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
