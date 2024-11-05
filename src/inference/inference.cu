@@ -314,6 +314,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
         __syncthreads();
+        printf("%d\n", offset);
     }
 
     /*
