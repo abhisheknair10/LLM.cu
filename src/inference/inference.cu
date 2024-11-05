@@ -634,7 +634,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
-        h_NUM_TOKENS, h_NUM_TOKENS, 128, nheads, TILE_SIZE);
+        h_NUM_TOKENS, 128, h_NUM_TOKENS, nheads, TILE_SIZE);
     cudaDeviceSynchronize();
 
     return;
@@ -645,9 +645,10 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     int m, int n, int k, int TILE_SIZE, int nheads) {
     /*
         - Each head operates independently of other heads.
-        - `m` represents the independent dimension of the Q matrix (number of tokens).
-        - `n` represents the independent dimension of the K matrix (number of tokens).
-        - `k` represents the common dimension (embedding dimension for each head).
+        - `m`: Number of tokens (rows of Q).
+        - `n`: Number of tokens (columns of K).
+        - `k`: Head dimension (common dimension).
+        - `nheads`: Number of attention heads.
     */
 
     extern __shared__ float shared_mem[];
@@ -659,8 +660,8 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
-    // Loop over tiles
     float value = 0.0f;
+
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         // Load tile of Q into shared memory
         if (row < m && (t * TILE_SIZE + threadIdx.x) < k) {
@@ -670,23 +671,25 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
-        // Load tile of K into shared memory (transposed)
+        // Load tile of K into shared memory
         if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {
             int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + t * TILE_SIZE + threadIdx.y;
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[K_idx]);
         } else {
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
+        __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; ++i) {
+        for (int i = 0; i < TILE_SIZE && (t * TILE_SIZE + i) < k; ++i) {
             value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x];
         }
+        __syncthreads();
     }
 
-    // Write the result to shared memory
+    // Write the result to global memory
     if (row < m && col < n) {
-        int O_idx = row * nheads * n + head_idx * n + col;
+        int O_idx = head_idx * m * n + row * n + col;
         attention_scores[O_idx] = value / sqrtf((float)k);
     }
 
@@ -754,15 +757,21 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
-    int m, int k, int d_head, int nheads, int TILE_SIZE) {
-    // Kernel start
-    //
+    int m, int n, int k, int nheads, int TILE_SIZE) {
+    /*
+        - Each head operates independently of other heads.
+        - `m`: Number of tokens (rows of attention scores).
+        - `n`: Embed dimension (columns of V), corresponds to `d_head`.
+        - `k`: Number of tokens (common dimension).
+        - `nheads`: Number of attention heads.
+        - `TILE_SIZE`: Tile size for shared memory.
+    */
+
     extern __shared__ float shared_mem[];
     float *attention_shmem = shared_mem;
     float *V_shmem = shared_mem + TILE_SIZE * TILE_SIZE;
 
     int head_idx = blockIdx.z;
-    int V_head_idx = head_idx / 4;
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
@@ -779,29 +788,28 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
-        // Load V into shared memory
-        int V_row = k_idx;
-        int V_col = col;
-        if (V_row < k && V_col < d_head) {
-            int V_idx = V_head_idx * k * d_head + V_row * d_head + V_col;
-            V_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = __half2float(V[V_idx]);
+        // Load V into shared memory into shared memory
+        if (k_idx < k && col < n) {
+            int V_idx = (head_idx * k * n / 4) + k_idx * n + col;
+            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
-            V_shmem[threadIdx.x * TILE_SIZE + threadIdx.y] = 0.0f;
+            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
         __syncthreads();
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
+            if (t * TILE_SIZE + i < k) {
+                value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
+            }
         }
-
         __syncthreads();
     }
 
     // Write the result to the output tensor
-    if (row < m && col < d_head) {
-        int output_idx = head_idx * m * d_head + row * d_head + col;
+    if (row < m && col < n) {
+        int output_idx = head_idx * m * n + row * n + col;
         output[output_idx] = __float2half(value);
     }
 }
