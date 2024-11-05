@@ -268,7 +268,7 @@ void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
 
 // Compute RMS Norm
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
-    dim3 block(1024);
+    dim3 block(32, 32);
     dim3 grid(h_NUM_TOKENS);
 
     kernel_compute_rms_norm<<<grid, block>>>(
@@ -285,7 +285,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
     __shared__ float shared_mem[1024];
 
     int token_idx = blockIdx.x;
-    int vw_embed_idx = threadIdx.x;
+    int vw_embed_idx = threadIdx.y * blockDim.x + threadIdx.x;
 
     if (token_idx >= d_NUM_TOKENS) return;
     if (vw_embed_idx >= 1024) return;
@@ -327,11 +327,9 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
             significant indices still perform addition but add no value to context
     */
     if (vw_embed_idx < 32) {
-        __syncthreads();
         float val = shared_mem[vw_embed_idx];
         for (int offset = 16; offset > 0; offset /= 2) {
             val += __shfl_down_sync(0xffffffff, val, offset);
-            __syncthreads();
         }
         if (vw_embed_idx == 0) shared_mem[0] = val;
     }
