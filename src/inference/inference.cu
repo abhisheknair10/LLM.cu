@@ -675,9 +675,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
         // Load tile of K into shared memory
         if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {
-            int K_idx = (col * (nheads / 4) * k) +
-                        (((int)(head_idx / 4)) * k) +
-                        t * TILE_SIZE + threadIdx.y;
+            int K_idx = (col * nheads * k / 4) + (head_idx * k / 4) + t * TILE_SIZE + threadIdx.y;
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[K_idx]);
         } else {
             K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -685,11 +683,8 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
         __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            int global_k = t * TILE_SIZE + i;
-            if (global_k < k) {
-                value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x];
-            }
+        for (int i = 0; i < TILE_SIZE && (t * TILE_SIZE + i) < k; ++i) {
+            value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x];
         }
         __syncthreads();
     }
@@ -787,7 +782,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         // Load attention_scores into shared memory
         if (row < m && (t * TILE_SIZE + threadIdx.x) < k) {
-            int attn_idx = head_idx * 2048 * 2048 + row * k + t * TILE_SIZE + threadIdx.x;
+            int attn_idx = head_idx * m * k + row * k + t * TILE_SIZE + threadIdx.x;
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[attn_idx];
         } else {
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -813,7 +808,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     // Write the result to the output tensor
     if (row < m && col < n) {
-        int output_idx = head_idx * 2048 * 2048 + row * n + col;
+        int output_idx = head_idx * m * n + row * n + col;
         output[output_idx] = __float2half(value);
     }
 }
