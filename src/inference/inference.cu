@@ -618,9 +618,9 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     // Masking and softmax
     // 32, 20, 20
-    block = dim3(MAX_THREADS_PER_BLOCK);
+    block = dim3(256);
     grid = dim3(
-        (h_NUM_TOKENS + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK,
+        h_NUM_TOKENS,
         nheads);
 
     shared_mem_size = (2048 + 1024) * sizeof(float);
