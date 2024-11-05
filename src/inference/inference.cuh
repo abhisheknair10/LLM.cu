@@ -74,7 +74,10 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     float *attention_scores, __half *Q, __half *K,
     int m, int n, int k, int TILE_SIZE, int nheads);
 
-__global__ void kernel_masking_softmax(float *attention_scores, int causal_mask, int softmax);
+__global__ void kernel_masking_softmax(
+    float *attention_scores,
+    int m, int n, int nheads,
+    int causal_mask, int softmax);
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
