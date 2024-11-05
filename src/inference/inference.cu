@@ -661,11 +661,10 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     float value = 0.0f;
-
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         // Load tile of Q into shared memory
         if (row < m && (t * TILE_SIZE + threadIdx.x) < k) {
-            int Q_idx = row * nheads * k + head_idx * k + t * TILE_SIZE + threadIdx.x;
+            int Q_idx = row * (nheads * k) + head_idx * k + t * TILE_SIZE + threadIdx.x;
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[Q_idx]);
         } else {
             Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -719,7 +718,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
                 shared_mem[idx] = attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx];
             }
         } else {
-            shared_mem[idx] = -INFINITY;
+            shared_mem[idx] = -1e9;
         }
 
         exp_sum += expf(shared_mem[idx]);
@@ -776,13 +775,10 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     float value = 0.0f;
-
     for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
-        int k_idx = t * TILE_SIZE + threadIdx.x;
-
         // Load attention_scores into shared memory
         if (row < m && k_idx < k) {
-            int attn_idx = head_idx * m * k + row * k + k_idx;
+            int attn_idx = head_idx * m * k + row * k + t * TILE_SIZE + threadIdx.x;
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[attn_idx];
         } else {
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -790,12 +786,11 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
         // Load V into shared memory into shared memory
         if (k_idx < k && col < n) {
-            int V_idx = (head_idx * k * n / 4) + k_idx * n + col;
+            int V_idx = (head_idx * k * n / 4) + (t * TILE_SIZE + threadIdx.x) * n + col;
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
-
         __syncthreads();
 
         // Compute partial sums
