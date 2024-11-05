@@ -60,4 +60,4 @@ with torch.no_grad():
     Q = model.model.layers[0].self_attn.q_proj(X)
 
     SMART_PRINT(Q)
-    print(model.model.layers[0].self_attn.q_proj.bias)
+    print(model.model.layers[0].self_attn.q_proj.weight)
