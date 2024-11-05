@@ -749,7 +749,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         float softmax_den = buffer[0];
         for (int i = 0; i < 2; i++) {
             idx = i * blockDim.x + threadIdx.x;
-            attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx] = expf(shared_mem[idx]) / softmax_den;
+            attention_scores[blockIdx.y * 1024 + head_idx * 32 + idx] = expf(shared_mem[idx]) / softmax_den;
             __syncthreads();
         }
     }
