@@ -55,16 +55,12 @@ with torch.no_grad():
     """
     X = model.model.embed_tokens(X).half()
     X = model.model.layers[0].input_layernorm(X)
-    """
     Q = model.model.layers[0].self_attn.q_proj(X)
     Q_m = torch.matmul(
         X,
         model.model.layers[0].self_attn.q_proj.weight.t())
-    """
 
-    SMART_PRINT(X)
-    """
+    SMART_PRINT(Q)
     SMART_PRINT(Q_m)
     print(torch.allclose(Q_m, Q, atol=1e-2))
     print(model.model.layers[0].self_attn.q_proj.bias)
-    """
