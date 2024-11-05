@@ -428,6 +428,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Write the result to global memory
     if (row < m && col < n) {
+        __syncthreads();
         O[row * n + col] = __float2half(value);
     }
 
