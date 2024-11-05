@@ -482,9 +482,6 @@ void compute_qkv_tensors(
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
-    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-    cudaDeviceSynchronize();
-
     // Query computation
     grid = dim3(
         (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
@@ -513,6 +510,9 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         V->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_v_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
+
+    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
     return;
