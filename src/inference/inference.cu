@@ -152,10 +152,10 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
+        exit(1);
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
-        exit(1);
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
 
@@ -273,6 +273,9 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
 
     kernel_compute_rms_norm<<<grid, block>>>(
         X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
+    cudaDeviceSynchronize();
+
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
     return;
