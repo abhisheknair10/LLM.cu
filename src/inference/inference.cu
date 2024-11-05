@@ -421,7 +421,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[threadIdx.x * TILE_SIZE + i];
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
         }
         __syncthreads();
     }
@@ -512,7 +512,7 @@ void compute_qkv_tensors(
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(Q->d_fp16_tensor, 4096);
+    check_embedding<<<1, 1>>>(L3_Layer->self_attn_q_proj->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
     return;
