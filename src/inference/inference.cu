@@ -718,7 +718,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
         if (causal_mask) {
             if (idx <= token_idx) {
-                shared_mem[idx] = attention_scores[blockIdx.y * 2048 + head_idx * 32 + idx];
+                shared_mem[idx] = attention_scores[blockIdx.y * 1024 + head_idx * 32 + idx];
             }
         } else {
             shared_mem[idx] = -1e9;
