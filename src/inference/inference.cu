@@ -700,7 +700,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
 __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask, int softmax) {
     extern __shared__ float shared_mem[];
-
+    float *vec = shared_mem;
     float *buffer = shared_mem + 2048;
 
     int token_idx = blockIdx.x;
@@ -712,19 +712,21 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         idx = i * blockDim.x + threadIdx.x;
 
         if (idx >= d_NUM_TOKENS) {
-            shared_mem[idx] = 0.0f;
+            vec[idx] = 0.0f;
             continue;
         }
 
         if (causal_mask) {
             if (idx <= token_idx) {
-                shared_mem[idx] = attention_scores[blockIdx.y * 1024 + head_idx * 32 + idx];
+                vec[idx] = attention_scores[blockIdx.y * 1024 + head_idx * 32 + idx];
+            } else {
+                vec[idx] = -1e9;
             }
         } else {
-            shared_mem[idx] = -1e9;
+            vec[idx] = -1e9;
         }
 
-        exp_sum += expf(shared_mem[idx]);
+        exp_sum += expf(vec[idx]);
     }
     __syncthreads();
 
@@ -749,7 +751,8 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
         float softmax_den = buffer[0];
         for (int i = 0; i < 2; i++) {
             idx = i * blockDim.x + threadIdx.x;
-            attention_scores[blockIdx.y * 1024 + head_idx * 32 + idx] = expf(shared_mem[idx]) / softmax_den;
+            attention_scores[blockIdx.y * blockDim.x + head_idx * 32 + idx] =
+                expf(vec[idx]) / softmax_den;
             __syncthreads();
         }
     }
