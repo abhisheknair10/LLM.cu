@@ -725,7 +725,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
 
     buffer[threadIdx.x] = exp_sum;
     if (softmax) {
-        for (int offset = 512; offset > 32; offset /= 2) {
+        for (int offset = 512; offset >= 32; offset /= 2) {
             if (threadIdx.x < offset) {
                 buffer[threadIdx.x] += buffer[threadIdx.x + offset];
             }
