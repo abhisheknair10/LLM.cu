@@ -309,7 +309,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - For a 32 x 32 block dimension, the 1st warp will sum with the 16th warp and
             recursively reduce
     */
-    for (int offset = 512; offset > 0; offset /= 2) {
+    for (int offset = 512; offset > 32; offset /= 2) {
         if (vw_embed_idx < offset) {
             shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
@@ -326,7 +326,6 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Offset enables reduction to happen with left most indices lasting the longest. Least
             significant indices still perform addition but add no value to context
     */
-    /*
     if (vw_embed_idx < 32) {
         __syncthreads();
         float val = shared_mem[vw_embed_idx];
@@ -336,7 +335,6 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         }
         if (vw_embed_idx == 0) shared_mem[0] = val;
     }
-    */
 
     /*
         - Load rms norm for tensor and perform normalization for 1024 window
