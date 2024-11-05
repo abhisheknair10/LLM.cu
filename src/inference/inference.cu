@@ -331,13 +331,13 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         }
         if (vw_embed_idx == 0) shared_mem[0] = val;
     }
+    __syncthreads();
 
     /*
         - Load rms norm for tensor and perform normalization for 1024 window
         - Similar technique to when loading data from global memory
     */
-    float rms = sqrtf((shared_mem[0] / 4096.0f) + 1e-05);
-    __syncthreads();
+    float rms = sqrtf(1e-05 + (shared_mem[0] / 4096.0f));
     c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
     // Perform RMS calculations and store
@@ -421,7 +421,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; ++i) {
-            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.y];
+            value += X_shmem[threadIdx.y * TILE_SIZE + i] * T_shmem[i * TILE_SIZE + threadIdx.x];
         }
         __syncthreads();
     }
