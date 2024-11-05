@@ -722,8 +722,6 @@ __global__ void kernel_masking_softmax(float *attention_scores, int causal_mask,
             } else {
                 vec[idx] = -1e9;
             }
-        } else {
-            vec[idx] = -1e9;
         }
 
         exp_sum += expf(vec[idx]);
