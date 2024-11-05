@@ -54,6 +54,7 @@ with torch.no_grad():
     )
     """
     X = model.model.embed_tokens(X).half()
+    SMART_PRINT(X)
     X = model.model.layers[0].input_layernorm(X)
     """
     Q = model.model.layers[0].self_attn.q_proj(X)
