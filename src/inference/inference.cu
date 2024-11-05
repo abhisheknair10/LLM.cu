@@ -114,7 +114,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
-    float *d_attention_score_cache = (float *)create_gmemcache(2048 * 2048, sizeof(float));
+    float *d_attention_score_cache = (float *)create_gmemcache(32 * 2048 * 2048, sizeof(float));
 
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
