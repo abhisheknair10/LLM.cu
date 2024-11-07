@@ -122,7 +122,7 @@ with torch.no_grad():
         UP = LAYER.mlp.up_proj(X)
 
         X = GATE * UP
-        DOWN = LAYER.mlp.gate_proj(X)
+        DOWN = LAYER.mlp.down_proj(X)
 
         X = X + PN_X
 
