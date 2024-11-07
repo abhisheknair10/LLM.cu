@@ -101,10 +101,10 @@ with torch.no_grad():
             X), X.shape[0], 4096).reshape(nheads, -1, head_dim)
 
         K = rotary_embedding(LAYER.self_attn.k_proj(
-            X), X.shape[0], 1024).reshape(nheads / 4, -1, head_dim)
+            X), X.shape[0], 1024).reshape((int)(nheads / 4), -1, head_dim)
 
         V = LAYER.self_attn.v_proj(
-            X).reshape(nheads / 4, -1, head_dim)
+            X).reshape((int)(nheads / 4), -1, head_dim)
 
         Attention = torch.matmul(
             F.softmax(torch.matmul(Q, K.t()) / (head_dim ** 0.5), 1),
