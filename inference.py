@@ -107,7 +107,8 @@ with torch.no_grad():
             X).reshape((int)(nheads / 4), -1, head_dim).repeat_interleave(4, dim=0)
 
         Attention = torch.matmul(
-            F.softmax(torch.matmul(Q, K.transpose(-1, -2)) / (head_dim ** 0.5), 1).half(),
+            F.softmax(torch.matmul(Q, K.transpose(-1, -2)) /
+                      (head_dim ** 0.5), 1).half(),
             V
         )
 
@@ -122,7 +123,7 @@ with torch.no_grad():
         UP = LAYER.mlp.up_proj(X)
 
         X = GATE * UP
-        DOWN = LAYER.mlp.down_proj(X)
+        X = LAYER.mlp.down_proj(X)
 
         X = X + PN_X
 
