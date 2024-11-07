@@ -128,6 +128,6 @@ with torch.no_grad():
         X = X + PN_X
 
     X = model.model.norm(X)
-    X = model.model.lm_head(X)
+    X = model.lm_head(X)
 
     print(torch.argmax(X, 1))
