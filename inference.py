@@ -64,21 +64,21 @@ with torch.no_grad():
         # Compute frequency base for each pair of embedding dimensions
         half_dim = embed_dim // 2
         freqs = torch.pow(500000, -torch.arange(0, half_dim,
-                                                dtype=torch.float32) / half_dim)
+                                                dtype=torch.float32) / half_dim).to(device)
 
         # Create position indices
-        position_ids = torch.arange(seq_len, dtype=torch.float32)
+        position_ids = torch.arange(seq_len, dtype=torch.float32).to(device)
 
         # Create sinusoidal embedding (seq_len, half_dim)
         sinusoid_inp = torch.einsum("i,j->ij", position_ids, freqs)
-        sin_embed = torch.sin(sinusoid_inp)
-        cos_embed = torch.cos(sinusoid_inp)
+        sin_embed = torch.sin(sinusoid_inp).to(device)
+        cos_embed = torch.cos(sinusoid_inp).to(device)
 
         # Repeat to match input dimensions (tokens, embed_dim)
         sin_embed = sin_embed.repeat_interleave(
-            2, dim=-1)  # shape: (seq_len, embed_dim)
+            2, dim=-1).to(device)  # shape: (seq_len, embed_dim)
         cos_embed = cos_embed.repeat_interleave(
-            2, dim=-1)  # shape: (seq_len, embed_dim)
+            2, dim=-1).to(device)  # shape: (seq_len, embed_dim)
 
         # Apply the rotation to the tensor
         tensor_rotated = (tensor * cos_embed) + \
