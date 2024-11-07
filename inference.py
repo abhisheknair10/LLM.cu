@@ -90,6 +90,7 @@ with torch.no_grad():
     embed_dim = 4096
     head_dim = (int)(nheads / embed_dim)
     X = model.model.embed_tokens(X).half()
+    X = X.cuda()
 
     for i in range(0, 32):
         LAYER = model.model.layers[i]
