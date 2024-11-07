@@ -33,16 +33,23 @@ with torch.no_grad():
             (layers): ModuleList(
                 (0-31): 32 x LlamaDecoderLayer(
                         (self_attn): LlamaSdpaAttention(
-                        (q_proj): Linear(in_features=4096, out_features=4096, bias=False)
-                        (k_proj): Linear(in_features=4096, out_features=1024, bias=False)
-                        (v_proj): Linear(in_features=4096, out_features=1024, bias=False)
-                        (o_proj): Linear(in_features=4096, out_features=4096, bias=False)
+                        (q_proj): Linear(in_features=4096,
+                         out_features=4096, bias=False)
+                        (k_proj): Linear(in_features=4096,
+                         out_features=1024, bias=False)
+                        (v_proj): Linear(in_features=4096,
+                         out_features=1024, bias=False)
+                        (o_proj): Linear(in_features=4096,
+                         out_features=4096, bias=False)
                         (rotary_emb): LlamaRotaryEmbedding()
                     )
                     (mlp): LlamaMLP(
-                        (gate_proj): Linear(in_features=4096, out_features=14336, bias=False)
-                        (up_proj): Linear(in_features=4096, out_features=14336, bias=False)
-                        (down_proj): Linear(in_features=14336, out_features=4096, bias=False)
+                        (gate_proj): Linear(in_features=4096,
+                         out_features=14336, bias=False)
+                        (up_proj): Linear(in_features=4096,
+                         out_features=14336, bias=False)
+                        (down_proj): Linear(in_features=14336,
+                         out_features=4096, bias=False)
                         (act_fn): SiLU()
                     )
                     (input_layernorm): LlamaRMSNorm((4096,), eps=1e-05)
@@ -76,9 +83,9 @@ with torch.no_grad():
 
         # Repeat to match input dimensions (tokens, embed_dim)
         sin_embed = sin_embed.repeat_interleave(
-            2, dim=-1).to(device)  # shape: (seq_len, embed_dim)
+            2, dim=-1).to(device)
         cos_embed = cos_embed.repeat_interleave(
-            2, dim=-1).to(device)  # shape: (seq_len, embed_dim)
+            2, dim=-1).to(device)
 
         # Apply the rotation to the tensor
         tensor_rotated = (tensor * cos_embed) + \
@@ -88,7 +95,8 @@ with torch.no_grad():
 
     nheads = 32
     embed_dim = 4096
-    head_dim = (int)(embed_dim / nheads)
+    head_dim = embed_dim // nheads
+    seq_len = X.shape[-1]
     X = model.model.embed_tokens(X).half()
 
     for i in range(0, 32):
@@ -97,23 +105,39 @@ with torch.no_grad():
         PN_X = torch.clone(X)
         X = LAYER.input_layernorm(X)
 
-        Q = rotary_embedding(LAYER.self_attn.q_proj(
-            X), X.shape[0], 4096).reshape(nheads, -1, head_dim)
+        Q = LAYER.self_attn.q_proj(X).view(-1, seq_len, nheads, head_dim)
+        K = LAYER.self_attn.k_proj(X)
+        print(K)
+        exit()
+        V = LAYER.self_attn.v_proj(X).view(-1, seq_len, nheads // 4, head_dim)
 
-        K = rotary_embedding(LAYER.self_attn.k_proj(
-            X), X.shape[0], 1024).reshape((int)(nheads / 4), -1, head_dim).repeat_interleave(4, dim=0)
+        Q = Q.transpose(1, 2)  # Shape: [batch_size, nheads, seq_len, head_dim]
+        # Shape: [batch_size, n_kv_heads, seq_len, head_dim]
+        K = K.transpose(1, 2)
+        # Shape: [batch_size, n_kv_heads, seq_len, head_dim]
+        V = V.transpose(1, 2)
 
-        V = LAYER.self_attn.v_proj(
-            X).reshape((int)(nheads / 4), -1, head_dim).repeat_interleave(4, dim=0)
+        K = K.repeat_interleave(4, dim=1)
+        V = V.repeat_interleave(4, dim=1)
 
-        Attention = torch.matmul(
-            F.softmax(torch.matmul(Q, K.transpose(-1, -2)) /
-                      (head_dim ** 0.5), 1).half(),
-            V
-        )
+        attn_scores = torch.matmul(Q, K.transpose(-1, -2)) / (head_dim ** 0.5)
 
-        X = Attention.reshape(-1, embed_dim)
-        X = LAYER.self_attn.o_proj(X)
+        # Apply causal mask (if necessary)
+        mask = torch.tril(torch.ones(seq_len, seq_len)).to(device)
+        # Shape: [1, 1, seq_len, seq_len]
+        mask = mask.unsqueeze(0).unsqueeze(0)
+        attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
+
+        # Compute attention probabilities
+        attn_probs = F.softmax(attn_scores, dim=-1)
+
+        # Apply attention to values
+        Attention = torch.matmul(attn_probs, V)
+
+        # Transpose back
+        Attention = Attention.transpose(
+            1, 2).contiguous().view(-1, seq_len, embed_dim)
+        X = LAYER.self_attn.o_proj(Attention)
         X = X + PN_X
 
         PN_X = torch.clone(X)
@@ -128,6 +152,6 @@ with torch.no_grad():
         X = X + PN_X
 
     X = model.model.norm(X)
-    X = model.lm_head(X)
+    X = model.lm_head(X).reshape(seq_len, -1)
 
-    print(torch.argmax(X[-1, :]).shape)
+    print(F.softmax(X, dim=-1)[-1, 16867])
