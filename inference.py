@@ -130,4 +130,4 @@ with torch.no_grad():
     X = model.model.norm(X)
     X = model.lm_head(X)
 
-    print(torch.argmax(X, 1).shape)
+    print(torch.argmax(X, 0).shape)
