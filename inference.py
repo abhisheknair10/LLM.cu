@@ -1,7 +1,7 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import torch.nn as nn
-import torch.nn.function as F
+from torch.nn import Function as F
 
 # Load the tokenizer and model from Hugging Face's model hub
 # Replace with the exact path to the LLaMA 3 model
