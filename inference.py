@@ -88,7 +88,7 @@ with torch.no_grad():
 
     nheads = 32
     embed_dim = 4096
-    head_dim = (int)(nheads / embed_dim)
+    head_dim = (int)(embed_dim / nheads)
     X = model.model.embed_tokens(X).half()
 
     for i in range(0, 32):
