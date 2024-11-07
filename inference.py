@@ -111,7 +111,7 @@ with torch.no_grad():
             V
         )
 
-        X = X.reshape(-1, embed_dim)
+        X = Attention.reshape(-1, embed_dim)
         X = LAYER.self_attn.o_proj(X)
         X = X + PN_X
 
