@@ -590,7 +590,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     __half2 h2_result = __halves2half2(h_ret_odd, h_ret_even);
 
     // Store rope encoded data back to tensor
-    ((__half2 *)tensor)[window_idx] = h2_result;
+    ((__half2 *)tensor)[token_idx * transformed_embed_size + window_idx] = h2_result;
 
     return;
 }
