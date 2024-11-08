@@ -75,7 +75,7 @@ int main() {
     float Output[m * n] = {0.0f, 0.0f, 0.0f,
                            0.0f, 0.0f, 0.0f};
 
-    float *d_X, d_Transform, d_Output;
+    float *d_X, *d_Transform, *d_Output;
 
     cudaMalloc((void **)&d_X, m * k * sizeof(float));
     cudaMalloc((void **)&d_Transform, n * k * sizeof(float));

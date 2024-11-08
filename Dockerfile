@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     clang \
     docker.io \
     python3.10 \
-    python3-pip && pip install -U "huggingface_hub[cli]" transformers torch
+    python3-pip && pip install -U "huggingface_hub[cli]"
 
 # Create the workspace directory
 RUN mkdir -p /llama3-workspace
