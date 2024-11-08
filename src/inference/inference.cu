@@ -797,7 +797,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; i++) {
             if ((t * TILE_SIZE + i) < k) {
-                value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
+                value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[threadIdx.x * TILE_SIZE + i];
             }
         }
         __syncthreads();
