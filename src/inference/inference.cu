@@ -614,15 +614,16 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE, nheads);
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
-    exit(1);
 
     block = dim3(1024);
     grid = dim3(h_NUM_TOKENS, nheads);
 
-    kernel_masking_softmax<<<grid, block>>>(
+    shared_mem = (2048 + 1024) * sizeof(float);
+    kernel_masking_softmax<<<grid, block, shared_mem>>>(
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
+    exit(1);
 
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
@@ -630,6 +631,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE,
         nheads);
 
+    shared_mem = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem>>>(
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
         h_NUM_TOKENS, 128, h_NUM_TOKENS, nheads, TILE_SIZE);
@@ -692,7 +694,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 }
 
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
-    __shared__ float shared_mem[2048 + 1024];
+    extern __shared__ float shared_mem[2048 + 1024];
     float *vec = shared_mem;
     float *buffer = shared_mem + 2048;
 
