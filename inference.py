@@ -109,7 +109,8 @@ with torch.no_grad():
         K = LAYER.self_attn.k_proj(X)
         V = LAYER.self_attn.v_proj(X).view(-1, seq_len, nheads // 4, head_dim)
 
-        Q = Q.transpose(1, 2)  # Shape: [batch_size, nheads, seq_len, head_dim]
+        # Shape: [batch_size, nheads, seq_len, head_dim]
+        Q = Q.transpose(1, 2)
         # Shape: [batch_size, n_kv_heads, seq_len, head_dim]
         K = K.transpose(1, 2)
         # Shape: [batch_size, n_kv_heads, seq_len, head_dim]
@@ -137,10 +138,11 @@ with torch.no_grad():
         # Transpose back
         Attention = Attention.transpose(
             1, 2).contiguous().view(-1, seq_len, embed_dim)
+
         print(Attention)
         print(Attention.shape)
         exit(1)
-        
+
         X = LAYER.self_attn.o_proj(Attention)
         X = X + PN_X
 
