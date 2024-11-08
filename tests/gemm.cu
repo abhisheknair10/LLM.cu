@@ -69,9 +69,9 @@ void init_tensor(float *tensor, int a, int b) {
 }
 
 int main() {
-    int m = 64;
-    int n = 16;
-    int k = 64;
+    int m = 8;
+    int n = 4;
+    int k = 8;
 
     float X[m * k];
     float Transform[n * k];
@@ -90,7 +90,7 @@ int main() {
     cudaMemcpy(d_Transform, Transform, n * k * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_Output, Output, m * n * sizeof(float), cudaMemcpyHostToDevice);
 
-    int TILE_SIZE = 32;
+    int TILE_SIZE = 4;
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid(
         (n + TILE_SIZE - 1) / TILE_SIZE,
