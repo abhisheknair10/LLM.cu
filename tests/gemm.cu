@@ -63,7 +63,7 @@ __global__ void kernel_standard_tiled_gemm(
 void init_tensor(float *tensor, int a, int b) {
     for (int i = 0; i < a; i++) {
         for (int j = 0; j < b; j++) {
-            tensor[i * a + j] = i * a + j;
+            tensor[i * b + j] = i * b + j;
         }
     }
 }
