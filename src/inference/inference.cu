@@ -564,15 +564,13 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
         - Window idx gives local index
     */
     int token_idx = blockIdx.y;
-    int window_idx = 2 * (blockIdx.x * blockDim.x + threadIdx.x);
+    int window_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (window_idx >= transformed_embed_size) return;
     if (token_idx >= num_tokens) return;
 
-    if (token_idx % 2 == 1) return;
-
     // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
-    __half2 h2_val = ((const __half2 *)tensor)[window_idx];
+    __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + window_idx];
 
     const float scaling_factor = 10000.0f;
     float theta = token_idx / powf(scaling_factor, ((float)window_idx) / ((float)transformed_embed_size));
