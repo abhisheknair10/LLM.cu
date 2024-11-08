@@ -621,6 +621,8 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
+    exit(1);
+
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
         (128 + TILE_SIZE - 1) / TILE_SIZE,
