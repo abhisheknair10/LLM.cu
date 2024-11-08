@@ -15,6 +15,7 @@ typedef struct {
     Tensor *Q;
     Tensor *K;
     Tensor *V;
+    Tensor *O;
 
     float *d_attention_score_cache;
 
