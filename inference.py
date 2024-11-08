@@ -154,4 +154,4 @@ with torch.no_grad():
     X = model.model.norm(X)
     X = model.lm_head(X).reshape(seq_len, -1)
 
-    print(F.softmax(X, dim=-1))
+    print(torch.argmax(F.softmax(X, dim=-1), dim=-1))
