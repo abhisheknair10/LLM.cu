@@ -137,6 +137,10 @@ with torch.no_grad():
         # Transpose back
         Attention = Attention.transpose(
             1, 2).contiguous().view(-1, seq_len, embed_dim)
+        print(Attention)
+        print(Attention.shape)
+        exit(1)
+        
         X = LAYER.self_attn.o_proj(Attention)
         X = X + PN_X
 
