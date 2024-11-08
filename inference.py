@@ -107,8 +107,6 @@ with torch.no_grad():
 
         Q = LAYER.self_attn.q_proj(X).view(-1, seq_len, nheads, head_dim)
         K = LAYER.self_attn.k_proj(X)
-        print(K)
-        exit()
         V = LAYER.self_attn.v_proj(X).view(-1, seq_len, nheads // 4, head_dim)
 
         Q = Q.transpose(1, 2)  # Shape: [batch_size, nheads, seq_len, head_dim]
@@ -130,6 +128,8 @@ with torch.no_grad():
 
         # Compute attention probabilities
         attn_probs = F.softmax(attn_scores, dim=-1)
+
+        print(attn_probs.shape)
 
         # Apply attention to values
         Attention = torch.matmul(attn_probs, V)
@@ -154,4 +154,4 @@ with torch.no_grad():
     X = model.model.norm(X)
     X = model.lm_head(X).reshape(seq_len, -1)
 
-    print(F.softmax(X, dim=-1)[-1, 16867])
+    print(F.softmax(X, dim=-1))
