@@ -770,6 +770,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     int q_head_idx = blockIdx.z;
     int kv_head_idx = q_head_idx / 4;
+    int kv_heads = nheads / 4;
 
     int row = blockIdx.y * TILE_SIZE + threadIdx.y;
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
