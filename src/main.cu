@@ -52,7 +52,7 @@ int main() {
     }
 
     CudaCache *Cache = init_cache(llama3_model);
-    char *input_str = strdup("What is the largest ocean in the world?\n");
+    char *input_str = strdup("What is the largest ocean in the world?\na");
 
     /*
     char *input_str = (char *)malloc(sizeof(char) * 2048);
