@@ -58,7 +58,6 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -71,7 +70,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-*/
+/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
@@ -91,6 +90,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
+*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -634,10 +634,10 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         h_NUM_TOKENS, 128, h_NUM_TOKENS, nheads, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    /*
     check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
-    */
+
+    exit(1);
 
     return;
 }
@@ -805,7 +805,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     // Write the result to the output tensor
     if (row < m && col < n) {
-        int output_idx = row * (nheads * n) + q_head_idx * n + col;
+        int output_idx = q_head_idx * (m * n) + row * n + col;
         output[output_idx] = __float2half(value);
     }
 }
