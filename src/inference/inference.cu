@@ -529,7 +529,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     _deviceMemcpy_fp16_tensor(Cache->Q, X);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
+        X->d_fp16_tensor, Cache->Q->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_o_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
@@ -738,12 +738,8 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     // Compute softmax
     for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
         token_idx_x = i * blockDim.x + threadIdx.x;
-        if (token_idx_x < num_tokens) {
-            if (token_idx_x <= token_idx_y) {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
-            } else {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
-            }
+        if (token_idx_x <= token_idx_y) {
+            attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
         }
     }
 
