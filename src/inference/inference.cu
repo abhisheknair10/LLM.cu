@@ -786,7 +786,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
         // Load V into shared memory
         if (col < n && (t * TILE_SIZE + threadIdx.x) < k) {            
-            int V_idx = row * (kv_heads * n) + (kv_head_idx * n) + t * TILE_SIZE + threadIdx.y;
+            int V_idx = row * (kv_heads * n) + (kv_head_idx * n) + t * TILE_SIZE + threadIdx.x;
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
