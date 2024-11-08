@@ -804,7 +804,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     // Write the result to the output tensor
     if (row < m && col < n) {
-        int output_idx = row * nheads * n + q_head_idx * n + col;
+        int output_idx = row * nheads * n + col;
         output[output_idx] = __float2half(value);
     }
 }
