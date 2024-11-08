@@ -58,18 +58,6 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-__global__ void check_embedding(float *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
-        printf("Token %d embeddings:\n", token_idx);
-        for (int i = 0; i < dim; i++) {
-            printf("%f, ", fp16_tensor[token_idx * dim + i]);
-        }
-        printf("\n");
-        printf("\n\n");
-    }
-
-    return;
-}
 /*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
@@ -83,7 +71,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-
+*/
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
@@ -103,7 +91,6 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -222,10 +209,6 @@ __global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embe
 
     int token_idx = idx / EMBED_SIZE;
     int embed_idx = idx % EMBED_SIZE;
-
-    if (threadIdx.x == 0) {
-        printf("Token %d: %d\n", token_idx, tokens[token_idx + 1]);
-    }
 
     X[(token_idx * EMBED_SIZE) + embed_idx] =
         Embed[(tokens[token_idx + 1] * EMBED_SIZE) + embed_idx];
