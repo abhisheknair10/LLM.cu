@@ -694,61 +694,62 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 }
 
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
-    extern __shared__ float shared_mem[2048 + 1024];
+    extern __shared__ float shared_mem[]; // Dynamic shared memory
     float *vec = shared_mem;
-    float *buffer = shared_mem + 2048;
+    float *buffer = shared_mem + num_tokens; // Adjust based on num_tokens
 
     int token_idx_y = blockIdx.x;
     int head_idx = blockIdx.y;
 
     int token_idx_x;
     float exp_sum = 0.0f;
-    for (int i = 0; i < 2; i++) {
+
+    // Load relevant attention scores and apply masking
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
         token_idx_x = i * blockDim.x + threadIdx.x;
 
-        if (token_idx_x >= num_tokens) {
-            vec[token_idx_x] = 0.0f;
-            continue;
-        }
-
-        if (token_idx_x <= token_idx_y) {
-            vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
+        if (token_idx_x < num_tokens) {
+            if (token_idx_x <= token_idx_y) {
+                vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
+            } else {
+                vec[token_idx_x] = -1e9f;
+            }
+            exp_sum += expf(vec[token_idx_x]);
         } else {
-            vec[token_idx_x] = (float)-1e9;
+            vec[token_idx_x] = 0.0f;
         }
-        exp_sum += expf(vec[token_idx_x]);
-
         __syncthreads();
     }
 
+    // Reduction to compute softmax denominator
     buffer[threadIdx.x] = exp_sum;
-    for (int offset = 512; offset >= 32; offset /= 2) {
+    __syncthreads();
+
+    for (int offset = blockDim.x / 2; offset > 0; offset /= 2) {
         if (threadIdx.x < offset) {
             buffer[threadIdx.x] += buffer[threadIdx.x + offset];
         }
         __syncthreads();
     }
 
-    if (threadIdx.x < 32) {
-        float val = buffer[threadIdx.x];
-        for (int offset = 16; offset > 0; offset /= 2) {
-            val += __shfl_down_sync(0xffffffff, val, offset);
-        }
-        if (threadIdx.x == 0) buffer[0] = val;
-    }
+    float softmax_den = buffer[0];
     __syncthreads();
 
-    float softmax_den = buffer[0];
-    for (int i = 0; i < 2; i++) {
+    // Compute softmax
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
         token_idx_x = i * blockDim.x + threadIdx.x;
         if (token_idx_x < num_tokens) {
-            attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+            if (token_idx_x <= token_idx_y) {
+                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+            } else {
+                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
+            }
         }
-        __syncthreads();
     }
 
     return;
 }
+
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
