@@ -60,20 +60,25 @@ __global__ void kernel_standard_tiled_gemm(
     return;
 }
 
+void init_tensor(float *tensor, int a, int b) {
+    for (int i = 0; i < a; i++) {
+        for (int j = 0; j < b; j++) {
+            tensor[i * a + j] = i * a + j;
+        }
+    }
+}
+
 int main() {
-    int m = 2;
-    int n = 3;
-    int k = 3;
+    int m = 64;
+    int n = 16;
+    int k = 64;
 
-    float X[m * k] = {1.0f, 2.0f, 3.0f,
-                      4.0f, 5.0f, 6.0f};
+    float X[m * k];
+    float Transform[n * k];
+    float Output[m * n];
 
-    float Transform[n * k] = {1.0f, 2.0f, 3.0f,
-                              4.0f, 5.0f, 6.0f,
-                              7.0f, 8.0f, 9.0f};
-
-    float Output[m * n] = {0.0f, 0.0f, 0.0f,
-                           0.0f, 0.0f, 0.0f};
+    init_tensor(X, m, k);
+    init_tensor(Transform, n, k);
 
     float *d_X, *d_Transform, *d_Output;
 
