@@ -138,6 +138,8 @@ with torch.no_grad():
             1, 2).contiguous().view(-1, seq_len, embed_dim)
 
         X = LAYER.self_attn.o_proj(Attention)
+        print(X)
+        exit(1)
         X = X + PN_X
 
         PN_X = torch.clone(X)
