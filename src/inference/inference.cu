@@ -689,11 +689,46 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     return;
 }
 
+// Helper function for parallel reduction of floats using warp shuffles
+__inline__ __device__
+float blockReduceSum(float val) {
+    static __shared__ float shared[32]; // Maximum warp size
+    int lane = threadIdx.x % warpSize;
+    int wid = threadIdx.x / warpSize;
+
+    // Reduce within each warp
+    for (int offset = warpSize / 2; offset > 0; offset /= 2)
+        val += __shfl_down_sync(0xffffffff, val, offset);
+
+    // Write warp sums to shared memory
+    if (lane == 0) shared[wid] = val;
+    __syncthreads();
+
+    // Reduce warp sums to a single value
+    val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : 0.0f;
+    if (wid == 0) {
+        for (int offset = warpSize / 2; offset > 0; offset /= 2)
+            val += __shfl_down_sync(0xffffffff, val, offset);
+    }
+    return val;
+}
+
+// Atomic max function for floats
+__device__ void atomicMaxFloat(float* address, float val) {
+    int* address_as_int = (int*)address;
+    int old = *address_as_int, assumed;
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_int, assumed,
+                        __float_as_int(fmaxf(val, __int_as_float(assumed))));
+    } while (assumed != old);
+}
+
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
     extern __shared__ float shared_mem[];
     // Allocate shared memory dynamically based on num_tokens
-    float *vec = shared_mem;            // Size: num_tokens
-    float *exp_vec = vec + num_tokens;  // Size: num_tokens
+    float *vec = shared_mem;                       // Size: num_tokens
+    float *exp_vec = vec + num_tokens;             // Size: num_tokens
     __shared__ float max_val;
     __shared__ float sum_exp;
 
@@ -748,39 +783,6 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     }
 }
 
-// Helper function for parallel reduction of floats using warp shuffles
-__inline__ __device__ float blockReduceSum(float val) {
-    static __shared__ float shared[32];  // Maximum warp size
-    int lane = threadIdx.x % warpSize;
-    int wid = threadIdx.x / warpSize;
-
-    // Reduce within each warp
-    for (int offset = warpSize / 2; offset > 0; offset /= 2)
-        val += __shfl_down_sync(0xffffffff, val, offset);
-
-    // Write warp sums to shared memory
-    if (lane == 0) shared[wid] = val;
-    __syncthreads();
-
-    // Reduce warp sums to a single value
-    val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : 0.0f;
-    if (wid == 0) {
-        for (int offset = warpSize / 2; offset > 0; offset /= 2)
-            val += __shfl_down_sync(0xffffffff, val, offset);
-    }
-    return val;
-}
-
-// Atomic max function for floats
-__device__ void atomicMaxFloat(float *address, float val) {
-    int *address_as_int = (int *)address;
-    int old = *address_as_int, assumed;
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_int, assumed,
-                        __float_as_int(fmaxf(val, __int_as_float(assumed))));
-    } while (assumed != old);
-}
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
