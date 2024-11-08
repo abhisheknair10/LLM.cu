@@ -355,7 +355,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
 
 // Compute addition (skip connection)
 void add_norm(Tensor *X, Tensor *PN_X) {
-    dim3 block(32, 32, 1);
+    dim3 block(1024);
     dim3 grid(4, h_NUM_TOKENS);
 
     add_norm<<<grid, block>>>(
@@ -367,9 +367,7 @@ void add_norm(Tensor *X, Tensor *PN_X) {
 
 __global__ void add_norm(__half *X, __half *PN_X) {
     int token_idx = blockIdx.y;
-    int embed_idx = blockIdx.x * blockDim.y * blockDim.x +
-                    threadIdx.y * blockDim.x +
-                    threadIdx.x;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (token_idx >= d_NUM_TOKENS) return;
     if (embed_idx >= 4096) return;
