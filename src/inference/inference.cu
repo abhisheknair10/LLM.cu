@@ -797,7 +797,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         // Compute partial sums
         for (int i = 0; i < TILE_SIZE; i++) {
             if ((t * TILE_SIZE + i) < k) {
-                value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[threadIdx.x * TILE_SIZE + i];
+                value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
             }
         }
         __syncthreads();
@@ -805,7 +805,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
     // Write the result to the output tensor
     if (row < m && col < n) {
-        int output_idx = q_head_idx * (m * n) + row * n + col;
+        int output_idx = row * nheads * n + q_head_idx * n + col;
         output[output_idx] = __float2half(value);
     }
 }
