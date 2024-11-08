@@ -375,7 +375,7 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     if (embed_idx >= 4096) return;
 
     int offset = token_idx * 4096 + embed_idx;
-    X[offset] = __hadd(X[offset], PN_X[offset]);
+    X[offset] = __hadd_rn(X[offset], PN_X[offset]);
 
     return;
 }
