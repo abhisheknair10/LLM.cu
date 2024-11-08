@@ -162,9 +162,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
-        check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-        cudaDeviceSynchronize();
-        exit(1);
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
@@ -626,6 +623,10 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
+    check_embedding<<<1, 1>>>(Cache->d_attention_score_cache, h_NUM_TOKENS);
+    cudaDeviceSynchronize();
+    exit(1);
+
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
         (128 + TILE_SIZE - 1) / TILE_SIZE,
@@ -785,7 +786,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         }
 
         // Load V into shared memory
-        if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {            
+        if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {
             int V_idx = row * (kv_heads * n) + (kv_head_idx * n) + t * TILE_SIZE + threadIdx.y;
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
