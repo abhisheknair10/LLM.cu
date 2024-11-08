@@ -599,7 +599,6 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
-    CHECK_CUDA_ERROR();
     // Attention score computation
     int TILE_SIZE = 32;
     int nheads = 32;
@@ -693,7 +692,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 }
 
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
-    extern __shared__ float shared_mem[2048 + 1024];
+    __shared__ float shared_mem[2048 + 1024];
     float *vec = shared_mem;
     float *buffer = shared_mem + 2048;
 
