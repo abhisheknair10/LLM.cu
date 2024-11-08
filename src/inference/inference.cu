@@ -112,7 +112,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *Q = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
     Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
     Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
-    Tensor *O = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_o_proj);
 
     float *d_attention_score_cache = (float *)create_gmemcache(32 * 2048 * 2048, sizeof(float));
 
@@ -127,7 +126,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->Q = Q;
     Cache->K = K;
     Cache->V = V;
-    Cache->O = O;
 
     Cache->d_attention_score_cache = d_attention_score_cache;
     Cache->d_feedforward_cache_gate = d_feedforward_cache_gate;
@@ -528,10 +526,10 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     grid = dim3(
         (L3_Layer->self_attn_o_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
-    _deviceMemcpy_fp16_tensor(Cache->O, X);
+    _deviceMemcpy_fp16_tensor(Cache->Q, X);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, Cache->O->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
+        X->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_o_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
