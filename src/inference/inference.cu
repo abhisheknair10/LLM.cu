@@ -712,7 +712,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
             if (token_idx_x <= token_idx_y) {
                 vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
             } else {
-                vec[token_idx_x] = -1e9f;
+                vec[token_idx_x] = 0.0f;
             }
             exp_sum += expf(vec[token_idx_x]);
         } else {
@@ -738,8 +738,12 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     // Compute softmax
     for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
         token_idx_x = i * blockDim.x + threadIdx.x;
-        if (token_idx_x <= token_idx_y) {
-            attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+        if (token_idx_x < num_tokens) {
+            if (token_idx_x <= token_idx_y) {
+                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+            } else {
+                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
+            }
         }
     }
 
