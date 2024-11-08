@@ -614,6 +614,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE, nheads);
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
+    exit(1);
 
     block = dim3(1024);
     grid = dim3(h_NUM_TOKENS, nheads);
@@ -622,7 +623,6 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
     CHECK_CUDA_ERROR();
-    exit(1);
 
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
