@@ -58,7 +58,7 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-/*
+
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -71,7 +71,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-*/
+/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
@@ -91,6 +91,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
+*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -161,6 +162,9 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
+        check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
+        cudaDeviceSynchronize();
+        exit(1);
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
@@ -622,10 +626,6 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(Cache->d_attention_score_cache, h_NUM_TOKENS);
-    cudaDeviceSynchronize();
-    exit(1);
-
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
         (128 + TILE_SIZE - 1) / TILE_SIZE,
@@ -786,7 +786,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 
         // Load V into shared memory
         if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {
-            int V_idx = row * (kv_heads * n) + (kv_head_idx * n) + t * TILE_SIZE + threadIdx.y;
+            int V_idx = col * (kv_heads * k) + (kv_head_idx * k) + t * TILE_SIZE + threadIdx.x;
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
             V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
@@ -896,8 +896,8 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(Cache->next_token, 128256);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(Cache->next_token, 128256);
+    cudaDeviceSynchronize();
 
     return;
 }
