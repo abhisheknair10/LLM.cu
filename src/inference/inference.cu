@@ -863,8 +863,8 @@ __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, 
     int embed_idx = blockIdx.x * blockDim.y * blockDim.x + flat_thread_idx;
     int token_idx = blockIdx.y;
 
-    if (embed_idx >= 4096) return;
-    
+    // if (embed_idx >= 4096) return;
+
     float gate_val = __half2float(gate[token_idx * embed_dim + embed_idx]);
     float up_val = __half2float(up[token_idx * embed_dim + embed_idx]);
 
