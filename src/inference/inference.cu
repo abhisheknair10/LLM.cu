@@ -657,19 +657,19 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
 
     float value = 0.0f;
-    for (int i = 0; i < (k + TILE_SIZE - 1) / TILE_SIZE; ++i) {
+    for (int t = 0; t < (k + TILE_SIZE - 1) / TILE_SIZE; ++t) {
         if (row < m && (t * TILE_SIZE + threadIdx.x) < k) {
             int Q_idx = row * (nheads * k) + (q_head_idx * k) + t * TILE_SIZE + threadIdx.x;
-            Q_shmem[threadIdx.y * TILE_SIZE + theadIdx.x] = __half2float(Q[Q_idx]);
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(Q[Q_idx]);
         } else {
-            Q_shmem[threadIdx.y * TILE_SIZE + theadIdx.x] = 0.0f;
+            Q_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
         if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {
             int K_idx = col * (kv_heads * k) + (kv_head_idx * k) + t * TILE_SIZE + threadIdx.y;
-            K_shmem[threadIdx.y * TILE_SIZE + theadIdx.x] = __half2float(K[K_idx]);
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(K[K_idx]);
         } else {
-            K_shmem[threadIdx.y * TILE_SIZE + theadIdx.x] = 0.0f;
+            K_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
         __syncthreads();
 
@@ -677,7 +677,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
         for (int i = 0; i < TILE_SIZE; i++) {
             value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x]
         }
-        __synthreads();
+        __syncthreads();
     }
 
     // Write result to memory
@@ -688,7 +688,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
     return;
 }
 
-__global__ void kernel_masking_softmax(float *attention_scores, int num_tokens, int nheads) {
+__global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
     extern __shared__ float shared_mem[2048 + 1024];
     float *vec = shared_mem;
     float *buffer = shared_mem + 2048;
