@@ -130,18 +130,12 @@ with torch.no_grad():
         # Compute attention probabilities
         attn_probs = F.softmax(attn_scores, dim=-1)
 
-        print(attn_probs.shape)
-
         # Apply attention to values
         Attention = torch.matmul(attn_probs, V)
 
         # Transpose back
         Attention = Attention.transpose(
             1, 2).contiguous().view(-1, seq_len, embed_dim)
-
-        print(Attention)
-        print(Attention.shape)
-        exit(1)
 
         X = LAYER.self_attn.o_proj(Attention)
         X = X + PN_X
