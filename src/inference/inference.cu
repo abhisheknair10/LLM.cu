@@ -115,8 +115,8 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
     float *d_attention_score_cache = (float *)create_gmemcache(32 * 2048 * 2048, sizeof(float));
 
-    __half *d_feedforward_cache_gate = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
-    __half *d_feedforward_cache_up = (__half *)create_gmemcache(14336 * 2048, sizeof(__half));
+    __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
+    __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
     __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
 
@@ -691,59 +691,95 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
     extern __shared__ float shared_mem[];
-    float *vec = shared_mem;
-    float *buffer = shared_mem + 2048;
+    // Allocate shared memory dynamically based on num_tokens
+    float *vec = shared_mem;            // Size: num_tokens
+    float *exp_vec = vec + num_tokens;  // Size: num_tokens
+    __shared__ float max_val;
+    __shared__ float sum_exp;
 
-    int token_idx_y = blockIdx.x;
-    int head_idx = blockIdx.y;
+    int token_idx_y = blockIdx.x;  // The query token index
+    int head_idx = blockIdx.y;     // The head index
 
-    int token_idx_x;
-    float exp_sum = 0.0f;
+    int tid = threadIdx.x;
+    int num_threads = blockDim.x;
 
-    // Load relevant attention scores and apply masking
-    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
-        token_idx_x = i * blockDim.x + threadIdx.x;
+    // Initialize max_val
+    if (tid == 0) max_val = -1e9f;
+    __syncthreads();
 
-        if (token_idx_x < num_tokens) {
-            if (token_idx_x <= token_idx_y) {
-                vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
-            } else {
-                vec[token_idx_x] = -1e9f;
-            }
-            exp_sum += expf(vec[token_idx_x]);
+    // Load and mask attention scores, compute max_val
+    for (int idx = tid; idx < num_tokens; idx += num_threads) {
+        float val;
+        if (idx <= token_idx_y) {
+            val = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + idx];
         } else {
-            vec[token_idx_x] = 0.0f;
+            val = -1e9f;  // Masked positions
         }
-        __syncthreads();
-    }
+        vec[idx] = val;
 
-    // Reduction to compute softmax denominator
-    buffer[threadIdx.x] = exp_sum;
+        // Compute max_val in parallel
+        atomicMaxFloat(&max_val, val);
+    }
     __syncthreads();
 
-    for (int offset = blockDim.x / 2; offset > 0; offset /= 2) {
-        if (threadIdx.x < offset) {
-            buffer[threadIdx.x] += buffer[threadIdx.x + offset];
-        }
-        __syncthreads();
+    // Subtract max_val, compute exponentials
+    float sum = 0.0f;
+    for (int idx = tid; idx < num_tokens; idx += num_threads) {
+        float val = vec[idx] - max_val;
+        float exp_val = __expf(val);
+        exp_vec[idx] = exp_val;
+        sum += exp_val;
     }
 
-    float softmax_den = buffer[0];
+    // Reduce sum across threads to get sum_exp
+    sum = blockReduceSum(sum);
+    if (tid == 0) sum_exp = sum;
     __syncthreads();
 
-    // Compute softmax
-    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
-        token_idx_x = i * blockDim.x + threadIdx.x;
-        if (token_idx_x < num_tokens) {
-            if (token_idx_x <= token_idx_y) {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
-            } else {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
-            }
+    // Write back the softmax results
+    for (int idx = tid; idx < num_tokens; idx += num_threads) {
+        float softmax_val = exp_vec[idx] / sum_exp;
+        // Apply masking again to ensure masked positions are zero
+        if (idx <= token_idx_y) {
+            attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + idx] = softmax_val;
+        } else {
+            attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + idx] = 0.0f;
         }
     }
+}
 
-    return;
+// Helper function for parallel reduction of floats using warp shuffles
+__inline__ __device__ float blockReduceSum(float val) {
+    static __shared__ float shared[32];  // Maximum warp size
+    int lane = threadIdx.x % warpSize;
+    int wid = threadIdx.x / warpSize;
+
+    // Reduce within each warp
+    for (int offset = warpSize / 2; offset > 0; offset /= 2)
+        val += __shfl_down_sync(0xffffffff, val, offset);
+
+    // Write warp sums to shared memory
+    if (lane == 0) shared[wid] = val;
+    __syncthreads();
+
+    // Reduce warp sums to a single value
+    val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : 0.0f;
+    if (wid == 0) {
+        for (int offset = warpSize / 2; offset > 0; offset /= 2)
+            val += __shfl_down_sync(0xffffffff, val, offset);
+    }
+    return val;
+}
+
+// Atomic max function for floats
+__device__ void atomicMaxFloat(float *address, float val) {
+    int *address_as_int = (int *)address;
+    int old = *address_as_int, assumed;
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_int, assumed,
+                        __float_as_int(fmaxf(val, __int_as_float(assumed))));
+    } while (assumed != old);
 }
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
