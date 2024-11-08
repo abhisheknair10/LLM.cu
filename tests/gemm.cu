@@ -68,6 +68,7 @@ void init_tensor(float *tensor, int a, int b) {
         }
         printf("\n");
     }
+    printf("\n\n");
 }
 
 int main() {
