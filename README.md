@@ -40,7 +40,7 @@ export HF_TOKEN=<your_token>
 4. Next, run the following command to download the model parameters into the target directory.
 
 ```bash
-huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --local-dir ./model_weights/ --token $HF_TOKEN
+huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir ./model_weights/ --token $HF_TOKEN
 ```
 
 5. Run Make 🎉.
