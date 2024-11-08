@@ -637,6 +637,8 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
 
+    exit(1);
+
     return;
 }
 
