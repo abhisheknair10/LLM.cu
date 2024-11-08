@@ -223,6 +223,10 @@ __global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embe
     int token_idx = idx / EMBED_SIZE;
     int embed_idx = idx % EMBED_SIZE;
 
+    if (threadIdx.x == 0) {
+        printf("Token %d: %d", token_idx, tokens[token_idx + 1]);
+    }
+
     X[(token_idx * EMBED_SIZE) + embed_idx] =
         Embed[(tokens[token_idx + 1] * EMBED_SIZE) + embed_idx];
 
