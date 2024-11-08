@@ -37,8 +37,8 @@ __global__ void kernel_standard_tiled_gemm(
         }
 
         // Load tile of Transform into shared memory
-        if (col < n && (t * TILE_SIZE + threadIdx.x) < k) {
-            int T_idx = col * k + t * TILE_SIZE + threadIdx.x;
+        if (col < n && (t * TILE_SIZE + threadIdx.y) < k) {
+            int T_idx = col * k + t * TILE_SIZE + threadIdx.y;
             T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = Transform[T_idx];
         } else {
             T_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
