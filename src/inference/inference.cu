@@ -543,19 +543,19 @@ void rope_scaling(Tensor *Q, Tensor *K) {
     // RoPE on Q
     block = dim3(1024);
     grid = dim3(2, h_NUM_TOKENS);
-    kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048);
+    kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048, h_NUM_TOKENS);
 
     // RoPE on K
     block = dim3(256);
     grid = dim3(2, h_NUM_TOKENS);
-    kernel_rope_scaling<<<grid, block>>>(K->d_fp16_tensor, 512);
+    kernel_rope_scaling<<<grid, block>>>(K->d_fp16_tensor, 512, h_NUM_TOKENS);
 
     cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) {
+__global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, int num_tokens) {
     /*
         - For Q [tokens, 4096], there are 1024 threads per block with 2 blocks representing one
             transformed Q embedding
@@ -565,10 +565,10 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
         - Window idx gives local index
     */
     int token_idx = blockIdx.y;
-    int window_idx = 2 * (blockIdx.x * blockDim.x + threadIdx.x);
+    int window_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (window_idx >= transformed_embed_size) return;
-    if (token_idx >= d_NUM_TOKENS) return;
+    if (token_idx >= num_tokens) return;
 
     // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
     __half2 h2_val = ((const __half2 *)tensor)[window_idx];

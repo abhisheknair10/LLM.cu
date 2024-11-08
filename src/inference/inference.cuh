@@ -65,7 +65,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache);
 /* ************************* Rotary Positional Embedding (RoPE) ************************* */
 void rope_scaling(Tensor *Q, Tensor *K);
 
-__global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size);
+__global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, int num_tokens);
 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache);
