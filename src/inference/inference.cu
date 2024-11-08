@@ -629,7 +629,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
 
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem>>>(
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
-        h_NUM_TOKENS, 128, h_NUM_TOKENS, TILE_SIZE);
+        h_NUM_TOKENS, 128, h_NUM_TOKENS, nheads, TILE_SIZE);
 
     return;
 }
@@ -747,7 +747,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
     __half *output, float *attention_scores, __half *V,
-    int m, int n, int k, int TILE_SIZE) {
+    int m, int n, int k, int nheads, int TILE_SIZE) {
     /*
         - Each head operates independently of other heads.
         - `m`: Number of tokens (rows of attention scores).
