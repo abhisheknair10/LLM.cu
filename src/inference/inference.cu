@@ -110,8 +110,8 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Tensor *PN_X = _create_intermediary_prenorm_tensor_copy();
 
     Tensor *Q = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
-    Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
-    Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_q_proj);
+    Tensor *K = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_k_proj);
+    Tensor *V = _create_intermediary_attention_tensor(llama3_model->layers[0]->self_attn_v_proj);
 
     float *d_attention_score_cache = (float *)create_gmemcache(32 * 2048 * 2048, sizeof(float));
 
@@ -521,7 +521,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
-    _deviceMemcpy_fp16_tensor(Cache->V, X);
+    _deviceMemcpy_fp16_tensor(Cache->Q, X);
 
     // Output computation
     grid = dim3(
