@@ -51,7 +51,7 @@ int main() {
         return 1;
     }
 
-    CudaCache *Cache = init_cache(llama3_model);™
+    CudaCache *Cache = init_cache(llama3_model);
     char *input_str = strdup("What is the largest ocean in the world?\n");
 
     /*
