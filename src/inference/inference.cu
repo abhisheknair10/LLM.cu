@@ -620,7 +620,7 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     kernel_masking_softmax<<<grid, block>>>(
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
-
+    CHECK_CUDA_ERROR();
     exit(1);
 
     block = dim3(TILE_SIZE, TILE_SIZE);
