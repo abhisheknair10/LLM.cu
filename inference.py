@@ -106,7 +106,7 @@ with torch.no_grad():
         X = LAYER.input_layernorm(X)
 
         Q = LAYER.self_attn.q_proj(X).view(-1, seq_len, nheads, head_dim)
-        K = LAYER.self_attn.k_proj(X)
+        K = LAYER.self_attn.k_proj(X).view(-1, seq_len, nheads // 4, head_dim)
         V = LAYER.self_attn.v_proj(X).view(-1, seq_len, nheads // 4, head_dim)
 
         # Shape: [batch_size, nheads, seq_len, head_dim]
