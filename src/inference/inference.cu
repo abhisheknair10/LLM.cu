@@ -58,7 +58,7 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-
+/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -71,7 +71,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-/*
+*/
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
@@ -91,7 +91,6 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -162,9 +161,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
-        check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
-        cudaDeviceSynchronize();
-        exit(1);
 
         // Output computation
         compute_output(llama3_model->layers[i], X);
