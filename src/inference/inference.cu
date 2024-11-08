@@ -521,7 +521,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
-    _deviceMemcpy_fp16_tensor(Cache->K, X);
+    _deviceMemcpy_fp16_tensor(Cache->Q, X);
 
     // Output computation
     grid = dim3(
