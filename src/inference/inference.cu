@@ -542,7 +542,7 @@ void rope_scaling(Tensor *Q, Tensor *K) {
 
     // RoPE on Q
     block = dim3(1024);
-    grid = dim3(h_NUM_TOKENS);
+    grid = dim3(2, h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048, h_NUM_TOKENS);
 
     // RoPE on K
@@ -568,6 +568,8 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
 
     if (window_idx >= transformed_embed_size) return;
     if (token_idx >= num_tokens) return;
+
+    if (token_idx % 2 == 1) return;
 
     // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
     __half2 h2_val = ((const __half2 *)tensor)[window_idx];
