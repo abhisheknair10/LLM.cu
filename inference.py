@@ -137,9 +137,10 @@ with torch.no_grad():
         Attention = Attention.transpose(
             1, 2).contiguous().view(-1, seq_len, embed_dim)
 
-        X = LAYER.self_attn.o_proj(Attention)
-        print(X)
+        print(Attention)
         exit(1)
+
+        X = LAYER.self_attn.o_proj(Attention)
         X = X + PN_X
 
         PN_X = torch.clone(X)
