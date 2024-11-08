@@ -257,6 +257,8 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
 }
 
 void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
+    cudaMemset(Y->d_fp16_tensor, __float2half(0.0f), sizeof(__half) * (*(X->mem_len)));
+
     cudaMemcpy(
         Y->d_fp16_tensor,
         X->d_fp16_tensor,
