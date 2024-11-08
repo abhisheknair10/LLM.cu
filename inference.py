@@ -130,7 +130,7 @@ with torch.no_grad():
         # Compute attention probabilities
         attn_probs = F.softmax(attn_scores, dim=-1)
 
-        print(attn_probs.shape)
+        print(attn_probs[0, 0, :, :])
         exit(1)
 
         # Apply attention to values
