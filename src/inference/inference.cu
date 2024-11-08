@@ -779,18 +779,21 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         // Load attention_scores into shared memory
         if (row < m && (t * TILE_SIZE + threadIdx.x) < k) {
             int attn_idx = q_head_idx * m * k + row * k + (t * TILE_SIZE + threadIdx.x);
+            int attn_idx = row * (nheads * k) + (q_head_idx * k) + t * TILE_SIZE + threadIdx.x;
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = attention_scores[attn_idx];
         } else {
             attention_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
         }
 
-        // Load V into shared memory into shared memory
-        if (col < n && (t * TILE_SIZE + threadIdx.x) < k) {
-            int V_idx = kv_head_idx * m * n + (t * TILE_SIZE + threadIdx.y) * n + col;
-            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
+        // Load V into shared memory
+        int i = threadIdx.y;
+        if (col < n && (t * TILE_SIZE + i) < k) {
+            int V_idx = kv_head_idx * m * n + (t * TILE_SIZE + i) * n + col;
+            V_shmem[i * TILE_SIZE + threadIdx.x] = __half2float(V[V_idx]);
         } else {
-            V_shmem[threadIdx.y * TILE_SIZE + threadIdx.x] = 0.0f;
+            V_shmem[i * TILE_SIZE + threadIdx.x] = 0.0f;
         }
+
         __syncthreads();
 
         // Compute partial sums
