@@ -541,12 +541,12 @@ void rope_scaling(Tensor *Q, Tensor *K) {
     dim3 grid;
 
     // RoPE on Q
-    block = dim3(32, 32, 1);
+    block = dim3(1024);
     grid = dim3(2, h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048);
 
     // RoPE on K
-    block = dim3(16, 16, 1);
+    block = dim3(256);
     grid = dim3(2, h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(K->d_fp16_tensor, 512);
 
@@ -565,9 +565,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size) 
         - Window idx gives local index
     */
     int token_idx = blockIdx.y;
-    int window_idx = 2 * (blockIdx.x * blockDim.y * blockDim.x +
-                          threadIdx.y * blockDim.x +
-                          threadIdx.x);
+    int window_idx = 2 * (blockIdx.x * blockDim.x + threadIdx.x);
 
     if (window_idx >= transformed_embed_size) return;
     if (token_idx >= d_NUM_TOKENS) return;
