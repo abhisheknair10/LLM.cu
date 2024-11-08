@@ -157,7 +157,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
 
         // RoPE scaling
-        // rope_scaling(Cache->Q, Cache->K);
+        rope_scaling(Cache->Q, Cache->K);
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
@@ -542,12 +542,12 @@ void rope_scaling(Tensor *Q, Tensor *K) {
 
     // RoPE on Q
     block = dim3(1024);
-    grid = dim3(2, h_NUM_TOKENS);
+    grid = dim3(h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048, h_NUM_TOKENS);
 
     // RoPE on K
-    block = dim3(256);
-    grid = dim3(2, h_NUM_TOKENS);
+    block = dim3(512);
+    grid = dim3(h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(K->d_fp16_tensor, 512, h_NUM_TOKENS);
 
     cudaDeviceSynchronize();
@@ -565,7 +565,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
         - Window idx gives local index
     */
     int token_idx = blockIdx.y;
-    int window_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int window_idx = 2 * (blockIdx.x * blockDim.x + threadIdx.x);
 
     if (window_idx >= transformed_embed_size) return;
     if (token_idx >= num_tokens) return;
