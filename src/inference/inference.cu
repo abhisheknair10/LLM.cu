@@ -181,6 +181,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 
     compute_layer_norm(llama3_model->norm, X);
     compute_lm_head(llama3_model->lm_head, X, Cache);
+    CHECK_CUDA_ERROR();
 
     printCudaMemoryInfo();
 
