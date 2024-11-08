@@ -613,7 +613,6 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
         Cache->d_attention_score_cache, Q->d_fp16_tensor, K->d_fp16_tensor,
         h_NUM_TOKENS, h_NUM_TOKENS, 128, TILE_SIZE, nheads);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
 
     block = dim3(1024);
     grid = dim3(h_NUM_TOKENS, nheads);
@@ -622,8 +621,6 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     kernel_masking_softmax<<<grid, block, shared_mem>>>(
         Cache->d_attention_score_cache, h_NUM_TOKENS);
     cudaDeviceSynchronize();
-    CHECK_CUDA_ERROR();
-    exit(1);
 
     block = dim3(TILE_SIZE, TILE_SIZE);
     grid = dim3(
@@ -635,6 +632,8 @@ void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Ca
     kernel_compute_resolved_value_from_attention_score_tiled_matmul<<<grid, block, shared_mem>>>(
         X->d_fp16_tensor, Cache->d_attention_score_cache, V->d_fp16_tensor,
         h_NUM_TOKENS, 128, h_NUM_TOKENS, nheads, TILE_SIZE);
+    cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     return;
 }
