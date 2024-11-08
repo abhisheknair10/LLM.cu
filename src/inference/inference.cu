@@ -163,7 +163,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
 
         // Output computation
-        compute_output(llama3_model->layers[i], X);
+        compute_output(llama3_model->layers[i], X, Cache);
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
@@ -512,12 +512,14 @@ void compute_qkv_tensors(
     return;
 }
 
-void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
+void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
+
+    _deviceMemcpy_fp16_tensor(Cache->Q, X);
 
     // Output computation
     grid = dim3(
@@ -525,7 +527,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
+        X->d_fp16_tensor, Cache->Q->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_o_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 

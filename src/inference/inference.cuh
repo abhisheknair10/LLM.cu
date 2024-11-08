@@ -60,7 +60,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X);
 
-void compute_output(Llama3Layer *L3_Layer, Tensor *X);
+void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache);
 
 /* ************************* Rotary Positional Embedding (RoPE) ************************* */
 void rope_scaling(Tensor *Q, Tensor *K);
