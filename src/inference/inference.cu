@@ -546,10 +546,9 @@ void rope_scaling(Tensor *Q, Tensor *K) {
     kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048, h_NUM_TOKENS);
 
     // RoPE on K
-    block = dim3(512);
+    block = dim3(256);
     grid = dim3(h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(K->d_fp16_tensor, 512, h_NUM_TOKENS);
-
     cudaDeviceSynchronize();
 
     return;
