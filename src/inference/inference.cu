@@ -70,6 +70,7 @@ __global__ void check_embedding(float *fp16_tensor, int dim) {
 
     return;
 }
+/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -82,7 +83,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-/*
+
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx + 1);
