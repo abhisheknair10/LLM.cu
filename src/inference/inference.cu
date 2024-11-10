@@ -868,7 +868,7 @@ __device__ float sigmoid(float x) {
 }
 
 __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim) {
-    int embed_idx = blockIdx.x * blockDim.y * blockDim.x + threadIdx.x;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int token_idx = blockIdx.y;
 
     if (token_idx >= d_NUM_TOKENS) return;
