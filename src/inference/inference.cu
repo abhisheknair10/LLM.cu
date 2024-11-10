@@ -892,9 +892,9 @@ __global__ void kernel_compute_swiglu(
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    const int TILE_SIZE = ;
-    size_t shared_mem_size = 2 * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE);
+    const int TILE_SIZE = 32;
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
     // Query computation
