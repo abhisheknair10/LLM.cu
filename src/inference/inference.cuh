@@ -24,9 +24,9 @@ typedef struct {
     __half *next_token;
 } CudaCache;
 
-struct c_half4 {
+typedef struct {
     __half x, y, z, w;
-};
+} c_half4;
 
 /* ********************************* Inference Code ********************************* */
 void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache);
