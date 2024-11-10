@@ -148,7 +148,7 @@ with torch.no_grad():
         PN_X = torch.clone(X)
         X = LAYER.post_attention_layernorm(X)
 
-        GATE = LAYER.mlp.act_fn(LAYER.mlp.gate_proj(X))
+        GATE = F.silu(LAYER.mlp.gate_proj(X))
         UP = LAYER.mlp.up_proj(X)
 
         X = GATE * UP
