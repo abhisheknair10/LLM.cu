@@ -149,6 +149,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     tokens_to_embeddings(X, llama3_model, d_tokens);
     check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
     cudaDeviceSynchronize();
+    exit(1);
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
