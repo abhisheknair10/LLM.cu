@@ -52,7 +52,7 @@ int main() {
     }
 
     CudaCache *Cache = init_cache(llama3_model);
-
+    CLEAR_TERMINAL()
     while (true) {
         char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant, here to provide clear and concise answers to the user's questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is France's capital?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
@@ -70,10 +70,13 @@ int main() {
         Tensor *X = (Tensor *)malloc(sizeof(Tensor));
         int *d_tokens = tokens_to_cuda(tokens, 4096, X);
 
-        int next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
+        int next_token = 0;
+        while (next_token <) {
+            next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
 
-        printf("%s\n", llama3_tokenizer->decode[next_token]);
-
+            printf("%s\n", llama3_tokenizer->decode[next_token]);
+        }
+        free(tokens);
         _free_tensor(X);
         cudaFree(d_tokens);
 
