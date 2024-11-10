@@ -145,43 +145,56 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
+    CHECK_CUDA_ERROR();
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
+    CHECK_CUDA_ERROR();
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
+        CHECK_CUDA_ERROR();
 
         // Attention tensor computation
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
+        CHECK_CUDA_ERROR();
 
         // RoPE scaling
         rope_scaling(Cache->Q, Cache->K);
+        CHECK_CUDA_ERROR();
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
+        CHECK_CUDA_ERROR();
 
         // Output computation
         compute_output(llama3_model->layers[i], X, Cache);
+        CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+        CHECK_CUDA_ERROR();
 
         // Post-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        CHECK_CUDA_ERROR();
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
+        CHECK_CUDA_ERROR();
 
         // Feedforward
         compute_feedforward(X, llama3_model->layers[i], Cache);
+        CHECK_CUDA_ERROR();
 
         // Add pre-normalized input
         add_norm(X, Cache->PN_X);
+        CHECK_CUDA_ERROR();
     }
 
     compute_layer_norm(llama3_model->norm, X);
-    compute_lm_head(llama3_model->lm_head, X, Cache);
+    CHECK_CUDA_ERROR();
 
+    compute_lm_head(llama3_model->lm_head, X, Cache);
     CHECK_CUDA_ERROR();
 
     // printCudaMemoryInfo();
