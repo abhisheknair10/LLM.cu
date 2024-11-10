@@ -52,7 +52,11 @@ int main() {
     }
 
     CudaCache *Cache = init_cache(llama3_model);
-    char *input_str = strdup("The largest ocean in the");
+    char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+You are a helpful assistant, here to provide clear and concise answers to the user's questions. Use simple language, be polite, and avoid jargon unless requested. Offer relevant information accurately and efficiently, focusing on what the user needs without unnecessary details.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+What is France's capital?<|eot_id|><|start_header_id|>assistant<|end_header_id|>");
 
     /*
     char *input_str = (char *)malloc(sizeof(char) * 2048);
