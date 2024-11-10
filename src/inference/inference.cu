@@ -905,7 +905,7 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         (LM_Head->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         1);
 
-    __half arg = X->d_fp16_tensor + (h_NUM_TOKENS * 4096);
+    __half *arg = X->d_fp16_tensor + (h_NUM_TOKENS * 4096);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->next_token, arg, LM_Head->d_fp16_tensor,
