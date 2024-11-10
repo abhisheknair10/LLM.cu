@@ -153,6 +153,7 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     /* *************** Token Tensor Init CUDA *************** */
     // SPECIAL: fp16 tensor being allocated but only used later
     _cudaMalloc_fp16(token_tensor);
+    cudaMemset(token_tensor->d_fp16_tensor, __float2half(0.0f), sizeof(__half) * (*(token_tensor->mem_len)));
 
     int *d_ndim;
     int *d_mem_len;
