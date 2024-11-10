@@ -749,6 +749,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
                 attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
             }
         }
+        __syncthreads();
     }
 
     return;
