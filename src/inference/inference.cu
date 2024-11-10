@@ -139,7 +139,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     CHECK_CUDA_ERROR();
     cudaMemset(d_tokens, 0, sizeof(int) * (h_NUM_TOKENS + 1));
     printf("here it is: %d\n", h_tokens[0]);
-    cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
+    cudaMemcpy(d_tokens, h_tokens, sizeof(int) * 2049, cudaMemcpyHostToDevice);
     CHECK_CUDA_ERROR();
 
     // Set NUM_TOKENS value in device memory
