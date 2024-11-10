@@ -118,6 +118,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
+    __half *d_feedforward_cache_intermediate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
     __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
 
@@ -131,6 +132,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->d_attention_score_cache = d_attention_score_cache;
     Cache->d_feedforward_cache_gate = d_feedforward_cache_gate;
     Cache->d_feedforward_cache_up = d_feedforward_cache_up;
+    Cache->d_feedforward_cache_intermediate = d_feedforward_cache_intermediate;
 
     Cache->next_token = next_token;
 
@@ -848,7 +850,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         h_NUM_TOKENS);
 
     kernel_compute_swiglu<<<grid, 1024>>>(
-        Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
+        Cache->d_feedforward_cache_intermediate, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
         L3_Layer->mlp_up_proj->shape[0], h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
@@ -885,8 +887,7 @@ __global__ void kernel_compute_swiglu(
     float gate_val = __half2float(gate[index]);
     float up_val = __half2float(up[index]);
 
-    output[index] = __float2half(
-        SiLU(gate_val) * up_val);
+    output[index] = __float2half(SiLU(gate_val) * up_val);
 
     return;
 }
