@@ -574,22 +574,22 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
         - Window idx gives local index
     */
     int token_idx = blockIdx.y;
-    int window_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (window_idx >= transformed_embed_size) return;
+    if (embed_idx >= transformed_embed_size) return;
     if (token_idx >= num_tokens) return;
 
     // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
-    __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + window_idx];
+    __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + embed_idx];
 
     const float scaling_factor = 500000.0f;
-    float theta = (token_idx + 1) / powf(scaling_factor, (2 * (float)window_idx) / ((float)transformed_embed_size));
+    float theta = (token_idx + 1) / powf(scaling_factor, (2.0f * (float)embed_idx) / ((float)transformed_embed_size));
     float cos_comp = cosf(theta);
     float sin_comp = sinf(theta);
 
     // Access both values interpreted as 1 and rotate vector pair
-    float even = __half2float(__high2half(h2_val));
-    float odd = __half2float(__low2half(h2_val));
+    float even = __half2float(__low2half(h2_val));
+    float odd = __half2float(__high2half(h2_val));
 
     float ret_even = (cos_comp * even) - (sin_comp * odd);
     float ret_odd = (sin_comp * even) + (cos_comp * odd);
@@ -597,10 +597,10 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     // Pack the two __half values into a single __half2
     __half h_ret_even = __float2half(ret_even);
     __half h_ret_odd = __float2half(ret_odd);
-    __half2 h2_result = __halves2half2(h_ret_odd, h_ret_even);
+    __half2 h2_result = __halves2half2(h_ret_even, h_ret_odd);
 
     // Store rope encoded data back to tensor
-    ((__half2 *)tensor)[token_idx * transformed_embed_size + window_idx] = h2_result;
+    ((__half2 *)tensor)[token_idx * transformed_embed_size + embed_idx] = h2_result;
 
     return;
 }
