@@ -71,7 +71,7 @@ int main() {
         int *d_tokens = tokens_to_cuda(tokens, 4096, X);
 
         int next_token = 0;
-        while (next_token <) {
+        while (next_token < 128000) {
             next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
 
             printf("%s\n", llama3_tokenizer->decode[next_token]);
