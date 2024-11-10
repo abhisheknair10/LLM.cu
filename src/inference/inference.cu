@@ -144,7 +144,6 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
-    free(h_tokens);
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
@@ -716,10 +715,10 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
                 vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
+                exp_sum += expf(vec[token_idx_x]);
             } else {
                 vec[token_idx_x] = 0.0f;
             }
-            exp_sum += expf(vec[token_idx_x]);
         } else {
             vec[token_idx_x] = 0.0f;
         }
