@@ -52,24 +52,33 @@ int main() {
     }
 
     CudaCache *Cache = init_cache(llama3_model);
-    char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant, here to provide clear and concise answers to the user's questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is France's capital?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
-    /*
-    char *input_str = (char *)malloc(sizeof(char) * 2048);
-    fgets(input_str, 2048, stdin);
-    */
+    while (true) {
+        char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant, here to provide clear and concise answers to the user's questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is France's capital?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
-    int *tokens = tokenize(llama3_tokenizer, input_str);
-    if (tokens == NULL) {
-        printf("Error: Tokenization failed\n");
-        return 1;
+        /*
+        char *input_str = (char *)malloc(sizeof(char) * 2048);
+        fgets(input_str, 2048, stdin);
+        */
+
+        int *tokens = tokenize(llama3_tokenizer, input_str);
+        if (tokens == NULL) {
+            printf("Error: Tokenization failed\n");
+            return 1;
+        }
+
+        Tensor *X = (Tensor *)malloc(sizeof(Tensor));
+        int *d_tokens = tokens_to_cuda(tokens, 4096, X);
+
+        int next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
+
+        printf("%s\n", llama3_tokenizer->decode[next_token]);
+
+        _free_tensor(X);
+        cudaFree(d_tokens);
+
+        exit(1);
     }
-
-    Tensor *X = (Tensor *)malloc(sizeof(Tensor));
-    int *d_tokens = tokens_to_cuda(tokens, 4096, X);
-    printf(GREEN "[CUDA]" RESET " Tokenized input and moved to CUDA Device\n");
-
-    inference(llama3_model, X, d_tokens, tokens, Cache);
 
     // Free the model resources
     free_llama3(llama3_model);

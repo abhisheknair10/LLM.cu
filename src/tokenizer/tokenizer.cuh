@@ -28,6 +28,7 @@ typedef struct TrieNode {
  */
 typedef struct {
     TrieNode *root;
+    char **decode;
 } Llama3Tokenizer;
 
 /**
@@ -128,3 +129,22 @@ int _find_child(TrieNode *node, char str, TrieNode **result);
  * @param node Pointer to the TrieNode whose child capacity will be expanded.
  */
 void _memexpand_child_nodes(TrieNode *node);
+
+/**
+ * @brief Adds a token and its corresponding string to the decoder array.
+ *
+ * This function assigns the provided `token_string` to the `decoder` array at the index specified by `token_int`.
+ * It is used to build the decoder mapping, which translates integer tokens back to their original string representations.
+ * This is essential for decoding tokenized data back into human-readable text.
+ *
+ * @param decoder Double pointer to the decoder array where the token string will be stored.
+ *                The array should be pre-allocated with sufficient space to accommodate the token indices.
+ * @param token_string The string representation of the token to be added to the decoder.
+ *                     This string should correspond to the token's textual form used during tokenization.
+ * @param token_int The integer token value that corresponds to the `token_string`.
+ *                  This value serves as the index in the `decoder` array where the `token_string` will be stored.
+ *
+ * @note It is assumed that `token_int` is within the valid range of the `decoder` array indices.
+ *       Ensure that the `decoder` array has been appropriately initialized and allocated before calling this function.
+ */
+void _build_decoder(char **decoder, char *token_string, int token_int);

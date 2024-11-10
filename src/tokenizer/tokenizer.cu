@@ -29,6 +29,9 @@ Llama3Tokenizer *load_tokenizer() {
     // Initialize the root TrieNode
     llama3_tokenizer->root = init_trienode();
 
+    // Initialize decoder
+    llama3_tokenizer->decode = (char **)malloc(sizeof(char *) * 128256);
+
     // Read the tokenizer JSON file
     char *buffer = read_tokenizer_json(llama3_tokenizer, "model_weights/modified_tokenizer.json");
 
@@ -69,6 +72,7 @@ Llama3Tokenizer *load_tokenizer() {
     cJSON *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, vocab) {
         _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
+        _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
     }
 
     // Free the parsed JSON object
@@ -141,10 +145,10 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     *(token_tensor->ndim) = 2;
 
     token_tensor->mem_len = (int *)malloc(sizeof(int));
-    *(token_tensor->mem_len) = embed_size * (tokens[0] - 1);
+    *(token_tensor->mem_len) = embed_size * 2048;
 
     token_tensor->shape = (int *)malloc(sizeof(int) * (*(token_tensor->ndim)));
-    token_tensor->shape[0] = tokens[0] - 1;
+    token_tensor->shape[0] = 2048;
     token_tensor->shape[1] = embed_size;
 
     printf("Shape: %d\n", token_tensor->shape[0]);
@@ -313,4 +317,16 @@ void _memexpand_child_nodes(TrieNode *node) {
     node->child_node = new_child_node;
 
     return;
+}
+
+void _build_decoder(char **decoder, char *token_string, int token_int) {
+    size_t length = strlen(token_string) + 1;
+    decoder[token_int] = (char *)malloc(length);
+    if (decoder[token_int] == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed for decoder[%d].\n", token_int);
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy the token string into the decoder array
+    strcpy(decoder[token_int], token_string);
 }
