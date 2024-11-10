@@ -911,6 +911,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
 
     // Up projection computation
     grid = dim3(
