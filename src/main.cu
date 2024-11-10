@@ -83,7 +83,7 @@ int main() {
             printf("\n");
 
             tokens[tokens[0]] = next_token;
-            tokens[0] = length + 1;
+            tokens[0] += 1;
 
             for (int i = 1; i <= tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
