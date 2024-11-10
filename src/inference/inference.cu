@@ -205,15 +205,15 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
 __global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed, int num_tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    int total_elements = num_tokens * EMBED_SIZE;
+    int total_elements = num_tokens * 4096;
 
     if (idx >= total_elements) return;
 
-    int token_idx = idx / EMBED_SIZE;
-    int embed_idx = idx % EMBED_SIZE;
+    int token_idx = idx / 4096;
+    int embed_idx = idx % 4096;
 
-    X[(token_idx * EMBED_SIZE) + embed_idx] =
-        Embed[(tokens[token_idx + 1] * EMBED_SIZE) + embed_idx];
+    X[(token_idx * 4096) + embed_idx] =
+        Embed[(tokens[token_idx + 1] * 4096) + embed_idx];
 
     return;
 }
