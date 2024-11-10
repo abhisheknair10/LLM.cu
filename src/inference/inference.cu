@@ -869,7 +869,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
 }
 
 __device__ float sigmoid(float x) {
-    return 1 / (1 + expf(-x));
+    return 1 / (1 + expf(x * -1.0f));
 }
 
 __global__ void kernel_compute_swiglu(
