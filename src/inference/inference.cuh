@@ -34,7 +34,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
 /* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens);
 
-__global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed);
+__global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed, int num_tokens);
 
 /* ******************************* Layer Normalization ******************************* */
 Tensor *_create_intermediary_prenorm_tensor_copy();
@@ -43,11 +43,11 @@ void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X);
 
 void compute_layer_norm(Tensor *RMSNorm, Tensor *X);
 
-__global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm);
+__global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm, int num_tokens);
 
 void add_norm(Tensor *X, Tensor *PN_X);
 
-__global__ void add_norm(__half *X, __half *PN_X);
+__global__ void add_norm(__half *X, __half *PN_X, int num_tokens);
 
 /* ***************************** General Matrix Multiplication **************************** */
 __global__ void kernel_standard_tiled_gemm(
@@ -83,7 +83,9 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
 
-__global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim);
+__global__ void kernel_compute_swiglu(
+    __half *output, __half *gate, __half *up,
+    int embed_dim, int num_tokens);
 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);

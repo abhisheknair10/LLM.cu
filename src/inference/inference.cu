@@ -73,7 +73,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 }
 */
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < 20; token_idx++) {
+    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
         int max = 0;
         float curr_max = 0.0f;
@@ -194,16 +194,17 @@ void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     int blocks = (total_threads + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK;
 
     kernel_tokens_to_embeddings<<<blocks, MAX_THREADS_PER_BLOCK>>>(
-        X->d_fp16_tensor, d_tokens, llama3_model->embed_tokens->d_fp16_tensor);
+        X->d_fp16_tensor, d_tokens, llama3_model->embed_tokens->d_fp16_tensor,
+        h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed) {
+__global__ void kernel_tokens_to_embeddings(__half *X, int *tokens, __half *Embed, int num_tokens) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    int total_elements = d_NUM_TOKENS * EMBED_SIZE;
+    int total_elements = num_tokens * EMBED_SIZE;
 
     if (idx >= total_elements) return;
 
@@ -279,19 +280,19 @@ void compute_layer_norm(Tensor *RMSNorm, Tensor *X) {
     dim3 grid(h_NUM_TOKENS);
 
     kernel_compute_rms_norm<<<grid, block>>>(
-        X->d_fp16_tensor, RMSNorm->d_fp16_tensor);
+        X->d_fp16_tensor, RMSNorm->d_fp16_tensor, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
+__global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm, int num_tokens) {
     __shared__ float shared_mem[1024];
 
     int token_idx = blockIdx.x;
     int vw_embed_idx = threadIdx.y * blockDim.x + threadIdx.x;
 
-    if (token_idx >= d_NUM_TOKENS) return;
+    if (token_idx >= num_tokens) return;
     if (vw_embed_idx >= 1024) return;
 
     /*
@@ -363,17 +364,17 @@ void add_norm(Tensor *X, Tensor *PN_X) {
     dim3 grid(4, h_NUM_TOKENS);
 
     add_norm<<<grid, block>>>(
-        X->d_fp16_tensor, PN_X->d_fp16_tensor);
+        X->d_fp16_tensor, PN_X->d_fp16_tensor, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void add_norm(__half *X, __half *PN_X) {
+__global__ void add_norm(__half *X, __half *PN_X, int num_tokens) {
     int token_idx = blockIdx.y;
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (token_idx >= d_NUM_TOKENS) return;
+    if (token_idx >= num_tokens) return;
     if (embed_idx >= 4096) return;
 
     int offset = token_idx * 4096 + embed_idx;
@@ -847,7 +848,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
 
     kernel_compute_swiglu<<<grid, 1024>>>(
         Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
-        L3_Layer->mlp_up_proj->shape[0]);
+        L3_Layer->mlp_up_proj->shape[0], h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
     // Final output feedforward output computation
@@ -867,11 +868,15 @@ __device__ float sigmoid(float x) {
     return 1 / (1 + expf(-x));
 }
 
-__global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim) {
+__global__ void kernel_compute_swiglu(
+    __half *output, __half *gate, __half *up,
+    int embed_dim, int num_tokens) {
+    // Kernel start
+    //
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int token_idx = blockIdx.y;
 
-    if (token_idx >= d_NUM_TOKENS) return;
+    if (token_idx >= num_tokens) return;
     if (embed_idx >= embed_dim) return;
 
     float gate_val = __half2float(gate[token_idx * embed_dim + embed_idx]);
