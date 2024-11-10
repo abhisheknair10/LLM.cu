@@ -118,7 +118,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
-    __half *next_token = (__half *)create_gmemcache(128256 * 20, sizeof(__half));
+    __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -313,7 +313,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - For a 32 x 32 block dimension, the 1st warp will sum with the 16th warp and
             recursively reduce
     */
-    for (int offset = 512; offset > 0; offset /= 2) {
+    for (int offset = 512; offset >= 32; offset /= 2) {
         if (vw_embed_idx < offset) {
             shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
@@ -330,22 +330,20 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Offset enables reduction to happen with left most indices lasting the longest. Least
             significant indices still perform addition but add no value to context
     */
-    /*
-     if (vw_embed_idx < 32) {
-         float val = shared_mem[vw_embed_idx];
-         for (int offset = 16; offset > 0; offset /= 2) {
-             val += __shfl_down_sync(0xffffffff, val, offset);
-         }
-         if (vw_embed_idx == 0) shared_mem[0] = val;
-     }
-     __syncthreads();
-    */
+    if (vw_embed_idx < 32) {
+        float val = shared_mem[vw_embed_idx];
+        for (int offset = 16; offset > 0; offset /= 2) {
+            val += __shfl_down_sync(0xffffffff, val, offset);
+        }
+        if (vw_embed_idx == 0) shared_mem[0] = val;
+    }
+    __syncthreads();
 
-     /*
-         - Load rms norm for tensor and perform normalization for 1024 window
-         - Similar technique to when loading data from global memory
-     */
-    float rms = sqrtf(1e-05 + (shared_mem[0] / 4096.0f));
+    /*
+        - Load rms norm for tensor and perform normalization for 1024 window
+        - Similar technique to when loading data from global memory
+    */
+    float rms = sqrtf(1e-5 + (shared_mem[0] / 4096.0f));
     c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
     // Perform RMS calculations and store
