@@ -580,7 +580,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
     __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + embed_idx];
 
-    const float scaling_factor = 500000.0f;
+    const float scaling_factor = 10000.0f;
     float theta = (token_idx) / powf(scaling_factor, (2 * embed_idx / transformed_embed_size));
     float cos_comp = cosf(theta);
     float sin_comp = sinf(theta);
