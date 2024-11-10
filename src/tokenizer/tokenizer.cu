@@ -127,7 +127,6 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
         i += last_token_len;
     }
 
-    tokens = (int *)realloc(tokens, sizeof(int) * (token_count + 2));
     if (tokens == NULL) {
         printf("Error: Memory reallocation failed for tokens\n");
         exit(1);
