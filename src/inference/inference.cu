@@ -181,7 +181,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     CHECK_CUDA_ERROR();
 
-    printCudaMemoryInfo();
+    // printCudaMemoryInfo();
 
     return 0;
 }
@@ -893,8 +893,8 @@ __global__ void kernel_compute_swiglu(
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     const int TILE_SIZE = 32;
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE, TILE_SIZE);
+    size_t shared_mem_size = 2 * TILE_SIZE * sizeof(float);
+    dim3 block(TILE_SIZE);
     dim3 grid;
 
     // Query computation
