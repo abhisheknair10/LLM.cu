@@ -815,7 +815,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 16;
+    int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -868,8 +868,7 @@ __device__ float sigmoid(float x) {
 }
 
 __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, int embed_dim) {
-    int flat_thread_idx = threadIdx.y * blockDim.x + threadIdx.x;
-    int embed_idx = blockIdx.x * blockDim.y * blockDim.x + flat_thread_idx;
+    int embed_idx = blockIdx.x * blockDim.y * blockDim.x + threadIdx.x;
     int token_idx = blockIdx.y;
 
     if (token_idx >= d_NUM_TOKENS) return;
