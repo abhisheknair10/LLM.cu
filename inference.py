@@ -120,7 +120,7 @@ with torch.no_grad():
         K = K.repeat_interleave(4, dim=1)
         V = V.repeat_interleave(4, dim=1)
 
-        attn_scores = torch.matmul(Q, K.transpose(-1, -2)) / (head_dim ** 0.5).to(torch.float)
+        attn_scores = torch.matmul(Q, K.transpose(-1, -2)) / (head_dim ** 0.5)
 
         # Apply causal mask (if necessary)
         mask = torch.tril(torch.ones(seq_len, seq_len)).to(device)
@@ -129,7 +129,7 @@ with torch.no_grad():
         attn_scores = attn_scores.masked_fill(mask == 0, float(-1e9))
 
         # Compute attention probabilities
-        attn_probs = F.softmax(attn_scores, dim=-1).to(torch.half())
+        attn_probs = F.softmax(attn_scores, dim=-1)
 
         # Apply attention to values
         Attention = torch.matmul(attn_probs, V)
