@@ -588,7 +588,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     float sin_comp = sinf(theta);
 
     // Access both values interpreted as 1 and rotate vector pair
-    float even = __half2float(__low2half__high2half(h2_val));
+    float even = __half2float(__low2half(h2_val));
     float odd = __half2float(__high2half(h2_val));
 
     float ret_even = (cos_comp * even) - (sin_comp * odd);
