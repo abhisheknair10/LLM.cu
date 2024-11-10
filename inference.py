@@ -101,8 +101,6 @@ with torch.no_grad():
     X = model.model.embed_tokens(X).half()
 
     print(X.shape)
-    print(X)
-    exit(1)
 
     for i in range(0, 32):
         LAYER = model.model.layers[i]
