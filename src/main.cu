@@ -89,8 +89,6 @@ int main() {
                 printf("%d, ", tokens[i]);
             }
             printf("\n");
-
-            cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
         }
         free(tokens);
         _free_tensor(X);

@@ -176,7 +176,6 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     // Copy over tokens
     int *d_tokens;
     cudaMalloc((void **)&d_tokens, sizeof(int) * tokens[0]);
-    cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
 
     return d_tokens;
 }

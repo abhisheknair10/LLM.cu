@@ -136,6 +136,9 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
 /* ********************************* Inference Code ********************************* */
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
+    cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
+    CHECK_CUDA_ERROR();
+
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
     CHECK_CUDA_ERROR();
