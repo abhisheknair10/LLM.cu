@@ -73,7 +73,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 }
 */
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
+    for (int token_idx = 0; token_idx < 20; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
         int max = 0;
         float curr_max = 0.0f;
