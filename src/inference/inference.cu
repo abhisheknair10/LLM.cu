@@ -146,124 +146,47 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     h_NUM_TOKENS = h_tokens[0] - 1;
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
 
-    cudaEvent_t start, stop;
-    float milliseconds;
-
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-
-    printf("------ Inference Timing Log ------\n");
-
-    // Measure tokens_to_embeddings
-    cudaEventRecord(start, 0);
     tokens_to_embeddings(X, llama3_model, d_tokens);
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("Function: tokens_to_embeddings | Time: %8.2f ms\n", milliseconds);
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
-        printf("\n--- Layer %d ---\n", i);
-
         // Pre-attention normalization
-        cudaEventRecord(start, 0);
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: Pre-attention normalization        | Time: %8.2f ms\n", milliseconds);
 
         // Attention tensor computation
-        cudaEventRecord(start, 0);
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: compute_qkv_tensors                | Time: %8.2f ms\n", milliseconds);
 
         // RoPE scaling
-        cudaEventRecord(start, 0);
         rope_scaling(Cache->Q, Cache->K);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: rope_scaling                       | Time: %8.2f ms\n", milliseconds);
 
         // Attention computation
-        cudaEventRecord(start, 0);
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: compute_attention                  | Time: %8.2f ms\n", milliseconds);
 
         // Output computation
-        cudaEventRecord(start, 0);
         compute_output(llama3_model->layers[i], X, Cache);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: compute_output                     | Time: %8.2f ms\n", milliseconds);
 
         // Add pre-normalized input
-        cudaEventRecord(start, 0);
         add_norm(X, Cache->PN_X);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: add_norm                           | Time: %8.2f ms\n", milliseconds);
 
         // Post-attention normalization
-        cudaEventRecord(start, 0);
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: Post-attention normalization       | Time: %8.2f ms\n", milliseconds);
 
         // Feedforward
-        cudaEventRecord(start, 0);
         compute_feedforward(X, llama3_model->layers[i], Cache);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: compute_feedforward                | Time: %8.2f ms\n", milliseconds);
 
-        // Add pre-normalized input after feedforward
-        cudaEventRecord(start, 0);
+        // Add pre-normalized input
         add_norm(X, Cache->PN_X);
-        cudaEventRecord(stop, 0);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: add_norm after feedforward         | Time: %8.2f ms\n", milliseconds);
     }
 
-    // Final layer normalization
-    cudaEventRecord(start, 0);
     compute_layer_norm(llama3_model->norm, X);
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("\nFunction: Final layer normalization          | Time: %8.2f ms\n", milliseconds);
-
-    // Language model head computation
-    cudaEventRecord(start, 0);
     compute_lm_head(llama3_model->lm_head, X, Cache);
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("Function: compute_lm_head                    | Time: %8.2f ms\n", milliseconds);
-
-    printf("----------------------------------------------\n");
-
-    // Cleanup CUDA events
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
 
     CHECK_CUDA_ERROR();
+
     printCudaMemoryInfo();
+
+    return;
 }
 
 /* ************************** Convert Tokens to Embeddings ************************** */
@@ -987,8 +910,8 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    // check_embedding<<<1, 1>>>(Cache->next_token, 128256);
-    // cudaDeviceSynchronize();
+    check_embedding<<<1, 1>>>(Cache->next_token, 128256);
+    cudaDeviceSynchronize();
 
     return;
 }
