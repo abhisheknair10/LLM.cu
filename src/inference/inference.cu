@@ -729,7 +729,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     buffer[threadIdx.x] = exp_sum;
     __syncthreads();
 
-    for (int offset = blockDim.x / 2; offset > 0; offset /= 2) {
+    for (int offset = 512; offset > 0; offset /= 2) {
         if (threadIdx.x < offset) {
             buffer[threadIdx.x] += buffer[threadIdx.x + offset];
         }
