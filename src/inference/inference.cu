@@ -138,7 +138,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
-void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
+int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     int embed_size = 4096;
     cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
 

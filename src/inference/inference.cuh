@@ -59,7 +59,7 @@ typedef struct {
  * @note Ensure that all input pointers are properly initialized and that the CUDA cache is set up
  *       before calling this function.
  */
-void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache);
+int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache);
 
 /* ************************** Convert Tokens to Embeddings ************************** */
 
