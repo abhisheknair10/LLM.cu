@@ -148,6 +148,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
+        print("%d\n", i);
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
@@ -746,7 +747,6 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
                 attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
-                printf("%f\n", expf(vec[token_idx_x]) / softmax_den);
             } else {
                 attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
             }
