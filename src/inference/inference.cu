@@ -886,7 +886,7 @@ __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 32;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
