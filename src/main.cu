@@ -82,8 +82,10 @@ int main() {
             }
             printf("%d\n", tokens[0]);
 
+            if (tokens[0] == 2049) break;
+            
             tokens[tokens[0]] = next_token;
-            tokens[0] += 1;
+            tokens[0] = tokens[0] + 1;
 
             for (int i = 1; i < tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
