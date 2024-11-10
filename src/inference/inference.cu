@@ -921,6 +921,16 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         h_NUM_TOKENS, L3_Layer->mlp_up_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
+    // Swiglu Activation
+    grid = dim3(
+        (L3_Layer->mlp_up_proj->shape[0] + 1024 - 1) / 1024,
+        h_NUM_TOKENS);
+
+    kernel_compute_swiglu<<<grid, 1024>>>(
+        Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
+        L3_Layer->mlp_up_proj->shape[0], h_NUM_TOKENS);
+    cudaDeviceSynchronize();
+
     // Final output feedforward output computation
     grid = dim3(
         (L3_Layer->mlp_down_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
