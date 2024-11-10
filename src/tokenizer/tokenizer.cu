@@ -151,9 +151,6 @@ int *tokens_to_cuda(int *tokens, int embed_size, Tensor *token_tensor) {
     token_tensor->shape[0] = 2048;
     token_tensor->shape[1] = embed_size;
 
-    printf("Shape: %d\n", token_tensor->shape[0]);
-    printf("Shape: %d\n", token_tensor->shape[1]);
-
     /* *************** Token Tensor Init CUDA *************** */
     // SPECIAL: fp16 tensor being allocated but only used later
     _cudaMalloc_fp16(token_tensor);

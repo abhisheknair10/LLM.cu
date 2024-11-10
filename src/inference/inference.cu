@@ -893,14 +893,13 @@ __global__ void kernel_compute_swiglu(
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     const int TILE_SIZE = 1024;
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE);
     dim3 grid;
 
     // Query computation
     grid = dim3(
-        (LM_Head->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
-        1);
+        (LM_Head->shape[0] + TILE_SIZE - 1) / TILE_SIZE);
 
     __half *arg = X->d_fp16_tensor + (h_NUM_TOKENS * 4096);
 
