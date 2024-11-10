@@ -77,7 +77,7 @@ int main() {
 
             if (next_token < 128000) printf("%s\n", llama3_tokenizer->decode[next_token]);
 
-            for (int i = 1; i <= tokens[0]; i++) {
+            for (int i = 1; i < tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
             printf("\n");
