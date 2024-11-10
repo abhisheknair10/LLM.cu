@@ -172,7 +172,7 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
         cudaEventElapsedTime(&milliseconds, start, stop);
-        printf("Function: Pre-attention normalization       | Time: %8.2f ms\n", milliseconds);
+        printf("Function: Pre-attention normalization        | Time: %8.2f ms\n", milliseconds);
 
         // Attention tensor computation
         cudaEventRecord(start, 0);
