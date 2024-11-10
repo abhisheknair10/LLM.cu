@@ -261,7 +261,7 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
 void _deviceMemcpy_fp16_tensor(Tensor *Y, Tensor *X) {
     if (*(X->mem_len) > *(Y->mem_len)) {
         printf("X and Y are not alike Tensors: (_deviceMemcpy_fp16_tensor)");
-        exit(1)
+        exit(1);
     };
 
     cudaMemset(Y->d_fp16_tensor, __float2half(0.0f), sizeof(__half) * (*(X->mem_len)));
