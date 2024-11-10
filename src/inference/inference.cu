@@ -880,11 +880,13 @@ __global__ void kernel_compute_swiglu(
     if (token_idx >= num_tokens) return;
     if (embed_idx >= embed_dim) return;
 
-    float gate_val = __half2float(gate[token_idx * embed_dim + embed_idx]);
-    float up_val = __half2float(up[token_idx * embed_dim + embed_idx]);
+    int index = token_idx * embed_dim + embed_idx;
 
-    output[token_idx * embed_dim + embed_idx] = __float2half(
-        SiLU(gate_val) * up_val);
+    float gate_val = __half2float(gate[index]);
+    float up_val = __half2float(up[index]);
+
+    output[index] = __float2half(
+        SiLU(up_val) * gate_val);
 
     return;
 }
