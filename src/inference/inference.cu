@@ -746,6 +746,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
                 attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+                printf("%f\n", expf(vec[token_idx_x]) / softmax_den);
             } else {
                 attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
             }
