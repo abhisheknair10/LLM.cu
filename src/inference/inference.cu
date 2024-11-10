@@ -376,7 +376,7 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     int offset = token_idx * 4096 + embed_idx;
     float a = __half2float(X[offset]);
     float b = __half2float(PN_X[offset]);
-    X[offset] = 
+    X[offset] = __float2half(a + b);
 
     return;
 }
