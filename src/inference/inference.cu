@@ -73,18 +73,21 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 }
 */
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
-    int max = 0;
-    float curr_max = 0.0f;
-    for (int i = 0; i < dim; i++) {
-        float embedding = __half2float(fp16_tensor[i]);
+    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
+        printf("Token %d embeddings:\n", token_idx);
+        int max = 0;
+        float curr_max = 0.0f;
+        for (int i = 0; i < dim; i++) {
+            float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
 
-        if (embedding > curr_max) {
-            curr_max = embedding;
-            max = i;
+            if (embedding > curr_max) {
+                curr_max = embedding;
+                max = i;
+            }
         }
+        printf("%d\n", max);
+        printf("\n\n");
     }
-    printf("%d\n", max);
-    printf("\n\n");
 
     return;
 }
@@ -116,7 +119,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
-    __half *next_token = (__half *)create_gmemcache(128256 * 1, sizeof(__half));
+    __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -181,7 +184,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     CHECK_CUDA_ERROR();
 
-    // printCudaMemoryInfo();
+    printCudaMemoryInfo();
 
     return 0;
 }
@@ -893,20 +896,18 @@ __global__ void kernel_compute_swiglu(
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     const int TILE_SIZE = 32;
-    size_t shared_mem_size = 2 * TILE_SIZE * sizeof(float);
-    dim3 block(TILE_SIZE);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
     // Query computation
     grid = dim3(
         (LM_Head->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
-        1);
-
-    __half *arg = X->d_fp16_tensor + ((h_NUM_TOKENS - 1) * 4096);
+        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->next_token, arg, LM_Head->d_fp16_tensor,
-        1, LM_Head->shape[0], 4096, TILE_SIZE);
+        Cache->next_token, X->d_fp16_tensor, LM_Head->d_fp16_tensor,
+        h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
     check_embedding<<<1, 1>>>(Cache->next_token, 128256);
