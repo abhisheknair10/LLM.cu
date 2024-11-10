@@ -19,6 +19,8 @@
 
 const int MODEL_NUM_LAYERS = 32;
 
+extern int h_NUM_TOKENS;
+
 int main() {
     // Initialize the Llama3 model
     Llama3 *llama3_model = init_llama3(MODEL_NUM_LAYERS);
@@ -74,6 +76,18 @@ int main() {
             next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
 
             if (next_token < 128000) printf("%s\n", llama3_tokenizer->decode[next_token]);
+
+            for (int i = 1; i <= tokens[0]; i++) {
+                printf("%d, ", tokens[i]);
+            }
+
+            int length = tokens[0];
+            tokens[length] = next_token;
+            tokens[0] = length + 1;
+            
+            for (int i = 1; i <= tokens[0]; i++) {
+                printf("%d, ", tokens[i]);
+            }
         }
         free(tokens);
         _free_tensor(X);
