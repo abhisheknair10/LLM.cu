@@ -23,9 +23,6 @@
 
 const int MAX_THREADS_PER_BLOCK = 1024;
 
-__device__ int EMBED_SIZE;
-
-__device__ int d_NUM_TOKENS;
 int h_NUM_TOKENS;
 
 /* ************************************ HELPERS ************************************ */
@@ -59,8 +56,8 @@ void printCudaMemoryInfo() {
 
 // Kernel to check and print the embeddings
 /*
-__global__ void check_embedding(__half *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
+__global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
+    for (int token_idx = 0; token_idx < num_tokens; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
         for (int i = 0; i < dim; i++) {
             printf("%f, ", __half2float(fp16_tensor[token_idx * dim + i]));
@@ -72,8 +69,8 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
     return;
 }
 */
-__global__ void check_embedding(__half *fp16_tensor, int dim) {
-    for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
+__global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
+    for (int token_idx = 0; token_idx < num_tokens; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
         int max = 0;
         float curr_max = 0.0f;
@@ -139,12 +136,8 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
 /* ********************************* Inference Code ********************************* */
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
-    int embed_size = 4096;
-    cudaMemcpyToSymbol(EMBED_SIZE, &embed_size, sizeof(int));
-
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
-    cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
     CHECK_CUDA_ERROR();
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
@@ -923,7 +916,7 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(Cache->next_token, 128256);
+    check_embedding<<<1, 1>>>(Cache->next_token, 128256, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
     return;
