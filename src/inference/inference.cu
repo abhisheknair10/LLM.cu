@@ -499,7 +499,6 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Key computation
     grid = dim3(
@@ -509,7 +508,6 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Value computation
     grid = dim3(
@@ -554,7 +552,6 @@ void rope_scaling(Tensor *Q, Tensor *K) {
     block = dim3(1024);
     grid = dim3(2, h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048, h_NUM_TOKENS);
-    cudaDeviceSynchronize();
 
     // RoPE on K
     block = dim3(256);
@@ -584,7 +581,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + embed_idx];
 
     const float scaling_factor = 500000.0f;
-    float theta = (token_idx + 1) / powf(scaling_factor, embed_idx / (transformed_embed_size));
+    float theta = (token_idx + 1) / powf(scaling_factor, embed_idx / transformed_embed_size);
     float cos_comp = cosf(theta);
     float sin_comp = sinf(theta);
 
@@ -836,7 +833,6 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Up projection computation
     grid = dim3(
