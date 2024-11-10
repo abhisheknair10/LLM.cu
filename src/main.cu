@@ -80,7 +80,7 @@ int main() {
             for (int i = 1; i < tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
-            printf("\n");
+            printf("%d\n", tokens[0]);
 
             tokens[tokens[0]] = next_token;
             tokens[0] += 1;
@@ -88,7 +88,7 @@ int main() {
             for (int i = 1; i < tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
-            printf("\n");
+            printf("%d\n", tokens[0]);
         }
         free(tokens);
         _free_tensor(X);
