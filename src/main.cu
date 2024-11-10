@@ -80,14 +80,15 @@ int main() {
             for (int i = 1; i <= tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
+            printf("\n");
 
-            int length = tokens[0];
-            tokens[length] = next_token;
+            tokens[tokens[0]] = next_token;
             tokens[0] = length + 1;
 
             for (int i = 1; i <= tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
+            printf("\n");
 
             cudaMemcpy(d_tokens, tokens, sizeof(int) * tokens[0], cudaMemcpyHostToDevice);
         }

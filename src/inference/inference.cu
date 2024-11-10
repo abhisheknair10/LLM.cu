@@ -186,7 +186,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     printCudaMemoryInfo();
 
-    return 0;
+    return 100;
 }
 
 /* ************************** Convert Tokens to Embeddings ************************** */
