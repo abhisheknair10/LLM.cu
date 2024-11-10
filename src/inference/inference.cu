@@ -486,7 +486,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    int TILE_SIZE = 32;
+    const int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -524,7 +524,7 @@ void compute_qkv_tensors(
 
 void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 32;
+    const int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -608,7 +608,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
     // Attention score computation
-    int TILE_SIZE = 32;
+    const int TILE_SIZE = 32;
     int nheads = 32;
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid(
@@ -820,7 +820,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 32;
+    const int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -895,7 +895,7 @@ __global__ void kernel_compute_swiglu(
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 32;
+    const int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
