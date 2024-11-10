@@ -118,7 +118,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
-    __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
+    __half *next_token = (__half *)create_gmemcache(128256 * 20, sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -313,7 +313,7 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - For a 32 x 32 block dimension, the 1st warp will sum with the 16th warp and
             recursively reduce
     */
-    for (int offset = 512; offset >= 32; offset /= 2) {
+    for (int offset = 512; offset > 0; offset /= 2) {
         if (vw_embed_idx < offset) {
             shared_mem[vw_embed_idx] += shared_mem[offset + vw_embed_idx];
         }
@@ -330,19 +330,21 @@ __global__ void kernel_compute_rms_norm(__half *X, __half *RMSNorm) {
         - Offset enables reduction to happen with left most indices lasting the longest. Least
             significant indices still perform addition but add no value to context
     */
-    if (vw_embed_idx < 32) {
-        float val = shared_mem[vw_embed_idx];
-        for (int offset = 16; offset > 0; offset /= 2) {
-            val += __shfl_down_sync(0xffffffff, val, offset);
-        }
-        if (vw_embed_idx == 0) shared_mem[0] = val;
-    }
-    __syncthreads();
-
     /*
-        - Load rms norm for tensor and perform normalization for 1024 window
-        - Similar technique to when loading data from global memory
+     if (vw_embed_idx < 32) {
+         float val = shared_mem[vw_embed_idx];
+         for (int offset = 16; offset > 0; offset /= 2) {
+             val += __shfl_down_sync(0xffffffff, val, offset);
+         }
+         if (vw_embed_idx == 0) shared_mem[0] = val;
+     }
+     __syncthreads();
     */
+
+     /*
+         - Load rms norm for tensor and perform normalization for 1024 window
+         - Similar technique to when loading data from global memory
+     */
     float rms = sqrtf(1e-05 + (shared_mem[0] / 4096.0f));
     c_half4 norm_gain = ((c_half4 *)RMSNorm)[vw_embed_idx];
 
@@ -484,7 +486,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    int TILE_SIZE = 1;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -524,7 +526,7 @@ void compute_qkv_tensors(
 
 void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 1;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -606,7 +608,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
     // Attention score computation
-    int TILE_SIZE = 1;
+    int TILE_SIZE = 16;
     int nheads = 32;
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid(
@@ -814,7 +816,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 1;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -885,7 +887,7 @@ __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 1;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
