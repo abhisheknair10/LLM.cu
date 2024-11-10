@@ -247,6 +247,7 @@ Tensor *_create_intermediary_prenorm_tensor_copy() {
     cudaMemcpy(d_ndim, Y->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, Y->mem_len, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_shape, Y->shape, sizeof(int) * (*(Y->ndim)), cudaMemcpyHostToDevice);
+    cudaMemset(d_fp16_tensor, __float2half(0.0f), sizeof(__half) * (*(Y->mem_len)));
 
     // Assign device pointers
     Y->d_ndim = d_ndim;
@@ -373,8 +374,9 @@ __global__ void add_norm(__half *X, __half *PN_X) {
     if (embed_idx >= 4096) return;
 
     int offset = token_idx * 4096 + embed_idx;
-    X[offset] = __float2half(
-        __half2float(X[offset]) + __half2float(PN_X[offset]));
+    float a = __half2float(X[offset]);
+    float b = __half2float(PN_X[offset]);
+    X[offset] = 
 
     return;
 }
@@ -464,6 +466,7 @@ Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
     cudaMemcpy(d_ndim, Attention_Tensor->ndim, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_mem_len, Attention_Tensor->mem_len, sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_shape, Attention_Tensor->shape, sizeof(int) * 2, cudaMemcpyHostToDevice);
+    cudaMemset(d_fp16_tensor, __float2half(0.0f), sizeof(__half) * (*(Attention_Tensor->mem_len)));
 
     // Assign device pointers
     Attention_Tensor->d_ndim = d_ndim;
@@ -478,7 +481,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    int TILE_SIZE = 8;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -518,7 +521,7 @@ void compute_qkv_tensors(
 
 void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 8;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -600,7 +603,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
     // Attention score computation
-    int TILE_SIZE = 8;
+    int TILE_SIZE = 16;
     int nheads = 32;
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid(
@@ -808,7 +811,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 8;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -880,7 +883,7 @@ __global__ void kernel_compute_swiglu(__half *output, __half *gate, __half *up, 
 /* ********************************* Language Model Head ********************************* */
 void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    int TILE_SIZE = 8;
+    int TILE_SIZE = 16;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
