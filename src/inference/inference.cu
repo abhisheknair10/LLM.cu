@@ -140,7 +140,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
-    printf("Token Count: %d", h_NUM_TOKENS);
+    printf("Token Count: %d\n", h_NUM_TOKENS);
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
