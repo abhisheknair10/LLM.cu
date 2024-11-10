@@ -865,8 +865,8 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     return;
 }
 
-__device__ float sigmoid(float x) {
-    return 1 / (1 + expf(x * -1.0f));
+__device__ float SiLU(float x) {
+    return x * (1 / (1 + expf(x * -1.0f)));
 }
 
 __global__ void kernel_compute_swiglu(
@@ -884,7 +884,7 @@ __global__ void kernel_compute_swiglu(
     float up_val = __half2float(up[token_idx * embed_dim + embed_idx]);
 
     output[token_idx * embed_dim + embed_idx] = __float2half(
-        sigmoid(gate_val) * up_val);
+        SiLU(gate_val) * up_val);
 
     return;
 }
