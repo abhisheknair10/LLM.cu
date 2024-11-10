@@ -20,7 +20,6 @@ typedef struct {
 
     __half *d_feedforward_cache_gate;
     __half *d_feedforward_cache_up;
-    __half *d_feedforward_cache_intermediate;
 
     __half *next_token;
 } CudaCache;
