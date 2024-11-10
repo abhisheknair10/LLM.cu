@@ -906,7 +906,7 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         h_NUM_TOKENS);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->next_token, X->d_fp16_tensor + (h_NUMTOKENS * 4096), LM_Head->d_fp16_tensor,
+        Cache->next_token, X->d_fp16_tensor + (h_NUM_TOKENS * 4096), LM_Head->d_fp16_tensor,
         h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
