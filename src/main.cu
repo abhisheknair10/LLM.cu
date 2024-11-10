@@ -82,8 +82,8 @@ int main() {
             }
             printf("%d\n", tokens[0]);
 
-            if (tokens[0] == 2049) break;
-            
+            if (tokens[0] > 2048) break;
+
             tokens[tokens[0]] = next_token;
             tokens[0] = tokens[0] + 1;
 
