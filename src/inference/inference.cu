@@ -58,7 +58,7 @@ void printCudaMemoryInfo() {
 }
 
 // Kernel to check and print the embeddings
-/*
+
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -71,7 +71,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
-*/
+/*
 __global__ void check_embedding(__half *fp16_tensor, int dim) {
     for (int token_idx = 0; token_idx < d_NUM_TOKENS; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -91,6 +91,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim) {
 
     return;
 }
+*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -146,6 +147,8 @@ void inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cu
     cudaMemcpyToSymbol(d_NUM_TOKENS, &h_NUM_TOKENS, sizeof(int));
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
+    check_embedding<<<1, 1>>>(X->d_fp16_tensor, 4096);
+    cudaDeviceSynchronize();
 
     for (int i = 0; i < llama3_model->n_layers; i++) {
         // Pre-attention normalization
