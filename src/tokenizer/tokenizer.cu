@@ -87,7 +87,6 @@ Llama3Tokenizer *load_tokenizer() {
     }
 
     // Traverse the vocab and print characters
-    *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, vocab) {
         _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
         _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
