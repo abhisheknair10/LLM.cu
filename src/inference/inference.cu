@@ -142,7 +142,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     h_NUM_TOKENS = h_tokens[0] - 1;
     printf("Token Count: %d\n", h_NUM_TOKENS);
 
-    for (int i = 0; i < h_NUM_TOKENS; i++) {
+    for (int i = 1; i < h_NUM_TOKENS; i++) {
         printf("%d, ", h_tokens[i]);
     }
     printf("\n");
