@@ -585,9 +585,9 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + embed_idx];
 
     const float scaling_factor = 500000.0f;
-    float theta = (token_idx) / powf(scaling_factor, (2.0f * embed_idx / transformed_embed_size));
-    float cos_comp = cosf(theta);
-    float sin_comp = sinf(theta);
+    float freq = 1 / powf(scaling_factor, (embed_idx / transformed_embed_size));
+    float cos_comp = cosf(token_idx * freq);
+    float sin_comp = sinf(token_idx * freq);
 
     // Access both values interpreted as 1 and rotate vector pair
     float even = __half2float(__low2half(h2_val));
