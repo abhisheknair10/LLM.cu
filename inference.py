@@ -105,11 +105,11 @@ def generate_token(model, X):
             V = V.transpose(1, 2)  # [B, 8, S, 128]
 
             # 2.3 Apply rotary positional embeddings
-            position_ids = torch.arange(seq_len, device=device).unsqueeze(
-                0).expand(batch_size, -1)  # [B, S]
-            # Ensure this method returns cos and sin correctly
-            cos, sin = LAYER.self_attn.rotary_emb(V, position_ids)
-            Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
+            # position_ids = torch.arange(seq_len, device=device).unsqueeze(
+            #     0).expand(batch_size, -1)  # [B, S]
+            # # Ensure this method returns cos and sin correctly
+            # cos, sin = LAYER.self_attn.rotary_emb(V, position_ids)
+            # Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
 
             # 2.4 Handle grouped-query attention
             K = repeat_kv(K, 4)
