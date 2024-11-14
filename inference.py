@@ -128,5 +128,5 @@ while True:
     tok = generate_token(model, X)[-1].item()
     token_actual = tokenizer.decode(tok)
     
-    print(token_actual, end="")
+    print(token_actual, end="", flush=True)
     input_text += token_actual
