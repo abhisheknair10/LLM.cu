@@ -74,8 +74,8 @@ int main() {
         int next_token = 0;
         while (next_token < 128000) {
             next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
-            
-            if (next_token < 128000) printf("%s\n", llama3_tokenizer->decode[next_token]);
+
+            if (next_token < 128000) printf("%s", llama3_tokenizer->decode[next_token]);
             if (tokens[0] > 2048) break;
 
             tokens[tokens[0]] = next_token;
@@ -86,7 +86,6 @@ int main() {
         cudaFree(d_tokens);
 
         printf("\n");
-        exit(1);
     }
 
     // Free the model resources
