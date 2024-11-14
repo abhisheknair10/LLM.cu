@@ -142,7 +142,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
-    
+
     /*
     printf("Token Count: %d\n", h_NUM_TOKENS);
     for (int i = 1; i <= h_NUM_TOKENS; ++i) {
@@ -584,15 +584,18 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
     __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + embed_idx];
 
-    const float scaling_factor = 500000.0f;
-    float freq = 1 / powf(scaling_factor, (embed_idx / transformed_embed_size));
-    float cos_comp = cosf(token_idx * freq);
-    float sin_comp = sinf(token_idx * freq);
-
     // Access both values interpreted as 1 and rotate vector pair
     float even = __half2float(__low2half(h2_val));
     float odd = __half2float(__high2half(h2_val));
 
+    // Frequency calculation
+    const float scaling_factor = 10000.0f;
+    float freq = 1 / powf(scaling_factor, (embed_idx / transformed_embed_size));
+
+    float cos_comp = cosf(token_idx * freq);
+    float sin_comp = sinf(token_idx * freq);
+
+    // Rotated embedding
     float ret_even = (cos_comp * even) - (sin_comp * odd);
     float ret_odd = (sin_comp * even) + (cos_comp * odd);
 
