@@ -59,15 +59,12 @@ Llama3Tokenizer *load_tokenizer() {
 
     cJSON *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, added_tokens) {
-        printf("In\n");
         cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
         cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
 
         _build_trie(llama3_tokenizer->root, content->string, id->valueint);
         _build_decoder(llama3_tokenizer->decode, content->string, id->valueint);
     }
-
-    printf("Out\n");
 
     // Get the "model" object from the JSON
     cJSON *model = cJSON_GetObjectItemCaseSensitive(json_buffer, "model");
@@ -90,7 +87,7 @@ Llama3Tokenizer *load_tokenizer() {
     }
 
     // Traverse the vocab and print characters
-    curr_element = NULL;
+    *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, vocab) {
         _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
         _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
