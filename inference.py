@@ -171,7 +171,7 @@ def generate_token(model, X):
 
 
 input_text = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant, here to provide clear and concise answers to the user's questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the largest ocean in the world?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-max_tokens = 100
+max_tokens = 2048
 
 for _ in range(max_tokens):
     # Tokenize input text
@@ -184,8 +184,7 @@ for _ in range(max_tokens):
     token_actual = tokenizer.decode(tok)
 
     # Break condition based on vocabulary size
-    if tok >= model.config.vocab_size:
-        print("\nEncountered invalid token ID. Stopping generation.")
+    if tok >= 128000:
         break
 
     # Print the token
