@@ -93,10 +93,6 @@ Llama3Tokenizer *load_tokenizer() {
         _build_decoder(llama3_tokenizer->decode, content->valuestring, id->valueint);
     }
 
-    for (int i = 0; i < 128256; ++i) {
-        printf("%d: %s\n", i, llama3_tokenizer->decode[i]);
-    }
-
     // Free the parsed JSON object
     cJSON_Delete(json_buffer);
 
