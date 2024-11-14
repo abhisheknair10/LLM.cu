@@ -1,6 +1,5 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
-#include <float.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -725,99 +724,66 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
     return;
 }
-__inline__ __device__ float warpReduceMax(float val) {
-    // Perform warp-level reduction for maximum
-    for (int offset = warpSize / 2; offset > 0; offset /= 2)
-        val = fmaxf(val, __shfl_down_sync(0xffffffff, val, offset));
-    return val;
-}
-
-__inline__ __device__ float blockReduceMax(float val) {
-    // Perform block-level reduction for maximum
-    static __shared__ float shared[32];  // Adjust size based on maximum warps per block
-    int lane = threadIdx.x % warpSize;
-    int warpId = threadIdx.x / warpSize;
-
-    val = warpReduceMax(val);  // Each warp reduces its own values
-
-    if (lane == 0) shared[warpId] = val;  // Write reduced values to shared memory
-    __syncthreads();
-
-    // Let the first warp finalize the reduction
-    val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : -FLT_MAX;
-    if (warpId == 0) val = warpReduceMax(val);
-
-    return val;
-}
-
-__inline__ __device__ float warpReduceSum(float val) {
-    // Perform warp-level reduction for sum
-    for (int offset = warpSize / 2; offset > 0; offset /= 2)
-        val += __shfl_down_sync(0xffffffff, val, offset);
-    return val;
-}
-
-__inline__ __device__ float blockReduceSum(float val) {
-    // Perform block-level reduction for sum
-    static __shared__ float shared[32];  // Adjust size based on maximum warps per block
-    int lane = threadIdx.x % warpSize;
-    int warpId = threadIdx.x / warpSize;
-
-    val = warpReduceSum(val);  // Each warp reduces its own values
-
-    if (lane == 0) shared[warpId] = val;  // Write reduced values to shared memory
-    __syncthreads();
-
-    // Let the first warp finalize the reduction
-    val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : 0.0f;
-    if (warpId == 0) val = warpReduceSum(val);
-
-    return val;
-}
 
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
-    int head_idx = blockIdx.y;     // Head index
-    int token_idx_y = blockIdx.x;  // Query token index
+    extern __shared__ float shared_mem[];
+    float *vec = shared_mem;
+    float *buffer = shared_mem + 2048;
 
-    if (token_idx_y >= num_tokens || head_idx >= 32) return;
+    int token_idx_y = blockIdx.x;
+    int head_idx = blockIdx.y;
 
-    int tid = threadIdx.x;
-    int blockSize = blockDim.x;
+    if (token_idx_y >= num_tokens) return;
+    if (head_idx >= 32) return;
 
-    // Initialize variables for maximum value and sum
-    float max_val = -FLT_MAX;
-    float sum_exp = 0.0f;
-    float val = 0.0f;
+    int token_idx_x;
+    float exp_sum = 0.0f;
 
-    // Base index for the attention scores of the current head and query token
-    int base_idx = (head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens);
+    // Load relevant attention scores and apply masking
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
+        token_idx_x = i * blockDim.x + threadIdx.x;
 
-    // Step 1: Find the maximum value for numerical stability
-    for (int i = tid; i <= token_idx_y; i += blockSize) {
-        val = attention_scores[base_idx + i];
-        max_val = fmaxf(max_val, val);
+        if (token_idx_x < num_tokens) {
+            if (token_idx_x <= token_idx_y) {
+                vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
+                exp_sum += expf(vec[token_idx_x]);
+            } else {
+                vec[token_idx_x] = 0.0f;
+            }
+        } else {
+            vec[token_idx_x] = 0.0f;
+        }
+        __syncthreads();
     }
 
-    // Reduce within block to find the maximum value
-    max_val = blockReduceMax(max_val);
+    // Reduction to compute softmax denominator
+    buffer[threadIdx.x] = exp_sum;
     __syncthreads();
 
-    // Step 2: Compute the sum of exponentials after subtracting the max value
-    for (int i = tid; i <= token_idx_y; i += blockSize) {
-        val = attention_scores[base_idx + i];
-        val = expf(val - max_val);             // Subtract max_val for numerical stability
-        attention_scores[base_idx + i] = val;  // Store back the exponentiated value
-        sum_exp += val;
+    for (int offset = 512; offset >= 0; offset /= 2) {
+        if (threadIdx.x < offset) {
+            buffer[threadIdx.x] += buffer[threadIdx.x + offset];
+        }
+        __syncthreads();
     }
 
-    // Reduce within block to find the sum of exponentials
-    sum_exp = blockReduceSum(sum_exp);
+    float softmax_den = buffer[0];
     __syncthreads();
 
-    // Step 3: Normalize the attention scores
-    for (int i = tid; i <= token_idx_y; i += blockSize) {
-        attention_scores[base_idx + i] /= sum_exp;
+    // Compute softmax
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
+        token_idx_x = i * blockDim.x + threadIdx.x;
+        if (token_idx_x < num_tokens) {
+            if (token_idx_x <= token_idx_y) {
+                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+            } else {
+                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
+            }
+        }
+        __syncthreads();
     }
+
+    return;
 }
 
 __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
