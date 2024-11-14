@@ -48,6 +48,20 @@ Llama3Tokenizer *load_tokenizer() {
     // Free the buffer after parsing
     free(buffer);
 
+    cJSON *added_tokens = cJSON_GetObjectItemCaseSensitive(json_buffer, "added_tokens");
+    if (added_tokens == NULL) {
+        printf("Error: Could not find 'model' in the JSON\n");
+        cJSON_Delete(json_buffer);
+        free(llama3_tokenizer->root);
+        free(llama3_tokenizer);
+        exit(1);
+    }
+    cJSON *curr_element = NULL;
+    cJSON_ArrayForEach(curr_element, added_tokens) {
+        _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
+        _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
+    }
+
     // Get the "model" object from the JSON
     cJSON *model = cJSON_GetObjectItemCaseSensitive(json_buffer, "model");
     if (model == NULL) {
@@ -69,7 +83,7 @@ Llama3Tokenizer *load_tokenizer() {
     }
 
     // Traverse the vocab and print characters
-    cJSON *curr_element = NULL;
+    curr_element = NULL;
     cJSON_ArrayForEach(curr_element, vocab) {
         _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
         _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
@@ -77,6 +91,9 @@ Llama3Tokenizer *load_tokenizer() {
 
     // Free the parsed JSON object
     cJSON_Delete(json_buffer);
+    cJSON_Delete(added_tokens);
+    cJSON_Delete(model);
+    cJSON_Delete(vocab);
 
     return llama3_tokenizer;
 }

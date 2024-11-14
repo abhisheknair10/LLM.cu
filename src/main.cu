@@ -56,7 +56,7 @@ int main() {
     CudaCache *Cache = init_cache(llama3_model);
     CLEAR_TERMINAL();
     while (true) {
-        char *input_str = strdup("What is the largest ocean in the world?\n\nThe");
+        char *input_str = strdup("What is the largest ocean in the world?\n\n");
 
         /*
         char *input_str = (char *)malloc(sizeof(char) * 2048);
@@ -93,7 +93,7 @@ int main() {
             }
             printf("%d\n", tokens[0]);
             */
-           break;
+            break;
         }
         free(tokens);
         _free_tensor(X);
