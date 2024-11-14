@@ -895,6 +895,20 @@ __global__ void kernel_compute_swiglu(
 }
 
 /* ********************************* Language Model Head ********************************* */
+__global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
+    for (int i = 0; i < dim; i++) {
+        float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
+        if (embedding > curr_max) {
+            curr_max = embedding;
+            max = i;
+        }
+    }
+
+    output[0] = max;
+
+    return;
+}
+
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     const int TILE_SIZE = 32;
@@ -920,18 +934,4 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     int tok;
     cudaMemcpy(&tok, Cache->actual_token, sizeof(int), cudaMemcpyDeviceToHost);
     return tok;
-}
-
-__global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
-    for (int i = 0; i < dim; i++) {
-        float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
-        if (embedding > curr_max) {
-            curr_max = embedding;
-            max = i;
-        }
-    }
-
-    output[0] = max;
-
-    return;
 }
