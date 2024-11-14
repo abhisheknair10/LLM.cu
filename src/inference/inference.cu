@@ -556,6 +556,7 @@ void rope_scaling(Tensor *Q, Tensor *K) {
     block = dim3(1024);
     grid = dim3(2, h_NUM_TOKENS);
     kernel_rope_scaling<<<grid, block>>>(Q->d_fp16_tensor, 2048, h_NUM_TOKENS);
+    cudaDeviceSynchronize();
 
     // RoPE on K
     block = dim3(256);
@@ -590,7 +591,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
 
     // Frequency calculation
     const float scaling_factor = 10000.0f;
-    float freq = 1 / powf(scaling_factor, (embed_idx / transformed_embed_size));
+    float freq = 1.0f / powf(scaling_factor, ((float)embed_idx) / ((float)transformed_embed_size));
 
     float cos_comp = cosf(token_idx * freq);
     float sin_comp = sinf(token_idx * freq);
