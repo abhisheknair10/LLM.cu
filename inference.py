@@ -91,10 +91,8 @@ def generate_token(model, X):
             # Apply Rotary Positional Embeddings
             position_ids = torch.arange(seq_len, device=device).unsqueeze(
                 0).expand(batch_size, -1)  # [B, S]
-            cos = LAYER.rotary_emb.cos[position_ids].unsqueeze(
-                1)  # [B, 1, S, 128]
-            sin = LAYER.rotary_emb.sin[position_ids].unsqueeze(
-                1)  # [B, 1, S, 128]
+            cos = torch.cos[position_ids].unsqueeze(1)  # [B, 1, S, 128]
+            sin = torch.sin[position_ids].unsqueeze(1)  # [B, 1, S, 128]
             Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
 
             # Broadcast K and V to match Q's heads without duplication
