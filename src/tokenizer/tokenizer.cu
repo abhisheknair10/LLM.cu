@@ -56,10 +56,14 @@ Llama3Tokenizer *load_tokenizer() {
         free(llama3_tokenizer);
         exit(1);
     }
+
     cJSON *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, added_tokens) {
-        _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
-        _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
+        cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
+        cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
+
+        _build_trie(llama3_tokenizer->root, content, id);
+        _build_decoder(llama3_tokenizer->decode, content, id);
     }
 
     // Get the "model" object from the JSON
