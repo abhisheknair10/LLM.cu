@@ -493,7 +493,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    const int TILE_SIZE = 32;
+    const int TILE_SIZE = 4;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -533,7 +533,7 @@ void compute_qkv_tensors(
 
 void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    const int TILE_SIZE = 32;
+    const int TILE_SIZE = 4;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -634,7 +634,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
 /* **************************** Grouped Multi-Query Attention **************************** */
 void compute_attention(Tensor *X, Tensor *Q, Tensor *K, Tensor *V, CudaCache *Cache) {
     // Attention score computation
-    const int TILE_SIZE = 32;
+    const int TILE_SIZE = 4;
     int nheads = 32;
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid(
@@ -728,7 +728,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
     extern __shared__ float shared_mem[];
     float *vec = shared_mem;
-    float *buffer = shared_mem + 2058;
+    float *buffer = shared_mem + 2048;
 
     int token_idx_y = blockIdx.x;
     int head_idx = blockIdx.y;
@@ -846,7 +846,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    const int TILE_SIZE = 32;
+    const int TILE_SIZE = 4;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
@@ -938,7 +938,7 @@ __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) 
 
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    const int TILE_SIZE = 32;
+    const int TILE_SIZE = 4;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
