@@ -57,15 +57,6 @@ Llama3Tokenizer *load_tokenizer() {
         exit(1);
     }
 
-    cJSON *curr_element;
-    cJSON_ArrayForEach(curr_element, added_tokens) {
-        cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
-        cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
-
-        _build_trie(llama3_tokenizer->root, content->valuestring, id->valueint);
-        _build_decoder(llama3_tokenizer->decode, content->valuestring, id->valueint);
-    }
-
     // Get the "model" object from the JSON
     cJSON *model = cJSON_GetObjectItemCaseSensitive(json_buffer, "model");
     if (model == NULL) {
@@ -87,9 +78,19 @@ Llama3Tokenizer *load_tokenizer() {
     }
 
     // Traverse the vocab and print characters
+    cJSON *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, vocab) {
         _build_trie(llama3_tokenizer->root, curr_element->string, curr_element->valueint);
         _build_decoder(llama3_tokenizer->decode, curr_element->string, curr_element->valueint);
+    }
+
+    *curr_element = NULL;
+    cJSON_ArrayForEach(curr_element, added_tokens) {
+        cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
+        cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
+
+        _build_trie(llama3_tokenizer->root, content->valuestring, id->valueint);
+        _build_decoder(llama3_tokenizer->decode, content->valuestring, id->valueint);
     }
 
     // Free the parsed JSON object
