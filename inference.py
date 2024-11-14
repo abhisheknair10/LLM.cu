@@ -98,7 +98,7 @@ with torch.no_grad():
         mask = torch.tril(torch.ones(seq_len, seq_len)).to(device)
         # Shape: [1, 1, seq_len, seq_len]
         mask = mask.unsqueeze(0).unsqueeze(0)
-        attn_scores = attn_scores.masked_fill(mask == 0, float(-1e5))
+        attn_scores = attn_scores.masked_fill(mask == 0, float(-1e4))
 
         # Compute attention probabilities
         attn_probs = F.softmax(attn_scores, dim=-1)
