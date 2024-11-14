@@ -18,7 +18,7 @@
         }                                                        \
     }
 
-#define TILE_SIZE 32;
+#define TILE_SIZE 32
 
 const int MAX_THREADS_PER_BLOCK = 1024;
 
