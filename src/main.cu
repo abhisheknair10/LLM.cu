@@ -57,7 +57,6 @@ int main() {
     CLEAR_TERMINAL();
     while (true) {
         char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant, here to provide clear and concise answers to the user's questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the largest ocean in the world?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
-        printf("%s", input_str);
 
         /*
         char *input_str = (char *)malloc(sizeof(char) * 2048);
