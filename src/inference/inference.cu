@@ -144,7 +144,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
-    for (int i = 0; i < llama3_model->n_layers; i++) {
+    for (int i = 0; i < llama3_model->n_layers; ++i) {
         // Pre-attention normalization
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
@@ -359,14 +359,14 @@ void add_norm(Tensor *X, Tensor *PN_X) {
     dim3 block(1024);
     dim3 grid(4, h_NUM_TOKENS);
 
-    add_norm<<<grid, block>>>(
+    kernel_add_norm<<<grid, block>>>(
         X->d_fp16_tensor, PN_X->d_fp16_tensor, h_NUM_TOKENS);
     cudaDeviceSynchronize();
 
     return;
 }
 
-__global__ void add_norm(__half *X, __half *PN_X, int num_tokens) {
+__global__ void kernel_add_norm(__half *X, __half *PN_X, int num_tokens) {
     int token_idx = blockIdx.y;
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -863,7 +863,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
 }
 
 __device__ float SiLU(float x) {
-    return x / (1 + expf(x * -1.0f));
+    return x / (1 + expf(-x));
 }
 
 __global__ void kernel_compute_swiglu(

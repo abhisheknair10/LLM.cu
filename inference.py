@@ -63,36 +63,6 @@ with torch.no_grad():
         (lm_head): Linear(in_features=4096, out_features=128256, bias=False)
     )
     """
-    def rotate_half(x):
-        """Rotate pairs of dimensions for rotary embedding."""
-        x1, x2 = x[..., ::2], x[..., 1::2]
-        return torch.stack((-x2, x1), dim=-1).flatten(-2)
-
-    def rotary_embedding(tensor, seq_len, embed_dim):
-        # Compute frequency base for each pair of embedding dimensions
-        half_dim = embed_dim // 2
-        freqs = torch.pow(500000, -torch.arange(0, half_dim,
-                                                dtype=torch.float32) / half_dim).to(device)
-
-        # Create position indices
-        position_ids = torch.arange(seq_len, dtype=torch.float32).to(device)
-
-        # Create sinusoidal embedding (seq_len, half_dim)
-        sinusoid_inp = torch.einsum("i,j->ij", position_ids, freqs)
-        sin_embed = torch.sin(sinusoid_inp).to(device)
-        cos_embed = torch.cos(sinusoid_inp).to(device)
-
-        # Repeat to match input dimensions (tokens, embed_dim)
-        sin_embed = sin_embed.repeat_interleave(
-            2, dim=-1).to(device)
-        cos_embed = cos_embed.repeat_interleave(
-            2, dim=-1).to(device)
-
-        # Apply the rotation to the tensor
-        tensor_rotated = (tensor * cos_embed) + \
-            (rotate_half(tensor) * sin_embed)
-
-        return tensor_rotated.to(device)
 
     nheads = 32
     embed_dim = 4096
@@ -128,7 +98,7 @@ with torch.no_grad():
         mask = torch.tril(torch.ones(seq_len, seq_len)).to(device)
         # Shape: [1, 1, seq_len, seq_len]
         mask = mask.unsqueeze(0).unsqueeze(0)
-        attn_scores = attn_scores.masked_fill(mask == 0, float(-1e4))
+        attn_scores = attn_scores.masked_fill(mask == 0, float(-1e5))
 
         # Compute attention probabilities
         attn_probs = F.softmax(attn_scores, dim=-1)

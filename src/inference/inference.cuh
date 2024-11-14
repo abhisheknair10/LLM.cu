@@ -174,7 +174,7 @@ void add_norm(Tensor *X, Tensor *PN_X);
  *
  * @note Ensure that both tensors `X` and `PN_X` are allocated on the device and have sufficient memory.
  */
-__global__ void add_norm(__half *X, __half *PN_X, int num_tokens);
+__global__ void kernel_add_norm(__half *X, __half *PN_X, int num_tokens);
 
 /* ***************************** General Matrix Multiplication **************************** */
 
