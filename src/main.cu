@@ -74,6 +74,7 @@ int main() {
         int next_token = 0;
         while (next_token < 128000) {
             next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
+            printf("%d", next_token);
             /*
             if (next_token < 128000) printf("%s\n", llama3_tokenizer->decode[next_token]);
 
