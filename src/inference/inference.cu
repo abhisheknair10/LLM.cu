@@ -117,7 +117,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
-    __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
+    __half *next_token = (__half *)create_gmemcache(2048 * 128256, sizeof(__half));
     int *actual_token = (int *)create_gmemcache(1, sizeof(int));
 
     // Save pointers to Struct --------------------------------------------------------
@@ -188,6 +188,8 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     compute_layer_norm(llama3_model->norm, X);
 
     int output = compute_lm_head(llama3_model->lm_head, X, Cache);
+
+    CHECK_CUDA_ERROR();
 
     // printCudaMemoryInfo();
 
