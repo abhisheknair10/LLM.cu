@@ -896,6 +896,8 @@ __global__ void kernel_compute_swiglu(
 
 /* ********************************* Language Model Head ********************************* */
 __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
+    float curr_max = 0.0f;
+    int max = 0;
     for (int i = 0; i < dim; i++) {
         float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
         if (embedding > curr_max) {
@@ -904,7 +906,7 @@ __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) 
         }
     }
 
-    output[0] = max;
+    *output = max;
 
     return;
 }
