@@ -67,6 +67,8 @@ Llama3Tokenizer *load_tokenizer() {
         _build_decoder(llama3_tokenizer->decode, content->string, id->valueint);
     }
 
+    printf("Out\n");
+
     // Get the "model" object from the JSON
     cJSON *model = cJSON_GetObjectItemCaseSensitive(json_buffer, "model");
     if (model == NULL) {
