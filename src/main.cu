@@ -74,23 +74,25 @@ int main() {
         int next_token = 0;
         while (next_token < 128000) {
             next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
-
+            /*
             if (next_token < 128000) printf("%s\n", llama3_tokenizer->decode[next_token]);
 
             for (int i = 1; i < tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
             printf("%d\n", tokens[0]);
-
+            */
             if (tokens[0] > 2048) break;
 
             tokens[tokens[0]] = next_token;
             tokens[0] = tokens[0] + 1;
 
+            /*
             for (int i = 1; i < tokens[0]; i++) {
                 printf("%d, ", tokens[i]);
             }
             printf("%d\n", tokens[0]);
+            */
         }
         free(tokens);
         _free_tensor(X);
