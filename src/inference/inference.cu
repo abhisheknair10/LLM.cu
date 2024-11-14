@@ -898,14 +898,16 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Query computation
     grid = dim3(
         (LM_Head->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
-        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
+        1);
+
+    __half *last_tensor = X->d_fp16_tensor + ((h_NUM_TOKENS - 1) * 4096);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->next_token, X->d_fp16_tensor, LM_Head->d_fp16_tensor,
-        h_NUM_TOKENS, LM_Head->shape[0], 4096, TILE_SIZE);
+        Cache->next_token, last_tensor, LM_Head->d_fp16_tensor,
+        1, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(Cache->next_token, 128256, h_NUM_TOKENS);
+    check_embedding<<<1, 1>>>(Cache->next_token, 128256, 1);
     cudaDeviceSynchronize();
 
     return;
