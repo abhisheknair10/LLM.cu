@@ -127,6 +127,8 @@ while True:
 
     tok = generate_token(model, X)[-1].item()
     token_actual = tokenizer.decode(tok)
+    if token_actual >= 128000:
+        break
     
     print(token_actual, end="", flush=True)
     input_text += token_actual
