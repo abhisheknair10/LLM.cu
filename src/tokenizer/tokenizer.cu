@@ -59,6 +59,7 @@ Llama3Tokenizer *load_tokenizer() {
 
     cJSON *curr_element = NULL;
     cJSON_ArrayForEach(curr_element, added_tokens) {
+        printf("In\n");
         cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
         cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
 
