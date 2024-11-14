@@ -93,6 +93,7 @@ int main() {
             }
             printf("%d\n", tokens[0]);
             */
+           break;
         }
         free(tokens);
         _free_tensor(X);
