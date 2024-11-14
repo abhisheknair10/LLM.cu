@@ -86,6 +86,7 @@ int main() {
         cudaFree(d_tokens);
 
         printf("\n");
+        break;
     }
 
     // Free the model resources
