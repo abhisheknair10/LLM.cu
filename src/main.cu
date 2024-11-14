@@ -88,6 +88,7 @@ int main() {
         _free_tensor(X);
         cudaFree(d_tokens);
 
+        printf("\n\n");
         break;
     }
 
