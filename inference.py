@@ -109,7 +109,7 @@ def generate_token(model, X):
                 0).expand(batch_size, -1)  # [B, S]
             # Ensure this method returns cos and sin correctly
             cos, sin = LAYER.self_attn.rotary_emb(V, position_ids)
-            Q, K = apply_rotary_pos_emb(Q, K, cos, sin, position_ids)
+            Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
 
             # 2.4 Handle grouped-query attention
             K = repeat_kv(K, 4)
