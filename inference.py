@@ -132,3 +132,5 @@ while True:
     
     print(token_actual, end="", flush=True)
     input_text += token_actual
+
+print()
