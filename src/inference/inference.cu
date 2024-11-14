@@ -162,7 +162,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
 
         // RoPE scaling
-        rope_scaling(Cache->Q, Cache->K);
+        // rope_scaling(Cache->Q, Cache->K);
 
         // Attention computation
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
