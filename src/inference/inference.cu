@@ -728,7 +728,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
     extern __shared__ float shared_mem[];
     float *vec = shared_mem;
-    float *buffer = shared_mem + 2048;
+    float *buffer = shared_mem + 2058;
 
     int token_idx_y = blockIdx.x;
     int head_idx = blockIdx.y;
