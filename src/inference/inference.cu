@@ -59,7 +59,7 @@ void printCudaMemoryInfo() {
 __global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
     for (int token_idx = 0; token_idx < num_tokens; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
-        for (int i = 0; i < dim; i++) {
+        for (int i = 0; i < dim; ++i) {
             printf("%f, ", __half2float(fp16_tensor[token_idx * dim + i]));
         }
         printf("\n");
@@ -74,7 +74,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
         printf("Token %d embeddings:\n", token_idx);
         int max = 0;
         float curr_max = 0.0f;
-        for (int i = 0; i < dim; i++) {
+        for (int i = 0; i < dim; ++i) {
             float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
 
             if (embedding > curr_max) {
@@ -144,7 +144,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     h_NUM_TOKENS = h_tokens[0] - 1;
     printf("Token Count: %d\n", h_NUM_TOKENS);
 
-    for (int i = 1; i <= h_NUM_TOKENS; i++) {
+    for (int i = 1; i <= h_NUM_TOKENS; ++i) {
         printf("%d, ", h_tokens[i]);
     }
     printf("\n");
@@ -687,7 +687,7 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
         __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; i++) {
+        for (int i = 0; i < TILE_SIZE; ++i) {
             value += Q_shmem[threadIdx.y * TILE_SIZE + i] * K_shmem[i * TILE_SIZE + threadIdx.x];
         }
         __syncthreads();
@@ -716,7 +716,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     float exp_sum = 0.0f;
 
     // Load relevant attention scores and apply masking
-    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
         token_idx_x = i * blockDim.x + threadIdx.x;
 
         if (token_idx_x < num_tokens) {
@@ -747,7 +747,7 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     __syncthreads();
 
     // Compute softmax
-    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; i++) {
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
         token_idx_x = i * blockDim.x + threadIdx.x;
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
@@ -804,7 +804,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
         __syncthreads();
 
         // Compute partial sums
-        for (int i = 0; i < TILE_SIZE; i++) {
+        for (int i = 0; i < TILE_SIZE; ++i) {
             if ((t * TILE_SIZE + i) < k) {
                 value += attention_shmem[threadIdx.y * TILE_SIZE + i] * V_shmem[i * TILE_SIZE + threadIdx.x];
             }
@@ -898,8 +898,8 @@ __global__ void kernel_compute_swiglu(
 __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
     float curr_max = 0.0f;
     int max = 0;
-    for (int i = 0; i < dim; i++) {
-        float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
+    for (int i = 0; i < dim; ++i) {
+        float embedding = __half2float(fp16_tensor[i]);
         if (embedding > curr_max) {
             curr_max = embedding;
             max = i;
