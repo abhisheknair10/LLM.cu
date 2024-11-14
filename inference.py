@@ -17,7 +17,6 @@ model = AutoModelForCausalLM.from_pretrained(model_name).half().to(device)
 # Define input text
 input_text = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant, here to provide clear and concise answers to the user's questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is France's capital?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 X = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
-print(X)
 
 
 def SMART_PRINT(tensor):
@@ -70,8 +69,6 @@ with torch.no_grad():
     seq_len = X.shape[-1]
     X = model.model.embed_tokens(X).half()
 
-    print(X.shape)
-
     for i in range(0, 32):
         LAYER = model.model.layers[i]
 
@@ -118,9 +115,7 @@ with torch.no_grad():
 
         GATE = F.silu(LAYER.mlp.gate_proj(X))
         UP = LAYER.mlp.up_proj(X)
-
-        X = GATE * UP
-        X = LAYER.mlp.down_proj(X)
+        X = LAYER.mlp.down_proj(GATE * UP)
 
         X = X + PN_X
 
