@@ -95,6 +95,7 @@ void *create_gmemcache(size_t mem_len, size_t type_size) {
     void *d_gcache;
 
     cudaMalloc((void **)&d_gcache, mem_len * type_size);
+    CHECK_CUDA_ERROR();
 
     return d_gcache;
 }
