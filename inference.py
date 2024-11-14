@@ -128,5 +128,5 @@ def generate_token(model, X):
 
         return torch.argmax(F.softmax(X, dim=-1), dim=-1)
 
-tok = generate_token(model, X)
+tok = generate_token(model, X)[-1].item()
 print(tok)
