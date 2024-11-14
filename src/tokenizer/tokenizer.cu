@@ -113,9 +113,7 @@ int *tokenize(Llama3Tokenizer *tokenizer, char *input_str) {
         exit(1);
     }
 
-    tokens[1] = 128000;
-    int token_count = 1;
-
+    int token_count = 0;
     int i = 0;
     while (i < input_len && token_count < 2048) {
         curr = tokenizer->root;
