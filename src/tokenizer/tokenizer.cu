@@ -94,9 +94,6 @@ Llama3Tokenizer *load_tokenizer() {
 
     // Free the parsed JSON object
     cJSON_Delete(json_buffer);
-    cJSON_Delete(added_tokens);
-    cJSON_Delete(model);
-    cJSON_Delete(vocab);
 
     return llama3_tokenizer;
 }
