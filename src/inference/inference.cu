@@ -68,7 +68,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
 
     return;
 }
-*/
+
 __global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
     for (int token_idx = 0; token_idx < num_tokens; token_idx++) {
         printf("Token %d embeddings:\n", token_idx);
@@ -88,7 +88,7 @@ __global__ void check_embedding(__half *fp16_tensor, int dim, int num_tokens) {
 
     return;
 }
-
+*/
 /* ************************************* Cache ************************************* */
 // Allocate global mem cache on device
 void *create_gmemcache(size_t mem_len, size_t type_size) {
@@ -117,6 +117,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
     __half *next_token = (__half *)create_gmemcache(128256 * 2048, sizeof(__half));
+    int *actual_token = (int *)create_gmemcache(1, sizeof(int));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -130,6 +131,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->d_feedforward_cache_up = d_feedforward_cache_up;
 
     Cache->next_token = next_token;
+    Cache->actual_token = actual_token;
 
     return Cache;
 }
@@ -182,11 +184,11 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     compute_layer_norm(llama3_model->norm, X);
 
-    compute_lm_head(llama3_model->lm_head, X, Cache);
+    int output = compute_lm_head(llama3_model->lm_head, X, Cache);
 
     // printCudaMemoryInfo();
 
-    return 100;
+    return output;
 }
 
 /* ************************** Convert Tokens to Embeddings ************************** */
@@ -893,7 +895,7 @@ __global__ void kernel_compute_swiglu(
 }
 
 /* ********************************* Language Model Head ********************************* */
-void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
+int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     const int TILE_SIZE = 32;
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
@@ -912,8 +914,24 @@ void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         1, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    check_embedding<<<1, 1>>>(Cache->next_token, 128256, 1);
+    kernel_lmhead_argmax<<<1, 1>>>(Cache->actual_token, Cache->next_token, LM_Head->shape[0]);
     cudaDeviceSynchronize();
+
+    int tok;
+    cudaMemcpy(&tok, Cache->actual_token, sizeof(int), cudaMemcpyDeviceToHost);
+    return tok;
+}
+
+__global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
+    for (int i = 0; i < dim; i++) {
+        float embedding = __half2float(fp16_tensor[token_idx * dim + i]);
+        if (embedding > curr_max) {
+            curr_max = embedding;
+            max = i;
+        }
+    }
+
+    output[0] = max;
 
     return;
 }

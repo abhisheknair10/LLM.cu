@@ -29,6 +29,7 @@ typedef struct {
     __half *d_feedforward_cache_up;
 
     __half *next_token;
+    int *actual_token;
 } CudaCache;
 
 /**
@@ -55,6 +56,8 @@ typedef struct {
  * @param d_tokens Pointer to the device memory array of input tokens.
  * @param h_tokens Pointer to the host memory array of input tokens.
  * @param Cache Pointer to the `CudaCache` structure holding necessary CUDA resources.
+ *
+ * @return int Status code indicating the success (0) or failure (non-zero) of the inference operation.
  *
  * @note Ensure that all input pointers are properly initialized and that the CUDA cache is set up
  *       before calling this function.
@@ -364,6 +367,8 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
  * @param L3_Layer Pointer to the `Llama3Layer` containing the feedforward network parameters.
  * @param Cache Pointer to the `CudaCache` structure holding CUDA resources.
  *
+ * @return void
+ *
  * @note Ensure that `X` and `L3_Layer` are properly initialized and that the CUDA cache is set up before calling this function.
  */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache);
@@ -398,9 +403,11 @@ __global__ void kernel_compute_swiglu(
  * @param X Pointer to the input tensor containing the processed embeddings.
  * @param Cache Pointer to the `CudaCache` structure holding CUDA resources.
  *
+ * @return int Status code indicating the success (0) or failure (non-zero) of the language model head computation.
+ *
  * @note Ensure that `X` and `LM_Head` are properly allocated and initialized before calling this function.
  */
-void compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);
+int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);
 
 /* ************************************** Cuda Cache ************************************** */
 
