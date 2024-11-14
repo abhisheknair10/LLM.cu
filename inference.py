@@ -15,7 +15,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name).half().to(device)
 
 # Define input text
-input_text = "What is the largest ocean in the world?\n\n"
+input_text = "What is the largest ocean in the world?\n\nThe"
 X = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
 
 
