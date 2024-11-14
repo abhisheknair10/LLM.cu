@@ -76,7 +76,10 @@ int main() {
         while (next_token < 128000) {
             next_token = inference(llama3_model, X, d_tokens, tokens, Cache);
 
-            if (next_token < 128000) printf("%s", llama3_tokenizer->decode[next_token]);
+            if (next_token < 128000) {
+                printf("%s", llama3_tokenizer->decode[next_token]);
+                fflush(stdout);
+            };
             if (tokens[0] > 2048) break;
 
             tokens[tokens[0]] = next_token;
