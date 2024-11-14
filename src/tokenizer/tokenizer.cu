@@ -62,8 +62,8 @@ Llama3Tokenizer *load_tokenizer() {
         cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
         cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
 
-        _build_trie(llama3_tokenizer->root, content, id);
-        _build_decoder(llama3_tokenizer->decode, content, id);
+        _build_trie(llama3_tokenizer->root, content->string, id->valueint);
+        _build_decoder(llama3_tokenizer->decode, content->string, id->valueint);
     }
 
     // Get the "model" object from the JSON
