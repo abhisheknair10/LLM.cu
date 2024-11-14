@@ -126,4 +126,7 @@ while True:
     X = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
 
     tok = generate_token(model, X)[-1].item()
-    print(tokenizer.decode(tok))
+    token_actual = tokenizer.decode(tok)
+    
+    print(token_actual, end="")
+    input_text += token_actual
