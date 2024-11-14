@@ -46,6 +46,30 @@ def apply_rotary_pos_emb(q, k, cos, sin):
     return q_embed, k_embed
 
 
+def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """
+    Repeat key and value states for grouped-query attention.
+
+    This function expands the key and value states to match the number of query heads
+    in grouped-query attention mechanisms.
+
+    Args:
+    hidden_states: Input tensor of shape (batch, num_key_value_heads, seqlen, head_dim)
+    n_rep: Number of repetitions (usually num_query_heads // num_key_value_heads)
+
+    Returns:
+    Tensor of shape (batch, num_attention_heads, seqlen, head_dim)
+    """
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states  # No need to repeat if n_rep is 1
+
+    # Expand and reshape to repeat the key/value states
+    hidden_states = hidden_states[:, :, None, :, :].expand(
+        batch, num_key_value_heads, n_rep, slen, head_dim)
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
+
 def generate_token(model, X):
     with torch.no_grad():
         nheads = 32
@@ -84,12 +108,12 @@ def generate_token(model, X):
             position_ids = torch.arange(seq_len, device=device).unsqueeze(
                 0).expand(batch_size, -1)  # [B, S]
             # Ensure this method returns cos and sin correctly
-            cos, sin = LAYER.self_attn.rotary_emb(value_states, position_ids)
+            cos, sin = LAYER.self_attn.rotary_emb(V, position_ids)
             Q, K = apply_rotary_pos_emb(Q, K, cos, sin, position_ids)
 
             # 2.4 Handle grouped-query attention
-            K = repeat_kv(K, LAYER.self_attn.num_key_value_groups)
-            V = repeat_kv(V, LAYER.self_attn.num_key_value_groups)
+            K = repeat_kv(K, 4)
+            V = repeat_kv(V, 4)
 
             # 2.5 Compute attention scores
             attn_scores = torch.matmul(
