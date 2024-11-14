@@ -571,44 +571,59 @@ void rope_scaling(Tensor *Q, Tensor *K) {
 
 __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, int num_tokens) {
     /*
-        - For Q [tokens, 4096], there are 1024 threads per block with 2 blocks representing one
-            transformed Q embedding
-        - For K [tokens, 1024], there are 256 threads per block with 2 blocks representing one
-            transformed K embedding
-        - Window dim gives half the transformed tensor embedding size
-        - Window idx gives local index
-    */
+    - For Q [tokens, 4096], transformed_embed_size = 2048
+      Block size: 1024 threads
+      Grid: 2 blocks (2048 / 1024 = 2) per token
+    - For K [tokens, 1024], transformed_embed_size = 512
+      Block size: 256 threads
+      Grid: 2 blocks (512 / 256 = 2) per token
+*/
+
+    // Calculate the token index and embedding index
     int token_idx = blockIdx.y;
     int embed_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
+    // Boundary checks
     if (embed_idx >= transformed_embed_size) return;
     if (token_idx >= num_tokens) return;
 
-    // Each thread loads 2 __half (each 2 bytes), as one 4 byte value into half2 datatype
-    __half2 h2_val = ((const __half2 *)tensor)[token_idx * transformed_embed_size + embed_idx];
+    // Cast tensor to __half2 pointer using C-style cast
+    __half2 *tensor_half2 = (__half2 *)tensor;
 
-    // Access both values interpreted as 1 and rotate vector pair
-    float even = __half2float(__low2half(h2_val));
-    float odd = __half2float(__high2half(h2_val));
+    // Access the __half2 value for the current token and embedding index
+    __half2 h2_val = tensor_half2[token_idx * transformed_embed_size + embed_idx];
 
-    // Frequency calculation
-    const float scaling_factor = 10000.0f;
-    float freq = 1.0f / powf(scaling_factor, ((float)embed_idx) / ((float)transformed_embed_size));
+    // Split __half2 into two __half values
+    __half h_even = __low2half(h2_val);
+    __half h_odd = __high2half(h2_val);
 
-    float cos_comp = cosf(token_idx * freq);
-    float sin_comp = sinf(token_idx * freq);
+    // Convert __half to float for computation
+    float even = __half2float(h_even);
+    float odd = __half2float(h_odd);
 
-    // Rotated embedding
+    // Frequency calculation with floating-point division
+    float freq = 1.0f / powf(500000.0f, ((float)embed_idx) / ((float)transformed_embed_size));
+
+    // Compute angle
+    float angle = (float)token_idx * freq;
+
+    // Compute cosine and sine components
+    float cos_comp = cosf(angle);
+    float sin_comp = sinf(angle);
+
+    // Apply rotation to the embedding
     float ret_even = (cos_comp * even) - (sin_comp * odd);
     float ret_odd = (sin_comp * even) + (cos_comp * odd);
 
-    // Pack the two __half values into a single __half2
+    // Convert the rotated values back to __half
     __half h_ret_even = __float2half(ret_even);
     __half h_ret_odd = __float2half(ret_odd);
+
+    // Combine the two __half values back into a single __half2
     __half2 h2_result = __halves2half2(h_ret_even, h_ret_odd);
 
-    // Store rope encoded data back to tensor
-    ((__half2 *)tensor)[token_idx * transformed_embed_size + embed_idx] = h2_result;
+    // Store the result back into the tensor
+    tensor_half2[token_idx * transformed_embed_size + embed_idx] = h2_result;
 
     return;
 }
