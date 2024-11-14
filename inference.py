@@ -47,16 +47,6 @@ def apply_rotary_pos_emb(q, k, cos, sin):
 
 
 def generate_token(model, X):
-    """
-    Generate the next token using the model by manually implementing the forward pass.
-
-    Args:
-    model: The causal language model.
-    X: Input token IDs tensor of shape [batch_size, seq_len]
-
-    Returns:
-    Next token ID tensor of shape [batch_size]
-    """
     with torch.no_grad():
         nheads = 32
         embed_dim = 4096
@@ -65,17 +55,19 @@ def generate_token(model, X):
         batch_size = X.shape[0]
 
         # Embed tokens
-        X = model.model.embed_tokens(X)  # [B, S, 4096]
+        # Shape: [batch_size, seq_len, embed_dim]
+        X = model.model.embed_tokens(X)
 
         for i in range(32):
             LAYER = model.model.layers[i]
 
             PN_X = X  # Residual connection
 
-            # Layer normalization
+            # 1. Input LayerNorm
             X = LAYER.input_layernorm(X)
 
-            # Project to Q, K, V
+            # 2. Self-attention mechanism
+            # 2.1 Query, Key, Value projections
             Q = LAYER.self_attn.q_proj(X).view(
                 batch_size, seq_len, nheads, head_dim)  # [B, S, 32, 128]
             K = LAYER.self_attn.k_proj(X).view(
@@ -83,59 +75,65 @@ def generate_token(model, X):
             V = LAYER.self_attn.v_proj(X).view(
                 batch_size, seq_len, nheads // 4, head_dim)  # [B, S, 8, 128]
 
-            # Transpose for attention computation
+            # 2.2 Reshape and transpose Q, K, V
             Q = Q.transpose(1, 2)  # [B, 32, S, 128]
             K = K.transpose(1, 2)  # [B, 8, S, 128]
             V = V.transpose(1, 2)  # [B, 8, S, 128]
 
-            # Apply Rotary Positional Embeddings
+            # 2.3 Apply rotary positional embeddings
             position_ids = torch.arange(seq_len, device=device).unsqueeze(
                 0).expand(batch_size, -1)  # [B, S]
-            cos = LAYER.self_attn.rotary_emb.cos[position_ids].unsqueeze(
-                1)  # [B, 1, S, 128]
-            sin = LAYER.self_attn.rotary_emb.sin[position_ids].unsqueeze(
-                1)  # [B, 1, S, 128]
-            Q, K = apply_rotary_pos_emb(Q, K, cos, sin)
+            # Ensure this method returns cos and sin correctly
+            cos, sin = LAYER.self_attn.rotary_emb(value_states, position_ids)
+            Q, K = apply_rotary_pos_emb(Q, K, cos, sin, position_ids)
 
-            # Broadcast K and V to match Q's heads without duplication
-            K = K.unsqueeze(2).expand(-1, -1, 4, -1, -1).reshape(batch_size,
-                                                                 nheads, seq_len, head_dim)  # [B, 32, S, 128]
-            V = V.unsqueeze(2).expand(-1, -1, 4, -1, -1).reshape(batch_size,
-                                                                 nheads, seq_len, head_dim)  # [B, 32, S, 128]
+            # 2.4 Handle grouped-query attention
+            K = repeat_kv(K, LAYER.self_attn.num_key_value_groups)
+            V = repeat_kv(V, LAYER.self_attn.num_key_value_groups)
 
-            # Compute attention scores
+            # 2.5 Compute attention scores
             attn_scores = torch.matmul(
                 Q, K.transpose(-1, -2)) / (head_dim ** 0.5)  # [B, 32, S, S]
 
-            # Create and apply causal mask
+            # 2.6 Apply causal mask (if necessary)
             mask = torch.tril(torch.ones(seq_len, seq_len,
                               device=device, dtype=attn_scores.dtype))
             mask = mask.unsqueeze(0).unsqueeze(0)  # [1, 1, S, S]
             attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
 
-            # Compute attention probabilities
-            attn_probs = F.softmax(attn_scores, dim=-1)  # [B, 32, S, S]
+            # 2.7 Compute attention probabilities
+            attn_weights = F.softmax(
+                attn_scores, dim=-1, dtype=torch.float32).to(Q.dtype)  # [B, 32, S, S]
 
-            # Apply attention to values
-            Attention = torch.matmul(attn_probs, V)  # [B, 32, S, 128]
+            # 2.8 Apply attention to values
+            attn_output = torch.matmul(attn_weights, V)  # [B, 32, S, 128]
 
-            # Reshape Attention
-            Attention = Attention.transpose(1, 2).contiguous().view(
+            # 2.9 Reshape attention output
+            attn_output = attn_output.transpose(1, 2).contiguous().view(
                 batch_size, seq_len, embed_dim)  # [B, S, 4096]
 
-            # Output projection
-            X = LAYER.self_attn.o_proj(Attention)  # [B, S, 4096]
-            X = X + PN_X  # Residual connection
+            # 2.10 Output projection
+            attn_output = LAYER.self_attn.o_proj(attn_output)  # [B, S, 4096]
 
-            # Post-attention LayerNorm and MLP
-            PN_X = X  # Residual
-            X = LAYER.post_attention_layernorm(X)
+            # 2.11 Residual connection
+            X = X + attn_output  # [B, S, 4096]
 
-            GATE = F.silu(LAYER.mlp.gate_proj(X))  # [B, S, 14336]
-            UP = LAYER.mlp.up_proj(X)  # [B, S, 14336]
-            X = LAYER.mlp.down_proj(GATE * UP)  # [B, S, 4096]
+            # 3. Post-attention LayerNorm
+            X = LAYER.post_attention_layernorm(X)  # [B, S, 4096]
 
-            X = X + PN_X  # Residual connection
+            # 4. MLP (Feed-Forward Network)
+            # 4.1 Apply gate and up projections
+            gate_output = F.silu(LAYER.mlp.gate_proj(X))  # [B, S, 14336]
+            up_output = LAYER.mlp.up_proj(X)  # [B, S, 14336]
+
+            # 4.2 Apply activation function and element-wise multiplication
+            mlp_output = gate_output * up_output  # [B, S, 14336]
+
+            # 4.3 Down projection
+            mlp_output = LAYER.mlp.down_proj(mlp_output)  # [B, S, 4096]
+
+            # 4.4 Residual connection
+            X = X + mlp_output  # [B, S, 4096]
 
         # Final LayerNorm and Language Modeling Head
         X = model.model.norm(X)  # [B, S, 4096]
