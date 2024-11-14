@@ -69,6 +69,8 @@ with torch.no_grad():
     seq_len = X.shape[-1]
     X = model.model.embed_tokens(X).half()
 
+    print(X.shape)
+
     for i in range(0, 32):
         LAYER = model.model.layers[i]
 
