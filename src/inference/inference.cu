@@ -955,9 +955,21 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         128256 * sizeof(__half),
         cudaMemcpyDeviceToHost);
 
+    int max = 0;
+    float curr_max = 0.0f;
     for (int i = 0; i < 128256; ++i) {
-        printf("%d: %f\n", i, __half2float(Cache->h_token_probdist[i]));
+        float curr = __half2float(Cache->h_token_probdist[i]);
+        printf("%d: %f\n", i, curr);
+
+        if (curr > curr_max) {
+            curr_max = curr;
+            max = i;
+        }
     }
+
+    printf("Next token: %d", max);
+
+    exit(1);
 
     return 0;
 }
