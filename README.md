@@ -1,7 +1,7 @@
 # LLM.cu - A LLaMA3-8B CUDA Inference Engine
 
 <div align="center">
-  <img src="https://github.com/abhisheknair10/LLM.cu/blob/main/inference.png" alt="inference" width="700">
+  <img src="https://github.com/abhisheknair10/LLM.cu/blob/main/inference.png" alt="inference" width="800">
 </div>
 
 
