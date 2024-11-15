@@ -973,7 +973,7 @@ int sample_next_token(__half *tensor) {
         }
     }
 
-    printf("Next token: %d\n", i);
+    printf("Next token: %d\n", max);
     exit(1);
     
     return 1;
