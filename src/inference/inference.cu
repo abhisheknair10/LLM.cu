@@ -1,5 +1,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,12 @@
     }
 
 #define TILE_SIZE 32
+#define VOCAB_SIZE 128256
+
+// Sampling config
+#define TEMPERATURE 1.0
+#define TOP_K 50
+#define TOP_P 0.9f
 
 const int MAX_THREADS_PER_BLOCK = 1024;
 
@@ -116,8 +123,9 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
-    __half *d_token_probdist = (__half *)create_gmemcache(128256, sizeof(__half));
-    __half *h_token_probdist = (__half *)malloc(128256 * sizeof(__half));
+    __half *d_token_probdist = (__half *)create_gmemcache(VOCAB_SIZE, sizeof(__half));
+    __half *h_token_probdist = (__half *)malloc(VOCAB_SIZE * sizeof(__half));
+    float *f_token_probdist = (float *)malloc(VOCAB_SIZE * sizeof(float));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -132,6 +140,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
     Cache->h_token_probdist = h_token_probdist;
     Cache->d_token_probdist = d_token_probdist;
+    Cache->f_token_probdist = f_token_probdist;
 
     return Cache;
 }
@@ -913,26 +922,6 @@ __global__ void kernel_compute_swiglu(
 }
 
 /* ********************************* Language Model Head ********************************* */
-/*
-__global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
-    float curr_max = 0.0f;
-    int max = 0;
-    for (int i = 0; i < dim; ++i) {
-        float embedding = __half2float(fp16_tensor[i]);
-        if (embedding > curr_max) {
-            curr_max = embedding;
-            max = i;
-        }
-    }
-
-    *output = max;
-
-    return;
-}
-*/
-
-int sample_next_token(__half *tensor);
-
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
@@ -954,27 +943,56 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     cudaMemcpy(
         Cache->h_token_probdist,
         Cache->d_token_probdist,
-        128256 * sizeof(__half),
+        VOCAB_SIZE * sizeof(__half),
         cudaMemcpyDeviceToHost);
 
-    return sample_next_token(Cache->h_token_probdist);
+    return sample_next_token(Cache->f_token_probdist, Cache->h_token_probdist);
 }
 
-int sample_next_token(__half *tensor) {
-    int max = 0;
-    float curr_max = 0.0f;
-    for (int i = 0; i < 128256; ++i) {
-        float curr = __half2float(tensor[i]);
-        printf("%d: %f\n", i, curr);
-
-        if (curr > curr_max) {
-            curr_max = curr;
-            max = i;
-        }
-    }
-
-    printf("Next token: %d\n", max);
-    exit(1);
+int sample_next_token(float *tensor, __half *half_tensor) {
+    ProbIndex **prob_dist_array = _temperature_softmax(tensor, half_tensor, TEMPERATURE);
 
     return 1;
+}
+
+ProbIndex *_temperature_softmax(float *tensor, __half *half_tensor, float temperature) {
+    ProbIndex *prob_dist_array = (ProbIndex *)malloc(VOCAB_SIZE * sizeof(ProbIndex));
+
+    float cumsum = 0.0f;
+    for (int i = 0; i < VOCAB_SIZE; ++i) {
+        float scaled_logit = __half2float(half_tensor[i]) / temperature;
+
+        tensor[i] = exp(scaled_logit);
+        cumsum += tensor[i];
+    }
+
+    for (int i = 0; i < VOCAB_SIZE; ++i) {
+        tensor[i] /= cumsum;
+
+        prob_dist_array[i] = (ProbIndex *)malloc(sizeof(ProbIndex));
+        prob_dist_array[i].probability = tensor[i];
+        prob_dist_array[i].index = i;
+    }
+
+    qsort(prob_dist_array, VOCAB_SIZE, sizeof(ProbIndex), _compare_desc);
+
+    for (int i = 0; i < VOCAB_SIZE; ++i) {
+        printf("%d: %f\n", prob_dist_array[i].index, prob_dist_array[i].probability);
+    }
+    printf("\n");
+
+    return prob_dist_array;
+}
+
+int _compare_desc(const void *a, const void *b) {
+    const ProbIndex *prob_a = (const ProbIndex *)a;
+    const ProbIndex *prob_b = (const ProbIndex *)b;
+
+    if (prob_a->probability < prob_b->probability) {
+        return 1;
+    } else if (prob_a->probability > prob_b->probability) {
+        return -1;
+    } else {
+        return 0;
+    }
 }

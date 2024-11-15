@@ -30,6 +30,8 @@ typedef struct {
 
     __half *d_token_probdist;
     __half *h_token_probdist;
+
+    float *f_token_probdist;
 } CudaCache;
 
 /**
@@ -41,6 +43,11 @@ typedef struct {
 typedef struct {
     __half x, y, z, w;
 } c_half4;
+
+typedef struct {
+    float probability;
+    int index;
+} ProbIndex;
 
 /* ********************************* Inference Code ********************************* */
 
@@ -408,6 +415,10 @@ __global__ void kernel_compute_swiglu(
  * @note Ensure that `X` and `LM_Head` are properly allocated and initialized before calling this function.
  */
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);
+
+int sample_next_token(float *tensor, __half *half_tensor);
+
+void _temperature_softmax(float *tensor, __half *half_tensor, float temperature);
 
 /* ************************************** Cuda Cache ************************************** */
 
