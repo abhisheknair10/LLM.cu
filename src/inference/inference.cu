@@ -116,8 +116,8 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
     __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
-    __half *next_token = (__half *)create_gmemcache(2048 * 128256, sizeof(__half));
-    int *actual_token = (int *)create_gmemcache(1, sizeof(int));
+    __half *d_token_probdist = (__half *)create_gmemcache(128256, sizeof(__half));
+    __half *h_token_probdist = (__half *)malloc(128256 * sizeof(__half));
 
     // Save pointers to Struct --------------------------------------------------------
     Cache->PN_X = PN_X;
@@ -130,8 +130,8 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->d_feedforward_cache_gate = d_feedforward_cache_gate;
     Cache->d_feedforward_cache_up = d_feedforward_cache_up;
 
-    Cache->next_token = next_token;
-    Cache->actual_token = actual_token;
+    Cache->h_token_probdist = h_token_probdist;
+    Cache->d_token_probdist = d_token_probdist;
 
     return Cache;
 }
@@ -913,6 +913,7 @@ __global__ void kernel_compute_swiglu(
 }
 
 /* ********************************* Language Model Head ********************************* */
+/*
 __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) {
     float curr_max = 0.0f;
     int max = 0;
@@ -928,6 +929,7 @@ __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) 
 
     return;
 }
+*/
 
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
@@ -943,14 +945,19 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     __half *last_tensor = X->d_fp16_tensor + ((h_NUM_TOKENS - 1) * 4096);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->next_token, last_tensor, LM_Head->d_fp16_tensor,
+        Cache->d_token_probdist, last_tensor, LM_Head->d_fp16_tensor,
         1, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    kernel_lmhead_argmax<<<1, 1>>>(Cache->actual_token, Cache->next_token, LM_Head->shape[0]);
-    cudaDeviceSynchronize();
+    cudaMemcpy(
+        Cache->h_token_probdist,
+        Cache->d_token_probdist,
+        128256 * sizeof(__half),
+        cudaMemcpyDeviceToHost);
 
-    int tok;
-    cudaMemcpy(&tok, Cache->actual_token, sizeof(int), cudaMemcpyDeviceToHost);
-    return tok;
+    for (int i = 0; i < 128256; ++i) {
+        printf("%d: %f\n", i, i, __half2float(Cache->h_token_probdist));
+    }
+
+    return 0;
 }

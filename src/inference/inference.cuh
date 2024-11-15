@@ -28,8 +28,8 @@ typedef struct {
     __half *d_feedforward_cache_gate;
     __half *d_feedforward_cache_up;
 
-    __half *next_token;
-    int *actual_token;
+    __half *d_token_probdist;
+    __half *h_token_probdist;
 } CudaCache;
 
 /**
