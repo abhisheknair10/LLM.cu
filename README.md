@@ -4,6 +4,7 @@
   <img src="https://github.com/abhisheknair10/LLM.cu/blob/main/inference.png" alt="inference" width="800">
 </div>
 
+## 
 
 LLM.cu is a CUDA native implementation of the LLaMA3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, enabling scalable parallel processing on Nvidia GPUs.
 
