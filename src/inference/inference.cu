@@ -969,7 +969,6 @@ ProbIndex *_temperature_softmax(float *tensor, __half *half_tensor, float temper
     for (int i = 0; i < VOCAB_SIZE; ++i) {
         tensor[i] /= cumsum;
 
-        prob_dist_array[i] = (ProbIndex *)malloc(sizeof(ProbIndex));
         prob_dist_array[i].probability = tensor[i];
         prob_dist_array[i].index = i;
     }
