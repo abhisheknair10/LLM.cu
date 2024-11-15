@@ -59,6 +59,14 @@ int main() {
         char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the largest ocean in the world?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
         /*
+        128000, 128006,   9125, 128007,    271,   2170,    264,  11190,
+          18328,     11,   4320,    279,   1217,   4860,    449,  32373,    323,
+           7872,     13, 128009, 128006,    882, 128007,    271,   3923,    374,
+            279,   7928,  18435,    304,    279,   1917,     30, 128009, 128006,
+          78191, 128007,    271
+        */
+
+        /*
         char *input_str = (char *)malloc(sizeof(char) * 2048);
         fgets(input_str, 2048, stdin);
         */
