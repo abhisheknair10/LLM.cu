@@ -1,5 +1,10 @@
 # LLM.cu - A LLaMA3-8B CUDA Inference Engine
 
+<div align="center">
+  <img src="https://github.com/abhisheknair10/LLM.cu/blob/main/inference.png" alt="inference" width="600">
+</div>
+
+
 LLM.cu is a CUDA native implementation of the LLaMA3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, enabling scalable parallel processing on Nvidia GPUs.
 
 The models are expected to be downloaded off of HuggingFace. They are stored as BF16 parameter weights in a .safetensor file, which during load time to the CUDA device, is converted to FP16 via a FP32 proxy. Hence, a CUDA device with a minimum of 24GB VRAM must be used.
