@@ -931,6 +931,8 @@ __global__ void kernel_lmhead_argmax(int *output, __half *fp16_tensor, int dim) 
 }
 */
 
+int sample_next_token(__half *tensor);
+
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
     size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
@@ -955,6 +957,10 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         128256 * sizeof(__half),
         cudaMemcpyDeviceToHost);
 
+    return sample_next_token(Cache->h_token_probdist[i]);
+}
+
+int sample_next_token(__half *tensor) {
     int max = 0;
     float curr_max = 0.0f;
     for (int i = 0; i < 128256; ++i) {
@@ -967,9 +973,8 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         }
     }
 
-    printf("Next token: %d", max);
-
+    printf("Next token: %d\n", i);
     exit(1);
-
-    return 0;
+    
+    return 1;
 }
