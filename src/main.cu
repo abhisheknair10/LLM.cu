@@ -107,7 +107,7 @@ int main() {
             return 1;
         }
 
-        printf(YELLOW "Assistant: " RESET);
+        printf(WARN "Assistant: " RESET);
 
         Tensor *X = (Tensor *)malloc(sizeof(Tensor));
         int *d_tokens = tokens_to_cuda(tokens, 4096, X);
