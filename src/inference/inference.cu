@@ -23,7 +23,7 @@
 #define VOCAB_SIZE 128256
 
 // Sampling config
-#define TEMPERATURE 0.7
+#define TEMPERATURE 1.2
 #define TOP_K 50
 #define TOP_P 0.9
 
