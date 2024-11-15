@@ -24,7 +24,7 @@ extern int h_NUM_TOKENS;
 char *construct_input_string() {
     // Define the _template and additional string
     char *_template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions in detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
-    char *_additional_string = strdup("\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
+    char *_additional_string = strdup("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
     // Collect user input
     char user_input[2000];

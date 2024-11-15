@@ -23,11 +23,12 @@
 #define VOCAB_SIZE 128256
 
 // Sampling config
-#define TEMPERATURE 1.2
+#define TEMPERATURE 1.0
 #define TOP_K 50
-#define TOP_P 0.9
+#define TOP_P 0.9f
 
 const int MAX_THREADS_PER_BLOCK = 1024;
+
 int h_NUM_TOKENS;
 
 /* ************************************ HELPERS ************************************ */
@@ -159,7 +160,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     printf("\n");
     exit(1);
     */
-
+    
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; ++i) {
