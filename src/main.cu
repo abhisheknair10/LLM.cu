@@ -52,7 +52,6 @@ char *construct_input_string() {
     strcat(result, user_input);
     strcat(result, additional_string);
 
-    // Free the temporary strings
     free(template);
     free(additional_string);
 
@@ -127,7 +126,7 @@ int main() {
         cudaFree(d_tokens);
 
         printf("\n\n");
-        free(result);
+        free(input_str);
     }
 
     // Free the model resources
