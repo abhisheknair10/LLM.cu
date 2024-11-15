@@ -57,4 +57,15 @@ make run
 
 ## Acknowledgments
 
+Publications and Research Papers Referenced:
+1. **Attention Is All You Need**
+    [View Paper](https://arxiv.org/abs/1706.03762)
+
+2. **LLaMA: Open and Efficient Foundation Language Models**  
+    [View Paper](https://arxiv.org/abs/2302.13971)
+
+3. **RoPE: Rotary Position Embedding for Robust, Efficient Transformer Models**  
+    [View Paper](https://arxiv.org/abs/2104.09864)
+
+Off the Shelf C Libraries:
 - This project makes use of the [cJSON library](https://github.com/DaveGamble/cJSON), which is licensed under the MIT License.
