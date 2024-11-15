@@ -22,9 +22,9 @@ const int MODEL_NUM_LAYERS = 32;
 extern int h_NUM_TOKENS;
 
 char *construct_input_string() {
-    // Define the template and additional string
-    char *template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
-    char *additional_string = strdup("\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
+    // Define the _template and additional string
+    char *_template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
+    char *_additional_string = strdup("\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
     // Collect user input
     char user_input[2000];
@@ -38,22 +38,22 @@ char *construct_input_string() {
     }
 
     // Calculate the total length for the resulting string
-    size_t total_length = strlen(template) + strlen(user_input) + strlen(additional_string) + 1;
+    size_t total_length = strlen(_template) + strlen(user_input) + strlen(_additional_string) + 1;
 
     // Allocate memory for the result and construct the final string
     char *result = (char *)malloc(total_length);
     if (!result) {
         perror("Failed to allocate memory");
-        free(template);
-        free(additional_string);
+        free(_template);
+        free(_additional_string);
         return NULL;
     }
-    strcpy(result, template);
+    strcpy(result, _template);
     strcat(result, user_input);
-    strcat(result, additional_string);
+    strcat(result, _additional_string);
 
-    free(template);
-    free(additional_string);
+    free(_template);
+    free(_additional_string);
 
     return result;
 }
