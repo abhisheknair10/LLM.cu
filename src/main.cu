@@ -54,20 +54,38 @@ int main() {
     }
 
     CudaCache *Cache = init_cache(llama3_model);
-    // CLEAR_TERMINAL();
-    while (true) {
-        char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the largest ocean in the world?\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
-        /*
-        char *input_str = (char *)malloc(sizeof(char) * 2048);
-        fgets(input_str, 2048, stdin);
-        */
+    CLEAR_TERMINAL();
+    printf(WARN "Local LLaMA 3 (8B) Inference Engine\n" RESET);
+
+    while (true) {
+        // char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the largest ocean in the world?\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
+        const char *template = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n";
+        const char *additional_string = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
+        char user_input[2000];
+        printf(GREY "User: " RESET);
+        fgets(user_input, 2000, stdin);
+
+        size_t len = strlen(user_input);
+        if (len > 0 && user_input[len - 1] == '\n') {
+            user_input[len - 1] = '\0';
+        }
+
+        size_t total_length = strlen(template) + strlen(user_input) + strlen(additional_string) + 1;
+        char *result = (char *)malloc(total_length);
+
+        // Step 5: Concatenate the strings
+        strcpy(result, template);
+        strcat(result, user_input);
+        strcat(result, additional_string);
 
         int *tokens = tokenize(llama3_tokenizer, input_str);
         if (tokens == NULL) {
             printf("Error: Tokenization failed\n");
             return 1;
         }
+
+        printf(GREEN "Assistant: " RESET);
 
         Tensor *X = (Tensor *)malloc(sizeof(Tensor));
         int *d_tokens = tokens_to_cuda(tokens, 4096, X);
@@ -89,7 +107,7 @@ int main() {
         cudaFree(d_tokens);
 
         printf("\n\n");
-        break;
+        free(result);
     }
 
     // Free the model resources
