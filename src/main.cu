@@ -23,12 +23,12 @@ extern int h_NUM_TOKENS;
 
 char *construct_input_string() {
     // Define the _template and additional string
-    char *_template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
+    char *_template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions in detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
     char *_additional_string = strdup("\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
     // Collect user input
     char user_input[2000];
-    printf("User: ");
+    printf(GREY "User: " RESET);
     fgets(user_input, 2000, stdin);
 
     // Remove the newline character from user input, if present
@@ -54,6 +54,9 @@ char *construct_input_string() {
 
     free(_template);
     free(_additional_string);
+
+    printf("%s\n", result);
+    exit(1);
 
     return result;
 }
@@ -93,7 +96,7 @@ int main() {
     CudaCache *Cache = init_cache(llama3_model);
 
     CLEAR_TERMINAL();
-    printf(WARN "Local LLaMA 3 (8B) Inference Engine\n" RESET);
+    printf(GREEN "Local LLaMA 3 (8B) Inference Engine\n\n" RESET);
 
     while (true) {
         char *input_str = construct_input_string();
@@ -104,7 +107,7 @@ int main() {
             return 1;
         }
 
-        printf(GREEN "Assistant: " RESET);
+        printf(YELLOW "Assistant: " RESET);
 
         Tensor *X = (Tensor *)malloc(sizeof(Tensor));
         int *d_tokens = tokens_to_cuda(tokens, 4096, X);
