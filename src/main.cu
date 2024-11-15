@@ -21,6 +21,44 @@ const int MODEL_NUM_LAYERS = 32;
 
 extern int h_NUM_TOKENS;
 
+char *construct_input_string() {
+    // Define the template and additional string
+    char *template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
+    char *additional_string = strdup("\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
+
+    // Collect user input
+    char user_input[2000];
+    printf("User: ");
+    fgets(user_input, 2000, stdin);
+
+    // Remove the newline character from user input, if present
+    size_t len = strlen(user_input);
+    if (len > 0 && user_input[len - 1] == '\n') {
+        user_input[len - 1] = '\0';
+    }
+
+    // Calculate the total length for the resulting string
+    size_t total_length = strlen(template) + strlen(user_input) + strlen(additional_string) + 1;
+
+    // Allocate memory for the result and construct the final string
+    char *result = (char *)malloc(total_length);
+    if (!result) {
+        perror("Failed to allocate memory");
+        free(template);
+        free(additional_string);
+        return NULL;
+    }
+    strcpy(result, template);
+    strcat(result, user_input);
+    strcat(result, additional_string);
+
+    // Free the temporary strings
+    free(template);
+    free(additional_string);
+
+    return result;
+}
+
 int main() {
     // Initialize the Llama3 model
     Llama3 *llama3_model = init_llama3(MODEL_NUM_LAYERS);
@@ -59,27 +97,9 @@ int main() {
     printf(WARN "Local LLaMA 3 (8B) Inference Engine\n" RESET);
 
     while (true) {
-        // char *input_str = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the largest ocean in the world?\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
-        char *template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions with clarity and detail\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
-        char *additional_string = strdup("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
-        char user_input[2000];
-        printf(GREY "User: " RESET);
-        fgets(user_input, 2000, stdin);
+        char *input_str = construct_input_string();
 
-        size_t len = strlen(user_input);
-        if (len > 0 && user_input[len - 1] == '\n') {
-            user_input[len - 1] = '\0';
-        }
-
-        size_t total_length = strlen(template) + strlen(user_input) + strlen(additional_string) + 1;
-        char *result = (char *)malloc(total_length);
-
-        // Step 5: Concatenate the strings
-        strcpy(result, template);
-        strcat(result, user_input);
-        strcat(result, additional_string);
-
-        int *tokens = tokenize(llama3_tokenizer, result);
+        int *tokens = tokenize(llama3_tokenizer, input_str);
         if (tokens == NULL) {
             printf("Error: Tokenization failed\n");
             return 1;
