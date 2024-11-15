@@ -957,7 +957,7 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         128256 * sizeof(__half),
         cudaMemcpyDeviceToHost);
 
-    return sample_next_token(Cache->h_token_probdist[i]);
+    return sample_next_token(Cache->h_token_probdist);
 }
 
 int sample_next_token(__half *tensor) {
@@ -975,6 +975,6 @@ int sample_next_token(__half *tensor) {
 
     printf("Next token: %d\n", max);
     exit(1);
-    
+
     return 1;
 }
