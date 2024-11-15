@@ -88,7 +88,6 @@ Llama3Tokenizer *load_tokenizer() {
     cJSON_ArrayForEach(curr_element, added_tokens) {
         cJSON *id = cJSON_GetObjectItemCaseSensitive(curr_element, "id");
         cJSON *content = cJSON_GetObjectItemCaseSensitive(curr_element, "content");
-
         // printf("%d: %s\n", id->valueint, content->valuestring);
 
         _build_trie(llama3_tokenizer->root, content->valuestring, id->valueint);
