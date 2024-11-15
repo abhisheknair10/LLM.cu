@@ -58,6 +58,7 @@ make run
 ## Acknowledgments
 
 Publications and Research Papers Referenced:
+
 1. **Attention Is All You Need**
     [View Paper](https://arxiv.org/abs/1706.03762)
 
