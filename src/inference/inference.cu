@@ -23,9 +23,9 @@
 #define VOCAB_SIZE 128256
 
 // Sampling config
-#define TEMPERATURE 1.0
+#define TEMPERATURE 0.7
 #define TOP_K 50
-#define TOP_P 0.9f
+#define TOP_P 0.9
 
 const int MAX_THREADS_PER_BLOCK = 1024;
 

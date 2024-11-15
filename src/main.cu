@@ -55,9 +55,6 @@ char *construct_input_string() {
     free(_template);
     free(_additional_string);
 
-    printf("%s\n", result);
-    exit(1);
-
     return result;
 }
 
