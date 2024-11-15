@@ -418,9 +418,13 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);
 
 int sample_next_token(float *tensor, __half *half_tensor);
 
-ProbIndex *_temperature_softmax(float *tensor, __half *half_tensor, float temperature);
+ProbIndex *temperature_softmax(float *tensor, __half *half_tensor, float temperature);
 
 int _compare_desc(const void *a, const void *b);
+
+int top_k_sampling(ProbIndex *prob_dist_array, int k);
+
+int top_p_sampling(ProbIndex *prob_dist_array, float p);
 
 /* ************************************** Cuda Cache ************************************** */
 

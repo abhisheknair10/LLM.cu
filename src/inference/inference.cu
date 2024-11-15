@@ -950,12 +950,17 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
 }
 
 int sample_next_token(float *tensor, __half *half_tensor) {
-    ProbIndex *prob_dist_array = _temperature_softmax(tensor, half_tensor, TEMPERATURE);
-    exit(1);
-    return 1;
+    ProbIndex *prob_dist_array = temperature_softmax(tensor, half_tensor, TEMPERATURE);
+
+    int selected_token;
+    selected_token = top_k_sampling(prob_dist_array, TOP_K);
+    selected_token = top_p_sampling(prob_dist_array, TOP_P);
+
+    free(prob_dist_array);
+    return selected_token;
 }
 
-ProbIndex *_temperature_softmax(float *tensor, __half *half_tensor, float temperature) {
+ProbIndex *temperature_softmax(float *tensor, __half *half_tensor, float temperature) {
     ProbIndex *prob_dist_array = (ProbIndex *)malloc(VOCAB_SIZE * sizeof(ProbIndex));
 
     float cumsum = 0.0f;
@@ -994,4 +999,91 @@ int _compare_desc(const void *a, const void *b) {
     } else {
         return 0;
     }
+}
+
+int top_k_sampling(ProbIndex *prob_dist_array, int k) {
+    if (k <= 0) {
+        // Invalid k, fallback to random sampling
+        int random_index = rand() % VOCAB_SIZE;
+        return prob_dist_array[random_index].index;
+    }
+
+    if (k > VOCAB_SIZE) {
+        k = VOCAB_SIZE;
+    }
+
+    // Calculate the sum of the top k probabilities
+    float sum = 0.0f;
+    for (int i = 0; i < k; ++i) {
+        sum += prob_dist_array[i].probability;
+    }
+
+    // Renormalize the top k probabilities
+    for (int i = 0; i < k; ++i) {
+        prob_dist_array[i].probability /= sum;
+    }
+
+    // Generate a random float between 0 and 1
+    float rand_val = (float)rand() / (float)RAND_MAX;
+
+    // Select the token based on the cumulative probability
+    float cumulative = 0.0f;
+    for (int i = 0; i < k; ++i) {
+        cumulative += prob_dist_array[i].probability;
+        if (rand_val < cumulative) {
+            return prob_dist_array[i].index;
+        }
+    }
+
+    // Fallback in case of floating point precision issues
+    return prob_dist_array[0].index;
+}
+
+int top_p_sampling(ProbIndex *prob_dist_array, float p) {
+    if (p <= 0.0f) {
+        // Invalid p, fallback to random sampling
+        int random_index = rand() % VOCAB_SIZE;
+        return prob_dist_array[random_index].index;
+    }
+
+    if (p > 1.0f) {
+        p = 1.0f;
+    }
+
+    // Determine the cutoff where cumulative probability exceeds p
+    float cumulative = 0.0f;
+    int cutoff = 0;
+    for (; cutoff < VOCAB_SIZE; ++cutoff) {
+        cumulative += prob_dist_array[cutoff].probability;
+        if (cumulative >= p) {
+            break;
+        }
+    }
+
+    // Calculate the sum of probabilities up to the cutoff
+    float sum = cumulative;
+    if (cutoff >= VOCAB_SIZE) {
+        cutoff = VOCAB_SIZE - 1;
+        sum = cumulative;
+    }
+
+    // Renormalize the probabilities up to the cutoff
+    for (int i = 0; i <= cutoff; ++i) {
+        prob_dist_array[i].probability /= sum;
+    }
+
+    // Generate a random float between 0 and 1
+    float rand_val = (float)rand() / (float)RAND_MAX;
+
+    // Select the token based on the cumulative probability
+    cumulative = 0.0f;
+    for (int i = 0; i <= cutoff; ++i) {
+        cumulative += prob_dist_array[i].probability;
+        if (rand_val < cumulative) {
+            return prob_dist_array[i].index;
+        }
+    }
+
+    // Fallback in case of floating point precision issues
+    return prob_dist_array[0].index;
 }
