@@ -950,7 +950,7 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
 }
 
 int sample_next_token(float *tensor, __half *half_tensor) {
-    ProbIndex **prob_dist_array = _temperature_softmax(tensor, half_tensor, TEMPERATURE);
+    ProbIndex *prob_dist_array = _temperature_softmax(tensor, half_tensor, TEMPERATURE);
 
     return 1;
 }
