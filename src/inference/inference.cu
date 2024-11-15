@@ -964,7 +964,7 @@ int sample_next_token(__half *tensor) {
     int max = 0;
     float curr_max = 0.0f;
     for (int i = 0; i < 128256; ++i) {
-        float curr = __half2float(Cache->h_token_probdist[i]);
+        float curr = __half2float(tensor[i]);
         printf("%d: %f\n", i, curr);
 
         if (curr > curr_max) {
