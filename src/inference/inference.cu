@@ -956,7 +956,7 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
         cudaMemcpyDeviceToHost);
 
     for (int i = 0; i < 128256; ++i) {
-        printf("%d: %f\n", i, i, __half2float(Cache->h_token_probdist));
+        printf("%d: %f\n", i, i, __half2float(Cache->h_token_probdist[i]));
     }
 
     return 0;
