@@ -979,12 +979,6 @@ ProbIndex *temperature_softmax(float *tensor, __half *half_tensor, float tempera
     }
 
     qsort(prob_dist_array, VOCAB_SIZE, sizeof(ProbIndex), _compare_desc);
-
-    for (int i = 0; i < VOCAB_SIZE; ++i) {
-        printf("%d: %f\n", prob_dist_array[i].index, prob_dist_array[i].probability);
-    }
-    printf("\n");
-
     return prob_dist_array;
 }
 
