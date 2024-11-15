@@ -418,7 +418,7 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache);
 
 int sample_next_token(float *tensor, __half *half_tensor);
 
-void _temperature_softmax(float *tensor, __half *half_tensor, float temperature);
+ProbIndex *_temperature_softmax(float *tensor, __half *half_tensor, float temperature);
 
 int _compare_desc(const void *a, const void *b);
 
