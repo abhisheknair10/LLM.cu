@@ -79,7 +79,7 @@ int main() {
         strcat(result, user_input);
         strcat(result, additional_string);
 
-        int *tokens = tokenize(llama3_tokenizer, input_str);
+        int *tokens = tokenize(llama3_tokenizer, result);
         if (tokens == NULL) {
             printf("Error: Tokenization failed\n");
             return 1;
