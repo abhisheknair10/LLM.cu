@@ -1,6 +1,7 @@
 .idea/
 .vscode/
 .DS_Store
+.ropeproject/
 *.iml
 
 # dirs
