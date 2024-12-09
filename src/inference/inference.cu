@@ -438,6 +438,8 @@ __global__ void kernel_standard_tiled_gemm(
         if (col < n) {
             int T_idx = col * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
+
+            printf("T_idx: %d, threadIdx.x: %d, threadIdx.y: %d", T_idx, threadIdx.x, threadIdx.y);
         } else {
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
         }
