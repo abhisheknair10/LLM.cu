@@ -439,7 +439,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Load tile of Transform into shared memory
         if (col < n) {
-            int T_idx = col * k + t * tile_size + threadIdx.x;
+            int T_idx = col * k + t * tile_size + threadIdx.y;
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
 
             if (blockIdx.x == 0 && blockIdx.y == 0) {
@@ -453,7 +453,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[threadIdx.x * tile_size + i];
+            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
         }
         __syncthreads();
     }
