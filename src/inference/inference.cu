@@ -160,7 +160,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     printf("\n");
     exit(1);
     */
-    
+
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; ++i) {
@@ -427,7 +427,7 @@ __global__ void kernel_standard_tiled_gemm(
     float value = 0.0f;
     for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
         // Load tile of X into shared memory
-        if (row < m && (t * tile_size + threadIdx.x) < k) {
+        if (row < m) {
             int X_idx = row * k + t * tile_size + threadIdx.x;
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
         } else {
@@ -435,8 +435,8 @@ __global__ void kernel_standard_tiled_gemm(
         }
 
         // Load tile of Transform into shared memory
-        if (col < n && (t * tile_size + threadIdx.y) < k) {
-            int T_idx = col * k + t * tile_size + threadIdx.y;
+        if (col < n) {
+            int T_idx = col * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
         } else {
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
@@ -445,7 +445,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
+            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[threadIdx.x * tile_size + i];
         }
         __syncthreads();
     }
@@ -587,7 +587,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     - For K [tokens, 1024], transformed_embed_size = 512
       Block size: 256 threads
       Grid: 2 blocks (512 / 256 = 2) per token
-*/
+    */
 
     // Calculate the token index and embedding index
     int token_idx = blockIdx.y;
