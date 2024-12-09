@@ -421,18 +421,15 @@ __global__ void kernel_standard_tiled_gemm(
     float *T_shmem = shared_mem + tile_size * tile_size;
 
     int row = blockIdx.y * tile_size + threadIdx.y;
-    int col = blockIdx.x * tile_size + threadIdx.x;
+    int col = blockIdx.x * tile_size + threadIdx.y;
 
     // Loop over tiles
     float value = 0.0f;
     for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
         // Load tile of X into shared memory
         if (row < m) {
-            int X_idx = row * k + t * tile_size + threadIdx.x;
+            int X_idx = row * k + t * TILE_SIZE + threadIdx.x;
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
-            if (blockIdx.x == 0 && blockIdx.y == 0) {
-                printf("\nX_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", X_idx, threadIdx.x, threadIdx.y);
-            }
         } else {
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
         }
@@ -441,26 +438,21 @@ __global__ void kernel_standard_tiled_gemm(
         if (col < n) {
             int T_idx = col * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
-
-            if (blockIdx.x == 0 && blockIdx.y == 0) {
-                printf("\nT_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", T_idx, threadIdx.x, threadIdx.y);
-            }
         } else {
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
         }
         __syncthreads();
-        return;
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
+            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[threadIdx.x * tile_size + i];
         }
         __syncthreads();
     }
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[row * n + col] = __float2half(value);
+        O[row * n + (blockIdx.x * tile_size + threadIdx.x)] = __float2half(value);
     }
 
     return;
@@ -523,8 +515,6 @@ void compute_qkv_tensors(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
-
-    exit(1);
 
     // Key computation
     grid = dim3(
