@@ -439,11 +439,12 @@ __global__ void kernel_standard_tiled_gemm(
             int T_idx = col * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
 
-            printf("T_idx: %d, threadIdx.x: %d, threadIdx.y: %d", T_idx, threadIdx.x, threadIdx.y);
+            printf("\nT_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", T_idx, threadIdx.x, threadIdx.y);
         } else {
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
         }
         __syncthreads();
+        exit(1);
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
