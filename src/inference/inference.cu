@@ -431,7 +431,7 @@ __global__ void kernel_standard_tiled_gemm(
             int X_idx = row * k + t * tile_size + threadIdx.x;
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
             if (blockIdx.x == 0 && blockIdx.y == 0) {
-                printf("\nX_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", X_idx, threadIdx.x, threadIdx.y);
+                printf("\nX_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", X_idx / 4096, threadIdx.x, threadIdx.y);
             }
         } else {
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
@@ -443,7 +443,7 @@ __global__ void kernel_standard_tiled_gemm(
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
 
             if (blockIdx.x == 0 && blockIdx.y == 0) {
-                printf("\nT_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", T_idx, threadIdx.x, threadIdx.y);
+                printf("\nT_idx: %d, threadIdx.x: %d, threadIdx.y: %d\n", T_idx / 4096, threadIdx.x, threadIdx.y);
             }
         } else {
             T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
