@@ -442,7 +442,7 @@ __global__ void kernel_standard_tiled_gemm(
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
 
-            if (blockIdx.x == 0 && blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.y: %d\n", threadIdx.x, threadIdx.y);
+            if (blockIdx.x == 0 && blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.y: %d, Index: %d\n", threadIdx.x, threadIdx.y, T_idx);
         } else {
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
         }
