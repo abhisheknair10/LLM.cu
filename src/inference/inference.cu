@@ -147,7 +147,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
-/*
+
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -202,15 +202,15 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     cudaEventSynchronize(stop);
     time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
-    printf("Token Gen: %f ms\n", time1);
+    // printf("Token Gen: %f ms\n", time1);
 
-    exit(1);
+    // exit(1);
 
     // printCudaMemoryInfo();
 
     return output;
 }
-*/
+/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -351,7 +351,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     return output;
 }
-
+*/
 /* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     // Order threads into blocks
@@ -1119,8 +1119,8 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm_ffn_swiglu<<<grid, block, shared_mem_size>>>(
-        Cache->d_feedforward_cache_up, X->d_fp16_tensor, L3_Layer->mlp_up_proj->d_fp16_tensor,
-        L3_Layer->mlp_gate_proj->d_fp16_tensor,
+        Cache->d_feedforward_cache_up, X->d_fp16_tensor,
+        L3_Layer->mlp_up_proj->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
