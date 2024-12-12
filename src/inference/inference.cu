@@ -146,7 +146,6 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
-/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -196,8 +195,8 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     return output;
 }
-*/
 
+/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -338,6 +337,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     return output;
 }
+*/
 
 /* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
@@ -722,7 +722,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     - For K [tokens, 1024], transformed_embed_size = 512
       Block size: 256 threads
       Grid: 2 blocks (512 / 256 = 2) per token
-*/
+    */
 
     // Calculate the token index and embedding index
     int token_idx = blockIdx.y;
