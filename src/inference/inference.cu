@@ -572,10 +572,11 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Loop over tiles
     float value = 0.0f;
-    for (int t = 0; t < ((k + tile_size - 1) / tile_size); t += 2) {
+    int half2_k = (k + 1) / 2;
+    for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; t += 2) {
         // Load tile of X into shared memory
         if (row < m) {
-            int X_idx = row * k + t * tile_size + threadIdx.x;
+            int X_idx = row * half2_k + t * tile_size + threadIdx.x;
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = ((half2 *)X)[X_idx];
         } else {
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half2_rn(0.0f);
@@ -583,7 +584,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Load tile of Transform into shared memory
         if (col < n) {
-            int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
+            int T_idx = rowmaj_col_offset * half2_k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Transform)[T_idx];
         } else {
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2_rn(0.0f);
