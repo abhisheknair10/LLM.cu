@@ -654,7 +654,6 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Key computation
     grid = dim3(
@@ -664,7 +663,6 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Value computation
     grid = dim3(
@@ -681,7 +679,7 @@ void compute_qkv_tensors(
 
 void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
@@ -990,7 +988,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
@@ -1002,7 +1000,6 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Up projection computation
     grid = dim3(
@@ -1065,7 +1062,7 @@ __global__ void kernel_compute_swiglu(
 /* ********************************* Language Model Head ********************************* */
 int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
