@@ -146,20 +146,12 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
+/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
-
-    /*
-    printf("Token Count: %d\n", h_NUM_TOKENS);
-    for (int i = 1; i <= h_NUM_TOKENS; ++i) {
-        printf("%d, ", h_tokens[i]);
-    }
-    printf("\n");
-    exit(1);
-    */
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
@@ -197,6 +189,145 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     compute_layer_norm(llama3_model->norm, X);
 
     int output = compute_lm_head(llama3_model->lm_head, X, Cache);
+
+    CHECK_CUDA_ERROR();
+
+    // printCudaMemoryInfo();
+
+    return output;
+}
+*/
+
+int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
+    cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
+
+    // Set NUM_TOKENS value in device memory
+    h_NUM_TOKENS = h_tokens[0] - 1;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start, 0);
+    tokens_to_embeddings(X, llama3_model, d_tokens);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    float time1 = 0;
+    cudaEventElapsedTime(&time1, start, stop);
+    printf("Token embedding: %f ms\n", time1);
+
+    for (int i = 0; i < 1; ++i) {
+        // Pre-attention normalization
+        cudaEventRecord(start, 0);
+        _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("PreNorm Copy: %f ms\n", time1);
+
+        cudaEventRecord(start, 0);
+        compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Pre-Attention LayerNorm: %f ms\n", time1);
+
+        // Attention tensor computation
+        cudaEventRecord(start, 0);
+        compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("QKV Creation: %f ms\n", time1);
+
+        // RoPE scaling
+        cudaEventRecord(start, 0);
+        rope_scaling(Cache->Q, Cache->K);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("RoPE Scaling: %f ms\n", time1);
+
+        // Attention computation
+        cudaEventRecord(start, 0);
+        compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Attention: %f ms\n", time1);
+
+        // Output computation
+        cudaEventRecord(start, 0);
+        compute_output(llama3_model->layers[i], X, Cache);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Output: %f ms\n", time1);
+
+        // Add pre-normalized input
+        cudaEventRecord(start, 0);
+        add_norm(X, Cache->PN_X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Skip Connection: %f ms\n", time1);
+
+        // Post-attention normalization
+        cudaEventRecord(start, 0);
+        _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("PreNorm Copy: %f ms\n", time1);
+
+        cudaEventRecord(start, 0);
+        compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Post-Attention LayerNorm: %f ms\n", time1);
+
+        // Feedforward
+        cudaEventRecord(start, 0);
+        compute_feedforward(X, llama3_model->layers[i], Cache);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Feed Forward: %f ms\n", time1);
+
+        // Add pre-normalized input
+        cudaEventRecord(start, 0);
+        add_norm(X, Cache->PN_X);
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        float time1 = 0;
+        cudaEventElapsedTime(&time1, start, stop);
+        printf("Skip Connection: %f ms\n", time1);
+    }
+
+    compute_layer_norm(llama3_model->norm, X);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    float time1 = 0;
+    cudaEventElapsedTime(&time1, start, stop);
+    printf("Post-Decoder LayerNorm: %f ms\n", time1);
+
+    int output = compute_lm_head(llama3_model->lm_head, X, Cache);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    float time1 = 0;
+    cudaEventElapsedTime(&time1, start, stop);
+    printf("LM Head: %f ms\n", time1);
 
     CHECK_CUDA_ERROR();
 
@@ -440,15 +571,15 @@ __global__ void kernel_standard_tiled_gemm(
         if (col < n) {
             // int T_idx = col * k + t * tile_size + threadIdx.y;
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
         } else {
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
         }
         __syncthreads();
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[threadIdx.x * tile_size + i];
+            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
         }
         __syncthreads();
     }
