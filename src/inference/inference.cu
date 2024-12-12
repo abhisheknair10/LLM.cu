@@ -152,8 +152,6 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
 
-    cudaEventRecord(start, 0);
-
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; ++i) {
