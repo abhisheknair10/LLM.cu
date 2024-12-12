@@ -574,7 +574,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Loop over tiles
     float value = 0.0f;
-    for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
+    for (int t = 0; t < ((k + (tile_size * 2) - 1) / (tile_size * 2)); ++t) {
         // Load tile of X into shared memory
         if (row < m) {
             int X_idx = row * k + t * tile_size + threadIdx.x;
