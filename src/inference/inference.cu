@@ -145,7 +145,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
-
+/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -200,16 +200,16 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     cudaEventSynchronize(stop);
     time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
-    printf("Token Gen: %f ms\n", time1);
+    // printf("Token Gen: %f ms\n", time1);
 
-    exit(1);
+    // exit(1);
 
     // printCudaMemoryInfo();
 
     return output;
 }
+*/
 
-/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -350,7 +350,6 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     return output;
 }
-*/
 
 /* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
@@ -573,7 +572,7 @@ __global__ void kernel_standard_tiled_gemm(
     int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
 
     // Loop over tiles
-    __half value = __float2half(0.0f);
+    float value = 0.0f;
     int half2_k = (k + 1) / 2;
     for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; ++t) {
         // Load tile of X into shared memory
@@ -594,26 +593,15 @@ __global__ void kernel_standard_tiled_gemm(
         __syncthreads();
 
         for (int i = 0; i < tile_size; ++i) {
-            // value += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(T_shmem[i * tile_size + threadIdx.x]));
-            // value += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(T_shmem[i * tile_size + threadIdx.x]));
-
-            value = __hadd(
-                value,
-                __hmul(
-                    __low2half(X_shmem[threadIdx.y * tile_size + i]),
-                    __low2half(T_shmem[i * tile_size + threadIdx.x])));
-            value = __hadd(
-                value,
-                __hmul(
-                    __high2half(X_shmem[threadIdx.y * tile_size + i]),
-                    __high2half(T_shmem[i * tile_size + threadIdx.x])));
+            value += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(T_shmem[i * tile_size + threadIdx.x]));
+            value += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(T_shmem[i * tile_size + threadIdx.x]));
         }
         __syncthreads();
     }
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[row * n + col] = value;
+        O[row * n + col] = __float2half(value);
     }
 
     return;
@@ -647,8 +635,8 @@ __global__ void kernel_standard_tiled_gemm_ffn_swiglu(
     int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
 
     // Loop over tiles
-    __half value_up = __float2half(0.0f);
-    __half value_gate = __float2half(0.0f);
+    float value_up = 0.0f;
+    float value_gate = 0.0f;
     int half2_k = (k + 1) / 2;
     for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; ++t) {
         // Load tile of X into shared memory
@@ -672,32 +660,18 @@ __global__ void kernel_standard_tiled_gemm_ffn_swiglu(
         __syncthreads();
 
         for (int i = 0; i < tile_size; ++i) {
-            // value_up += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(Up_shmem[i * tile_size + threadIdx.x]));
-            // value_up += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(Up_shmem[i * tile_size + threadIdx.x]));
+            value_up += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(Up_shmem[i * tile_size + threadIdx.x]));
+            value_up += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(Up_shmem[i * tile_size + threadIdx.x]));
 
-            // value_gate += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(Gate_shmem[i * tile_size + threadIdx.x]));
-            // value_gate += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(Gate_shmem[i * tile_size + threadIdx.x]));
-
-            value_up += __hmul(
-                __low2half(X_shmem[threadIdx.y * tile_size + i]),
-                __low2half(Up_shmem[i * tile_size + threadIdx.x]));
-            value_up += __hmul(
-                __high2half(X_shmem[threadIdx.y * tile_size + i]),
-                __high2half(Up_shmem[i * tile_size + threadIdx.x]));
-
-            value_gate += __hmul(
-                __low2half(X_shmem[threadIdx.y * tile_size + i]),
-                __low2half(Gate_shmem[i * tile_size + threadIdx.x]));
-            value_gate += __hmul(
-                __high2half(X_shmem[threadIdx.y * tile_size + i]),
-                __high2half(Gate_shmem[i * tile_size + threadIdx.x]));
+            value_gate += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(Gate_shmem[i * tile_size + threadIdx.x]));
+            value_gate += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(Gate_shmem[i * tile_size + threadIdx.x]));
         }
         __syncthreads();
     }
 
     // Write the result to global memory
     if (row < m && col < n) {
-        O[row * n + col] = __hmul(SiLU(value_gate), value_up);
+        O[row * n + col] = __float2half(SiLU(value_gate) * value_up);
     }
 
     return;
