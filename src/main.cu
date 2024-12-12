@@ -23,7 +23,7 @@ extern int h_NUM_TOKENS;
 
 char *construct_input_string() {
     // Define the _template and additional string
-    char *_template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAs a helpful assistant, answer the user questions accurately\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
+    char *_template = strdup("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a knowledgeable, efficient, and direct Al assistant. Provide concise answers, focusing on the key information needed. Offer suggestions tactfully when appropriate to improve outcomes. Engage in productive collaboration with the user utilising multi-step reasoning to answer the question, if there are multiple questions in the initial question split them up and answer them in the order that will provide the most accurate response.\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n");
     char *_additional_string = strdup("\n<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
     // Collect user input
