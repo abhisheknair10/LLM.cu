@@ -4,7 +4,7 @@
   <img src="https://github.com/abhisheknair10/Llama3.cu/blob/main/inference.png" alt="inference" width="800">
 </div>
 
-## 
+##
 
 Llama3.cu is a CUDA native implementation of the LLaMA3 architecture for sequence to sequence language modeling. Core principles of the transformer architecture from the papers [Attention is All You Need](https://arxiv.org/abs/1706.03762) and [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) are implemented using custom CUDA kernel definitions, enabling scalable parallel processing on Nvidia GPUs.
 
@@ -13,6 +13,7 @@ The models are expected to be downloaded off of HuggingFace. They are stored as 
 ## Setup and Usage
 
 ### Minimum Requirements:
+
 ```bash
 - 24GB+ VRAM CUDA Device
 - HuggingFace account
@@ -21,6 +22,7 @@ The models are expected to be downloaded off of HuggingFace. They are stored as 
 ```
 
 ### Run Inference
+
 1. Run the **[setup-docker.sh](https://github.com/abhisheknair10/Llama3.cu/blob/main/setup-docker.sh)** file to setup your Virtual/Physical Machine to run Docker with access to Nvidia GPUs. Once the shell script has finished executing, make sure to log out of the terminal, and then log back in to run **[run-docker.sh](https://github.com/abhisheknair10/Llama3.cu/blob/main/run-docker.sh)**.
 
 ```bash
@@ -46,7 +48,7 @@ export HF_TOKEN=<your_token>
 4. Next, run the following command to download the model parameters into the target directory.
 
 ```bash
-huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct --local-dir ./model_weights/ --token $HF_TOKEN
+huggingface-cli download meta-llama/Llama-3.1-8B-Instruct --local-dir ./model_weights/ --token $HF_TOKEN
 ```
 
 5. Run Make 🎉.
