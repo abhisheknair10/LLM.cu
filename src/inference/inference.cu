@@ -592,6 +592,7 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Write the result to global memory
     if (row < m && col < n) {
+        if (blockIdx.x == 0 and blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.x: %d, T_idx: %d\n", threadIdx.x, threadIdx.y, row * n + col);
         O[row * n + col] = __float2half(value);
     }
 
@@ -655,6 +656,8 @@ void compute_qkv_tensors(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
+
+    exit(1);
 
     // Key computation
     grid = dim3(
