@@ -25,8 +25,7 @@ typedef struct {
 
     float *d_attention_score_cache;
 
-    __half *d_feedforward_cache_gate;
-    __half *d_feedforward_cache_up;
+    __half *d_feedforward_cache_upgate;
 
     __half *d_token_probdist;
     __half *h_token_probdist;

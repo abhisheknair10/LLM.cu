@@ -121,8 +121,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
     float *d_attention_score_cache = (float *)create_gmemcache(32 * 2048 * 2048, sizeof(float));
 
-    __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
-    __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
+    __half *d_feedforward_cache_upgate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
     __half *d_token_probdist = (__half *)create_gmemcache(VOCAB_SIZE, sizeof(__half));
     __half *h_token_probdist = (__half *)malloc(VOCAB_SIZE * sizeof(__half));
@@ -136,8 +135,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->V = V;
 
     Cache->d_attention_score_cache = d_attention_score_cache;
-    Cache->d_feedforward_cache_gate = d_feedforward_cache_gate;
-    Cache->d_feedforward_cache_up = d_feedforward_cache_up;
+    Cache->d_feedforward_cache_upgate = d_feedforward_cache_upgate;
 
     Cache->h_token_probdist = h_token_probdist;
     Cache->d_token_probdist = d_token_probdist;
@@ -1120,7 +1118,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm_ffn_swiglu<<<grid, block, shared_mem_size>>>(
-        Cache->d_feedforward_cache_up, X->d_fp16_tensor,
+        Cache->d_feedforward_cache_upgate, X->d_fp16_tensor,
         L3_Layer->mlp_up_proj->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
@@ -1132,7 +1130,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, Cache->d_feedforward_cache_up, L3_Layer->mlp_down_proj->d_fp16_tensor,
+        X->d_fp16_tensor, Cache->d_feedforward_cache_upgate, L3_Layer->mlp_down_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_down_proj->shape[0], L3_Layer->mlp_down_proj->shape[1], TILE_SIZE);
     cudaDeviceSynchronize();
 
