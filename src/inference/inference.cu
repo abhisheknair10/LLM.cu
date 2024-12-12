@@ -550,61 +550,66 @@ __global__ void kernel_add_norm(__half *X, __half *PN_X, int num_tokens) {
 }
 
 /* ***************************** General Matrix Multiplication **************************** */
+#include <cuda_fp16.h>
+
 __global__ void kernel_standard_tiled_gemm(
     __half *O, __half *X, __half *Transform, int m, int n, int k, int tile_size) {
     /*
-        - m represents the independent dimension of the input matrix
-        - n represents the independent dimenion of the transformation matrix
-        - k represents the common dimension of the 2 matrices
-        - Within each kernel, the output is computed as: O = matmul(X, Transform)
-        - Transposing the transformation tensor is not required as virtual indexing allows
-          for intended navigation along rows and columns of either tensors
-        - Order of variables within kernels obey order of computation
+        - m: number of rows in X and O
+        - n: number of columns in Transform and O
+        - k: number of columns in X and rows in Transform
+        - O = X * Transform
+        - Both X and Transform are stored in row-major order
     */
-    // Kernel start
-    //
-    extern __shared__ float shared_mem[];
-    float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + tile_size * (tile_size + 1);
 
+    // Calculate thread's row and column within the grid
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
 
-    int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
+    // Allocate shared memory with padding to avoid bank conflicts
+    extern __shared__ __half shared_mem[];
+    __half *X_shmem = shared_mem;
+    __half *T_shmem = shared_mem + tile_size * (tile_size + 1);  // Adding padding
 
-    // Loop over tiles
-    float value = 0.0f;
+    // Initialize the accumulation variable in FP16
+    __half value = __float2half(0.0f);
+
+    // Loop over all tiles in the k dimension
     for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
         // Load tile of X into shared memory
-        if (row < m) {
+        if (row < m && (t * tile_size + threadIdx.x) < k) {
             int X_idx = row * k + t * tile_size + threadIdx.x;
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = X[X_idx];
         } else {
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half(0.0f);
         }
 
-        // Load tile of Transform into shared memory
-        if (col < n) {
-            int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
+        // Load tile of Transform into shared memory with padding to avoid bank conflicts
+        if (col < n && (t * tile_size + threadIdx.y) < k) {
+            int T_idx = (t * tile_size + threadIdx.y) * n + col;
+            T_shmem[threadIdx.y * tile_size + threadIdx.x] = Transform[T_idx];
         } else {
-            T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
+            T_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half(0.0f);
         }
+
+        // Synchronize to ensure all data is loaded
         __syncthreads();
 
 #pragma unroll
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
+            __half a = X_shmem[threadIdx.y * tile_size + i];
+            __half b = T_shmem[i * tile_size + threadIdx.x];
+            value = __hadd(value, __hmul(a, b));
         }
+
+        // Synchronize before loading the next tile
         __syncthreads();
     }
 
-    // Write the result to global memory
+    // Write the computed value to the output matrix
     if (row < m && col < n) {
-        O[row * n + col] = __float2half(value);
+        O[row * n + col] = value;
     }
-
-    return;
 }
 
 /* ***************************** Attention Tensor Computation **************************** */
@@ -651,7 +656,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * (TILE_SIZE + 1) * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * (TILE_SIZE + 1) * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
