@@ -573,7 +573,7 @@ __global__ void kernel_standard_tiled_gemm(
         if (col < n) {
             // int T_idx = col * k + t * tile_size + threadIdx.y;
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.yx * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
 
             // if (blockIdx.x == 0 and blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.x: %d, T_idx: %d\n", threadIdx.x, threadIdx.y, T_idx);
         } else {
