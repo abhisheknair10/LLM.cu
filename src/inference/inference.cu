@@ -567,9 +567,9 @@ __global__ void kernel_standard_tiled_gemm(
     int col = blockIdx.x * tile_size + threadIdx.x;
 
     // Allocate shared memory with padding to avoid bank conflicts
-    extern __shared__ __half shared_mem[];
-    __half *X_shmem = shared_mem;
-    __half *T_shmem = shared_mem + tile_size * (tile_size + 1);  // Adding padding
+    extern __shared__ __half _shared_mem[];
+    __half *X_shmem = _shared_mem;
+    __half *T_shmem = _shared_mem + tile_size * (tile_size + 1);  // Adding padding
 
     // Initialize the accumulation variable in FP16
     __half value = __float2half(0.0f);
