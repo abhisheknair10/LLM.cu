@@ -565,7 +565,7 @@ __global__ void kernel_standard_tiled_gemm(
     //
     extern __shared__ float shared_mem[];
     float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + tile_size * tile_size;
+    float *T_shmem = shared_mem + tile_size * (tile_size + 1);
 
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
@@ -590,8 +590,6 @@ __global__ void kernel_standard_tiled_gemm(
         } else {
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
         }
-
-        // return;
         __syncthreads();
 
         // Compute partial sums
