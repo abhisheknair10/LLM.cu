@@ -580,7 +580,7 @@ __global__ void kernel_standard_tiled_gemm(
             int X_idx = row * k + t * tile_size + threadIdx.x;
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = ((half2 *)X)[(int)(X_idx / 2)];
         } else {
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half2(0.0f);
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half2_rn(0.0f);
         }
 
         // Load tile of Transform into shared memory
@@ -588,7 +588,7 @@ __global__ void kernel_standard_tiled_gemm(
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Transform)[(int)(T_idx / 2)];
         } else {
-            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2(0.0f);
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2_rn(0.0f);
         }
         __syncthreads();
 
