@@ -592,7 +592,7 @@ __global__ void kernel_standard_tiled_gemm(
         }
         __syncthreads();
 
-        // Compute partial sums
+#pragma unroll
         for (int i = 0; i < tile_size; ++i) {
             value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
         }
