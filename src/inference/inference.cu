@@ -563,9 +563,9 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    extern __shared__ float shared_mem[];
-    float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + tile_size * tile_size;
+    extern __shared__ half2 _shared_mem[];
+    half2 *X_shmem = _shared_mem;
+    half2 *T_shmem = _shared_mem + tile_size * tile_size;
 
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
@@ -578,7 +578,7 @@ __global__ void kernel_standard_tiled_gemm(
         // Load tile of X into shared memory
         if (row < m) {
             int X_idx = row * k + t * tile_size + threadIdx.x;
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = ((half2 *)X)[(int)(X_idx / 2)];
         } else {
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
         }
@@ -586,14 +586,15 @@ __global__ void kernel_standard_tiled_gemm(
         // Load tile of Transform into shared memory
         if (col < n) {
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Transform)[(int)(T_idx / 2)];
         } else {
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
         }
         __syncthreads();
 
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
+            value += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(T_shmem[i * tile_size + threadIdx.x]));
+            value += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(T_shmem[i * tile_size + threadIdx.x]));
         }
         __syncthreads();
     }
