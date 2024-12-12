@@ -37,7 +37,7 @@ chmod +x run-docker.sh
 ./run-docker.sh
 ```
 
-2. For this inference engine to work, a SafeTensor formatted file(s) of the Llama3-8b model needs to be stored in the ./model_weights/ folder. Head to the [HuggingFace - meta-llama/Meta-Llama-3-8B](https://huggingface.co/meta-llama/Meta-Llama-3-8B?text=My+name+is+Julien+and+I+like+to) repo to get access to the model. Additionally, [Generate a Hugging Face Token](https://huggingface.co/settings/tokens) so that the next step can successfully download the weights files.
+2. For this inference engine to work, a SafeTensor formatted file(s) of the Llama3-8b model needs to be stored in the ./model_weights/ folder. Head to the [HuggingFace - meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) repo to get access to the model. Additionally, [Generate a Hugging Face Token](https://huggingface.co/settings/tokens) so that the next step can successfully download the weights files.
 
 3. Once the Docker container has started up, run the following command to store the Hugging Face token as an environment variable, replacing **<your_token>** with the token you generated.
 

@@ -20,7 +20,7 @@
         }                                                        \
     }
 
-#define TILE_SIZE 16
+#define TILE_SIZE 32
 #define VOCAB_SIZE 128256
 
 // Sampling config
