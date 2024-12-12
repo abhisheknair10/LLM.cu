@@ -207,12 +207,13 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
+    float time1 = 0;
 
     cudaEventRecord(start, 0);
     tokens_to_embeddings(X, llama3_model, d_tokens);
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
-    float time1 = 0;
+    time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
     printf("Token embedding: %f ms\n", time1);
 
@@ -222,7 +223,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("PreNorm Copy: %f ms\n", time1);
 
@@ -230,7 +231,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_layer_norm(llama3_model->layers[i]->input_layernorm, X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Pre-Attention LayerNorm: %f ms\n", time1);
 
@@ -239,7 +240,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_qkv_tensors(Cache->Q, Cache->K, Cache->V, llama3_model->layers[i], X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("QKV Creation: %f ms\n", time1);
 
@@ -248,7 +249,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         rope_scaling(Cache->Q, Cache->K);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("RoPE Scaling: %f ms\n", time1);
 
@@ -257,7 +258,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_attention(X, Cache->Q, Cache->K, Cache->V, Cache);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Attention: %f ms\n", time1);
 
@@ -266,7 +267,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_output(llama3_model->layers[i], X, Cache);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Output: %f ms\n", time1);
 
@@ -275,7 +276,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         add_norm(X, Cache->PN_X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Skip Connection: %f ms\n", time1);
 
@@ -284,7 +285,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         _deviceMemcpy_fp16_tensor(Cache->PN_X, X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("PreNorm Copy: %f ms\n", time1);
 
@@ -292,7 +293,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_layer_norm(llama3_model->layers[i]->post_attention_layernorm, X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Post-Attention LayerNorm: %f ms\n", time1);
 
@@ -301,7 +302,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         compute_feedforward(X, llama3_model->layers[i], Cache);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Feed Forward: %f ms\n", time1);
 
@@ -310,7 +311,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
         add_norm(X, Cache->PN_X);
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
-        float time1 = 0;
+        time1 = 0;
         cudaEventElapsedTime(&time1, start, stop);
         printf("Skip Connection: %f ms\n", time1);
     }
@@ -318,14 +319,14 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     compute_layer_norm(llama3_model->norm, X);
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
-    float time1 = 0;
+    time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
     printf("Post-Decoder LayerNorm: %f ms\n", time1);
 
     int output = compute_lm_head(llama3_model->lm_head, X, Cache);
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
-    float time1 = 0;
+    time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
     printf("LM Head: %f ms\n", time1);
 
