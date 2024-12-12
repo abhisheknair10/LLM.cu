@@ -573,11 +573,11 @@ __global__ void kernel_standard_tiled_gemm(
         if (col < n) {
             // int T_idx = col * k + t * tile_size + threadIdx.y;
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.yx * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
 
             // if (blockIdx.x == 0 and blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.x: %d, T_idx: %d\n", threadIdx.x, threadIdx.y, T_idx);
         } else {
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
         }
 
         // return;
@@ -585,7 +585,7 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[threadIdx.x * tile_size + i];
+            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
         }
         __syncthreads();
     }
