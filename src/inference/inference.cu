@@ -1,7 +1,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <math.h>
-#include <mma.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,8 +8,6 @@
 
 #include "inference.cuh"
 #include "llama3/llama3.cuh"
-
-using namespace nvcuda::wmma;
 
 #define CHECK_CUDA_ERROR()                                       \
     {                                                            \
@@ -26,11 +23,11 @@ using namespace nvcuda::wmma;
 #define VOCAB_SIZE 128256
 
 // Sampling config
-#define TEMPERATURE 0.5f
+#define TEMPERATURE 0.7f
 #define TOP_K 50
 #define TOP_P 0.9f
 
-const int MAX_THREADS_PER_BLOCK = 1024;
+const int MAX_THREADS_PER_BLOCK = 512;
 
 int h_NUM_TOKENS;
 
@@ -149,7 +146,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
-
+/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -212,8 +209,8 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     return output;
 }
+*/
 
-/*
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
@@ -354,7 +351,7 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     return output;
 }
-*/
+
 /* ************************** Convert Tokens to Embeddings ************************** */
 void tokens_to_embeddings(Tensor *X, Llama3 *llama3_model, int *d_tokens) {
     // Order threads into blocks
@@ -575,9 +572,6 @@ __global__ void kernel_standard_tiled_gemm(
 
     int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
 
-    fragment<accumulator, TILE_SIZE, TILE_SIZE, TILE_SIZE, float> C;
-    fill_fragment(C, 0.0f);
-
     // Loop over tiles
     float value = 0.0f;
     for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
@@ -598,30 +592,14 @@ __global__ void kernel_standard_tiled_gemm(
         }
         __syncthreads();
 
-        fragment<matrix_a, TILE_SIZE, TILE_SIZE, TILE_SIZE, half, row_major> A;
-        fragment<matrix_b, TILE_SIZE, TILE_SIZE, TILE_SIZE, half, row_major> B;
-
-        load_matrix_sync(A, X_shmem, TILE_SIZE);
-        load_matrix_sync(B, T_shmem, TILE_SIZE);
-
-        // Perform matrix multiplication using Tensor Cores
-        mma_sync(C, A, B, C);
-        /*
-
         for (int i = 0; i < tile_size; ++i) {
             value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
         }
-        */
         __syncthreads();
     }
 
     // Write the result to global memory
     if (row < m && col < n) {
-        // Store the result from the accumulator fragment to the output matrix
-        float acc = 0.0f;
-        for (int i = 0; i < C.num_elements; ++i) {
-            acc += C.x[i];
-        }
         O[row * n + col] = __float2half(value);
     }
 
