@@ -27,7 +27,7 @@
 #define TOP_K 50
 #define TOP_P 0.9f
 
-const int MAX_THREADS_PER_BLOCK = 512;
+const int MAX_THREADS_PER_BLOCK = 1024;
 
 int h_NUM_TOKENS;
 
