@@ -549,9 +549,9 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    extern __shared__ float shared_mem[];
-    float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + tile_size * tile_size;
+    extern __shared__ __half _shared_mem[];
+    __half *X_shmem = _shared_mem;
+    __half *T_shmem = _shared_mem + tile_size * tile_size;
 
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
@@ -564,7 +564,7 @@ __global__ void kernel_standard_tiled_gemm(
         // Load tile of X into shared memory
         if (row < m) {
             int X_idx = row * k + t * tile_size + threadIdx.x;
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = X[X_idx];
         } else {
             X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
         }
@@ -573,7 +573,7 @@ __global__ void kernel_standard_tiled_gemm(
         if (col < n) {
             // int T_idx = col * k + t * tile_size + threadIdx.y;
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = Transform[T_idx];
 
             // if (blockIdx.x == 0 and blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.x: %d, T_idx: %d\n", threadIdx.x, threadIdx.y, T_idx);
         } else {
@@ -585,14 +585,13 @@ __global__ void kernel_standard_tiled_gemm(
 
         // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
+            value += __half2float(X_shmem[threadIdx.y * tile_size + i]) * __half2float(T_shmem[i * tile_size + threadIdx.x]);
         }
         __syncthreads();
     }
 
     // Write the result to global memory
     if (row < m && col < n) {
-        if (blockIdx.x == 0 and blockIdx.y == 0) printf("threadIdx.x: %d, threadIdx.x: %d, T_idx: %d\n", threadIdx.x, threadIdx.y, row * n + col);
         O[row * n + col] = __float2half(value);
     }
 
@@ -643,7 +642,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
