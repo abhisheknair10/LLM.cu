@@ -19,7 +19,7 @@
         }                                                        \
     }
 
-#define TILE_SIZE 16
+#define TILE_SIZE 24
 #define VOCAB_SIZE 128256
 
 // Sampling config
@@ -563,8 +563,9 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    __shared__ float X_shmem[TILE_SIZE * TILE_SIZE];
-    __shared__ float T_shmem[TILE_SIZE * (TILE_SIZE + 1)];
+    extern __shared__ float shared_mem[];
+    float *X_shmem = shared_mem;
+    float *T_shmem = shared_mem + tile_size * tile_size;
 
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
@@ -658,7 +659,7 @@ void compute_qkv_tensors(
         (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
 
@@ -667,7 +668,7 @@ void compute_qkv_tensors(
         (L3_Layer->self_attn_k_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
 
@@ -676,7 +677,7 @@ void compute_qkv_tensors(
         (L3_Layer->self_attn_v_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         V->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_v_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
@@ -696,7 +697,7 @@ void compute_output(Llama3Layer *L3_Layer, Tensor *X, CudaCache *Cache) {
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
     _deviceMemcpy_fp16_tensor(Cache->Q, X);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->Q->d_fp16_tensor, L3_Layer->self_attn_o_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_o_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
@@ -1004,7 +1005,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (L3_Layer->mlp_gate_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
 
@@ -1013,7 +1014,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (L3_Layer->mlp_up_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_up, X->d_fp16_tensor, L3_Layer->mlp_up_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_up_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
@@ -1033,7 +1034,7 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (L3_Layer->mlp_down_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->d_feedforward_cache_up, L3_Layer->mlp_down_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_down_proj->shape[0], L3_Layer->mlp_down_proj->shape[1], TILE_SIZE);
     cudaDeviceSynchronize();
@@ -1080,7 +1081,7 @@ int compute_lm_head(Tensor *LM_Head, Tensor *X, CudaCache *Cache) {
 
     __half *last_tensor = X->d_fp16_tensor + ((h_NUM_TOKENS - 1) * 4096);
 
-    kernel_standard_tiled_gemm<<<grid, block>>>(
+    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_token_probdist, last_tensor, LM_Head->d_fp16_tensor,
         1, LM_Head->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
