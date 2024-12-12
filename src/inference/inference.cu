@@ -752,6 +752,7 @@ void compute_qkv_tensors(
         L3_Layer->self_attn_v_proj->d_fp16_tensor, h_NUM_TOKENS,
         L3_Layer->self_attn_q_proj->shape[0], L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
+    CHECK_CUDA_ERROR();
 
     /*
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
