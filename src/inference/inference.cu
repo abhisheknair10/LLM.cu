@@ -200,9 +200,9 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     cudaEventSynchronize(stop);
     time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
-    // printf("Token Gen: %f ms\n", time1);
+    printf("Token Gen: %f ms\n", time1);
 
-    // exit(1);
+    exit(1);
 
     // printCudaMemoryInfo();
 
