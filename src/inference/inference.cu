@@ -561,9 +561,9 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    extern __shared__ float _shared_mem[];
-    float *X_shmem = _shared_mem;
-    float *T_shmem = _shared_mem + tile_size * tile_size;
+    extern __shared__ half2 _shared_mem[];
+    half2 *X_shmem = _shared_mem;
+    half2 *T_shmem = _shared_mem + tile_size * tile_size;
 
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
@@ -572,26 +572,27 @@ __global__ void kernel_standard_tiled_gemm(
 
     // Loop over tiles
     float value = 0.0f;
-    for (int t = 0; t < ((k + (tile_size * 1) - 1) / (tile_size * 1)); ++t) {
+    for (int t = 0; t < ((k + tile_size - 1) / tile_size); t += 2) {
         // Load tile of X into shared memory
         if (row < m) {
             int X_idx = row * k + t * tile_size + threadIdx.x;
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = ((half2 *)X)[X_idx];
         } else {
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half2_rn(0.0f);
         }
 
         // Load tile of Transform into shared memory
         if (col < n) {
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Transform)[T_idx];
         } else {
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2_rn(0.0f);
         }
         __syncthreads();
 
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[threadIdx.x * tile_size + i];
+            value += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(T_shmem[i * tile_size + threadIdx.x]));
+            value += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(T_shmem[i * tile_size + threadIdx.x]));
         }
         __syncthreads();
     }
