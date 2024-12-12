@@ -656,8 +656,6 @@ void compute_qkv_tensors(
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    exit(1);
-
     // Key computation
     grid = dim3(
         (L3_Layer->self_attn_k_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
