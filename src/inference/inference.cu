@@ -574,9 +574,15 @@ __global__ void kernel_standard_tiled_gemm(
             // int T_idx = col * k + t * tile_size + threadIdx.y;
             int T_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = __half2float(Transform[T_idx]);
+
+            if (blockIdx.x == 0 and blockIdx.y == 0) {
+                printf("threadIdx.x: %d, threadIdx.x: %d, T_idx: %d\n", threadIdx.x, threadIdx.y, T_idx);
+            }
         } else {
             T_shmem[threadIdx.x * tile_size + threadIdx.y] = 0.0f;
         }
+
+        return;
         __syncthreads();
 
         // Compute partial sums
@@ -650,6 +656,9 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
+
+    exit(1);
 
     // Key computation
     grid = dim3(
@@ -659,6 +668,7 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
+    cudaDeviceSynchronize();
 
     // Value computation
     grid = dim3(
