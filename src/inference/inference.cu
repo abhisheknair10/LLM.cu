@@ -1,5 +1,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,11 +20,11 @@
         }                                                        \
     }
 
-#define TILE_SIZE 32
+#define TILE_SIZE 16
 #define VOCAB_SIZE 128256
 
 // Sampling config
-#define TEMPERATURE 0.5f
+#define TEMPERATURE 0.7f
 #define TOP_K 50
 #define TOP_P 0.9f
 
@@ -120,8 +121,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 
     float *d_attention_score_cache = (float *)create_gmemcache(32 * 2048 * 2048, sizeof(float));
 
-    __half *d_feedforward_cache_gate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
-    __half *d_feedforward_cache_up = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
+    __half *d_feedforward_cache_upgate = (__half *)create_gmemcache(2048 * 14336, sizeof(__half));
 
     __half *d_token_probdist = (__half *)create_gmemcache(VOCAB_SIZE, sizeof(__half));
     __half *h_token_probdist = (__half *)malloc(VOCAB_SIZE * sizeof(__half));
@@ -135,8 +135,7 @@ CudaCache *init_cache(Llama3 *llama3_model) {
     Cache->V = V;
 
     Cache->d_attention_score_cache = d_attention_score_cache;
-    Cache->d_feedforward_cache_gate = d_feedforward_cache_gate;
-    Cache->d_feedforward_cache_up = d_feedforward_cache_up;
+    Cache->d_feedforward_cache_upgate = d_feedforward_cache_upgate;
 
     Cache->h_token_probdist = h_token_probdist;
     Cache->d_token_probdist = d_token_probdist;
@@ -146,21 +145,13 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
+
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
 
-    /*
-    printf("Token Count: %d\n", h_NUM_TOKENS);
-    for (int i = 1; i <= h_NUM_TOKENS; ++i) {
-        printf("%d, ", h_tokens[i]);
-    }
-    printf("\n");
-    exit(1);
-    */
-    
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
     for (int i = 0; i < llama3_model->n_layers; ++i) {
@@ -197,10 +188,6 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     compute_layer_norm(llama3_model->norm, X);
 
     int output = compute_lm_head(llama3_model->lm_head, X, Cache);
-
-    CHECK_CUDA_ERROR();
-
-    // printCudaMemoryInfo();
 
     return output;
 }
@@ -416,36 +403,39 @@ __global__ void kernel_standard_tiled_gemm(
     */
     // Kernel start
     //
-    extern __shared__ float shared_mem[];
-    float *X_shmem = shared_mem;
-    float *T_shmem = shared_mem + tile_size * tile_size;
+    extern __shared__ half2 _shared_mem[];
+    half2 *X_shmem = _shared_mem;
+    half2 *T_shmem = _shared_mem + tile_size * tile_size;
 
     int row = blockIdx.y * tile_size + threadIdx.y;
     int col = blockIdx.x * tile_size + threadIdx.x;
 
+    int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
+
     // Loop over tiles
     float value = 0.0f;
-    for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
+    int half2_k = (k + 1) / 2;
+    for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; ++t) {
         // Load tile of X into shared memory
-        if (row < m && (t * tile_size + threadIdx.x) < k) {
-            int X_idx = row * k + t * tile_size + threadIdx.x;
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(X[X_idx]);
+        if (row < m) {
+            int X_idx = row * half2_k + t * tile_size + threadIdx.x;
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = ((half2 *)X)[X_idx];
         } else {
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half2_rn(0.0f);
         }
 
         // Load tile of Transform into shared memory
-        if (col < n && (t * tile_size + threadIdx.y) < k) {
-            int T_idx = col * k + t * tile_size + threadIdx.y;
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = __half2float(Transform[T_idx]);
+        if (col < n) {
+            int T_idx = rowmaj_col_offset * half2_k + t * tile_size + threadIdx.x;
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Transform)[T_idx];
         } else {
-            T_shmem[threadIdx.y * tile_size + threadIdx.x] = 0.0f;
+            T_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2_rn(0.0f);
         }
         __syncthreads();
 
-        // Compute partial sums
         for (int i = 0; i < tile_size; ++i) {
-            value += X_shmem[threadIdx.y * tile_size + i] * T_shmem[i * tile_size + threadIdx.x];
+            value += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(T_shmem[i * tile_size + threadIdx.x]));
+            value += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(T_shmem[i * tile_size + threadIdx.x]));
         }
         __syncthreads();
     }
@@ -453,6 +443,76 @@ __global__ void kernel_standard_tiled_gemm(
     // Write the result to global memory
     if (row < m && col < n) {
         O[row * n + col] = __float2half(value);
+    }
+
+    return;
+}
+
+__device__ float SiLU(float x) {
+    return x / (1 + expf(-x));
+}
+
+__global__ void kernel_standard_tiled_gemm_ffn_swiglu(
+    __half *O, __half *X, __half *Wup, __half *Wgate, int m, int n, int k, int tile_size) {
+    /*
+        - m represents the independent dimension of the input matrix
+        - n represents the independent dimenion of the transformation matrix
+        - k represents the common dimension of the 2 matrices
+        - Within each kernel, the output is computed as: O = matmul(X, Transform)
+        - Transposing the transformation tensor is not required as virtual indexing allows
+          for intended navigation along rows and columns of either tensors
+        - Order of variables within kernels obey order of computation
+    */
+    // Kernel start
+    //
+    extern __shared__ half2 _shared_mem[];
+    half2 *X_shmem = _shared_mem;
+    half2 *Up_shmem = _shared_mem + tile_size * tile_size;
+    half2 *Gate_shmem = _shared_mem + 2 * tile_size * tile_size;
+
+    int row = blockIdx.y * tile_size + threadIdx.y;
+    int col = blockIdx.x * tile_size + threadIdx.x;
+
+    int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
+
+    // Loop over tiles
+    float value_up = 0.0f;
+    float value_gate = 0.0f;
+    int half2_k = (k + 1) / 2;
+    for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; ++t) {
+        // Load tile of X into shared memory
+        if (row < m) {
+            int X_idx = row * half2_k + t * tile_size + threadIdx.x;
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = ((half2 *)X)[X_idx];
+        } else {
+            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half2_rn(0.0f);
+        }
+
+        // Load tile of Transform into shared memory
+        if (col < n) {
+            int T_idx = rowmaj_col_offset * half2_k + t * tile_size + threadIdx.x;
+
+            Up_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Wup)[T_idx];
+            Gate_shmem[threadIdx.x * tile_size + threadIdx.y] = ((half2 *)Wgate)[T_idx];
+        } else {
+            Up_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2_rn(0.0f);
+            Gate_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half2_rn(0.0f);
+        }
+        __syncthreads();
+
+        for (int i = 0; i < tile_size; ++i) {
+            value_up += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(Up_shmem[i * tile_size + threadIdx.x]));
+            value_up += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(Up_shmem[i * tile_size + threadIdx.x]));
+
+            value_gate += __half2float(__low2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__low2half(Gate_shmem[i * tile_size + threadIdx.x]));
+            value_gate += __half2float(__high2half(X_shmem[threadIdx.y * tile_size + i])) * __half2float(__high2half(Gate_shmem[i * tile_size + threadIdx.x]));
+        }
+        __syncthreads();
+    }
+
+    // Write the result to global memory
+    if (row < m && col < n) {
+        O[row * n + col] = __float2half(SiLU(value_gate) * value_up);
     }
 
     return;
@@ -502,7 +562,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 2 * TILE_SIZE * (TILE_SIZE + 1) * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
@@ -514,13 +574,11 @@ void compute_qkv_tensors(
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
 
     // Key computation
     grid = dim3(
         (L3_Layer->self_attn_k_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
-    cudaDeviceSynchronize();
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         K->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
@@ -587,7 +645,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     - For K [tokens, 1024], transformed_embed_size = 512
       Block size: 256 threads
       Grid: 2 blocks (512 / 256 = 2) per token
-*/
+    */
 
     // Calculate the token index and embedding index
     int token_idx = blockIdx.y;
@@ -612,7 +670,7 @@ __global__ void kernel_rope_scaling(__half *tensor, int transformed_embed_size, 
     float odd = __half2float(h_odd);
 
     // Frequency calculation with floating-point division
-    float freq = 1.0f / powf((float)(500000), 2.0f * (float)(embed_idx % 64) / (128.0f));
+    float freq = 1.0f / powf((500000.0f, 2.0f * (float)(embed_idx % 64) / (128.0f));
     float angle = (float)token_idx * freq;
 
     // Compute cosine and sine components
@@ -741,16 +799,54 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     if (head_idx >= 32) return;
 
     int token_idx_x;
-    float exp_sum = 0.0f;
+    float max_val = -FLT_MAX;
 
-    // Load relevant attention scores and apply masking
     for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
         token_idx_x = i * blockDim.x + threadIdx.x;
 
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
-                vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
-                exp_sum += expf(vec[token_idx_x]);
+                float score = attention_scores[(head_idx * num_tokens * num_tokens) +
+                                               (token_idx_y * num_tokens) +
+                                               token_idx_x];
+                vec[token_idx_x] = score;
+
+                if (score > max_val) {
+                    max_val = score;
+                }
+            } else {
+                vec[token_idx_x] = -FLT_MAX;
+            }
+        } else {
+            vec[token_idx_x] = -FLT_MAX;
+        }
+        __syncthreads();
+    }
+
+    buffer[threadIdx.x] = max_val;
+    __syncthreads();
+
+    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {
+        if (threadIdx.x < offset) {
+            buffer[threadIdx.x] = fmaxf(buffer[threadIdx.x], buffer[threadIdx.x + offset]);
+        }
+        __syncthreads();
+    }
+
+    float global_max = buffer[0];
+    __syncthreads();
+
+    float exp_sum = 0.0f;
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
+        token_idx_x = i * blockDim.x + threadIdx.x;
+
+        if (token_idx_x < num_tokens) {
+            if (token_idx_x <= token_idx_y) {
+                // Subtract the maximum value for numerical stability
+                float stabilized_score = vec[token_idx_x] - global_max;
+                float exp_score = expf(stabilized_score);
+                vec[token_idx_x] = exp_score;
+                exp_sum += exp_score;
             } else {
                 vec[token_idx_x] = 0.0f;
             }
@@ -760,11 +856,10 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
         __syncthreads();
     }
 
-    // Reduction to compute softmax denominator
     buffer[threadIdx.x] = exp_sum;
     __syncthreads();
 
-    for (int offset = 512; offset > 0; offset /= 2) {
+    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {
         if (threadIdx.x < offset) {
             buffer[threadIdx.x] += buffer[threadIdx.x + offset];
         }
@@ -774,14 +869,18 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     float softmax_den = buffer[0];
     __syncthreads();
 
-    // Compute softmax
     for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
         token_idx_x = i * blockDim.x + threadIdx.x;
+
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+                attention_scores[(head_idx * num_tokens * num_tokens) +
+                                 (token_idx_y * num_tokens) +
+                                 token_idx_x] = vec[token_idx_x] / softmax_den;
             } else {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
+                attention_scores[(head_idx * num_tokens * num_tokens) +
+                                 (token_idx_y * num_tokens) +
+                                 token_idx_x] = 0.0f;
             }
         }
         __syncthreads();
@@ -850,7 +949,7 @@ __global__ void kernel_compute_resolved_value_from_attention_score_tiled_matmul(
 /* ********************************* Feed Forward Network ********************************* */
 void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     // Declare common variables
-    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
+    size_t shared_mem_size = 3 * TILE_SIZE * TILE_SIZE * sizeof(float);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
@@ -859,46 +958,24 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         (L3_Layer->mlp_gate_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
+    kernel_standard_tiled_gemm_ffn_swiglu<<<grid, block, shared_mem_size>>>(
+        Cache->d_feedforward_cache_upgate, X->d_fp16_tensor,
+        L3_Layer->mlp_up_proj->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
 
-    // Up projection computation
-    grid = dim3(
-        (L3_Layer->mlp_up_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
-        (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
-
-    kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        Cache->d_feedforward_cache_up, X->d_fp16_tensor, L3_Layer->mlp_up_proj->d_fp16_tensor,
-        h_NUM_TOKENS, L3_Layer->mlp_up_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
-
-    // Swiglu Activation
-    grid = dim3(
-        (L3_Layer->mlp_up_proj->shape[0] + 1024 - 1) / 1024,
-        h_NUM_TOKENS);
-
-    kernel_compute_swiglu<<<grid, 1024>>>(
-        Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
-        L3_Layer->mlp_up_proj->shape[0], h_NUM_TOKENS);
-    cudaDeviceSynchronize();
-
     // Final output feedforward output computation
+    shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(float);
     grid = dim3(
         (L3_Layer->mlp_down_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
-        X->d_fp16_tensor, Cache->d_feedforward_cache_up, L3_Layer->mlp_down_proj->d_fp16_tensor,
+        X->d_fp16_tensor, Cache->d_feedforward_cache_upgate, L3_Layer->mlp_down_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_down_proj->shape[0], L3_Layer->mlp_down_proj->shape[1], TILE_SIZE);
     cudaDeviceSynchronize();
 
     return;
-}
-
-__device__ float SiLU(float x) {
-    return x / (1 + expf(-x));
 }
 
 __global__ void kernel_compute_swiglu(
