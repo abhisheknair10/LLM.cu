@@ -146,11 +146,19 @@ CudaCache *init_cache(Llama3 *llama3_model) {
 }
 
 /* ********************************* Inference Code ********************************* */
+
 int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, CudaCache *Cache) {
     cudaMemcpy(d_tokens, h_tokens, sizeof(int) * h_tokens[0], cudaMemcpyHostToDevice);
 
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    float time1 = 0;
+
+    cudaEventRecord(start, 0);
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
 
@@ -190,6 +198,14 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     int output = compute_lm_head(llama3_model->lm_head, X, Cache);
 
     CHECK_CUDA_ERROR();
+
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    time1 = 0;
+    cudaEventElapsedTime(&time1, start, stop);
+    printf("Token embedding: %f ms\n", time1);
+
+    exit(1);
 
     // printCudaMemoryInfo();
 
@@ -597,86 +613,6 @@ __global__ void kernel_standard_tiled_gemm(
     return;
 }
 
-__global__ void kernel_standard_tiled_gemm_qkv(
-    __half *Q, __half *K, __half *V, __half *X, __half *Wq, __half *Wk, __half *Wv,
-    int tokens, int q_emb, int kv_emb, int k, int tile_size) {
-    /*
-        - m represents the independent dimension of the input matrix
-        - n represents the independent dimenion of the transformation matrix
-        - k represents the common dimension of the 2 matrices
-        - Within each kernel, the output is computed as: O = matmul(X, Transform)
-        - Transposing the transformation tensor is not required as virtual indexing allows
-          for intended navigation along rows and columns of either tensors
-        - Order of variables within kernels obey order of computation
-    */
-    // Kernel start
-    //
-    extern __shared__ __half _shared_mem[];
-    __half *X_shmem = _shared_mem;
-    __half *Q_shmem = _shared_mem + tile_size * tile_size;
-    __half *K_shmem = Q_shmem + tile_size * tile_size;
-    __half *V_shmem = K_shmem + tile_size * tile_size;
-
-    int row = blockIdx.y * tile_size + threadIdx.y;
-    int col = blockIdx.x * tile_size + threadIdx.x;
-
-    int rowmaj_col_offset = blockIdx.x * tile_size + threadIdx.y;
-
-    // Loop over tiles
-    float q_value = 0.0f;
-    float k_value = 0.0f;
-    float v_value = 0.0f;
-    for (int t = 0; t < ((k + tile_size - 1) / tile_size); ++t) {
-        // Load tile of X into shared memory
-        if (row < tokens) {
-            int X_idx = row * k + t * tile_size + threadIdx.x;
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = X[X_idx];
-        } else {
-            X_shmem[threadIdx.y * tile_size + threadIdx.x] = __float2half(0.0f);
-        }
-
-        // Load tile of Q into shared memory
-        if (col < q_emb) {
-            int Q_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            Q_shmem[threadIdx.x * tile_size + threadIdx.y] = Wq[Q_idx];
-        } else {
-            Q_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half(0.0f);
-        }
-
-        if (col < kv_emb) {
-            int KV_idx = rowmaj_col_offset * k + t * tile_size + threadIdx.x;
-            K_shmem[threadIdx.x * tile_size + threadIdx.y] = Wk[KV_idx];
-            V_shmem[threadIdx.x * tile_size + threadIdx.y] = Wv[KV_idx];
-        } else {
-            K_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half(0.0f);
-            V_shmem[threadIdx.x * tile_size + threadIdx.y] = __float2half(0.0f);
-        }
-
-        // return;
-        __syncthreads();
-
-        // Compute partial sums
-        for (int i = 0; i < tile_size; ++i) {
-            q_value += __half2float(X_shmem[threadIdx.y * tile_size + i]) * __half2float(Q_shmem[i * tile_size + threadIdx.x]);
-            k_value += __half2float(X_shmem[threadIdx.y * tile_size + i]) * __half2float(K_shmem[i * tile_size + threadIdx.x]);
-            v_value += __half2float(X_shmem[threadIdx.y * tile_size + i]) * __half2float(V_shmem[i * tile_size + threadIdx.x]);
-        }
-        __syncthreads();
-    }
-
-    // Write the result to global memory
-    if (row < tokens && col < q_emb) {
-        Q[row * q_emb + col] = __float2half(q_value);
-    }
-
-    if (row < tokens && col < kv_emb) {
-        K[row * kv_emb + col] = __float2half(k_value);
-        V[row * kv_emb + col] = __float2half(v_value);
-    }
-
-    return;
-}
-
 /* ***************************** Attention Tensor Computation **************************** */
 Tensor *_create_intermediary_attention_tensor(Tensor *Linear) {
     Tensor *Attention_Tensor = (Tensor *)malloc(sizeof(Tensor));
@@ -721,7 +657,7 @@ void compute_qkv_tensors(
     Tensor *Q, Tensor *K, Tensor *V,
     Llama3Layer *L3_Layer, Tensor *X) {
     // Declare common variables
-    size_t shared_mem_size = 4 * TILE_SIZE * TILE_SIZE * sizeof(__half);
+    size_t shared_mem_size = 2 * TILE_SIZE * TILE_SIZE * sizeof(__half);
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
@@ -730,14 +666,6 @@ void compute_qkv_tensors(
         (L3_Layer->self_attn_q_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    kernel_standard_tiled_gemm_qkv<<<grid, block, shared_mem_size>>>(
-        Q->d_fp16_tensor, K->d_fp16_tensor, V->d_fp16_tensor, X->d_fp16_tensor,
-        L3_Layer->self_attn_q_proj->d_fp16_tensor, L3_Layer->self_attn_k_proj->d_fp16_tensor,
-        L3_Layer->self_attn_v_proj->d_fp16_tensor, h_NUM_TOKENS,
-        L3_Layer->self_attn_q_proj->shape[0], L3_Layer->self_attn_k_proj->shape[0], 4096, TILE_SIZE);
-    cudaDeviceSynchronize();
-
-    /*
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Q->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_q_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_q_proj->shape[0], 4096, TILE_SIZE);
@@ -760,7 +688,6 @@ void compute_qkv_tensors(
         V->d_fp16_tensor, X->d_fp16_tensor, L3_Layer->self_attn_v_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->self_attn_v_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
-    */
 
     return;
 }
