@@ -152,11 +152,6 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     // Set NUM_TOKENS value in device memory
     h_NUM_TOKENS = h_tokens[0] - 1;
 
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    float time1 = 0;
-
     cudaEventRecord(start, 0);
 
     tokens_to_embeddings(X, llama3_model, d_tokens);
@@ -197,12 +192,6 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     int output = compute_lm_head(llama3_model->lm_head, X, Cache);
 
     CHECK_CUDA_ERROR();
-
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    time1 = 0;
-    cudaEventElapsedTime(&time1, start, stop);
-    printf("Token embedding: %f ms\n", time1);
 
     exit(1);
 
