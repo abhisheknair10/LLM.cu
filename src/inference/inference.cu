@@ -202,7 +202,9 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
     cudaEventSynchronize(stop);
     time1 = 0;
     cudaEventElapsedTime(&time1, start, stop);
-    // printf("Token Gen: %f ms\n", time1);
+    printf("Token Gen: %f ms\n", time1);
+
+    exit(1);
 
     // printCudaMemoryInfo();
 
@@ -1042,17 +1044,11 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
     dim3 block(TILE_SIZE, TILE_SIZE);
     dim3 grid;
 
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-    float time1 = 0;
-
     // Gate projection computation
     grid = dim3(
         (L3_Layer->mlp_gate_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    cudaEventRecord(start, 0);
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         Cache->d_feedforward_cache_gate, X->d_fp16_tensor, L3_Layer->mlp_gate_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_gate_proj->shape[0], 4096, TILE_SIZE);
@@ -1066,43 +1062,26 @@ void compute_feedforward(Tensor *X, Llama3Layer *L3_Layer, CudaCache *Cache) {
         Cache->d_feedforward_cache_up, X->d_fp16_tensor, L3_Layer->mlp_up_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_up_proj->shape[0], 4096, TILE_SIZE);
     cudaDeviceSynchronize();
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    time1 = 0;
-    cudaEventElapsedTime(&time1, start, stop);
-    printf("FFN<Gate/Up>: %f ms\n", time1);
 
     // Swiglu Activation
     grid = dim3(
         (L3_Layer->mlp_up_proj->shape[0] + 1024 - 1) / 1024,
         h_NUM_TOKENS);
 
-    cudaEventRecord(start, 0);
     kernel_compute_swiglu<<<grid, 1024>>>(
         Cache->d_feedforward_cache_up, Cache->d_feedforward_cache_gate, Cache->d_feedforward_cache_up,
         L3_Layer->mlp_up_proj->shape[0], h_NUM_TOKENS);
     cudaDeviceSynchronize();
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    time1 = 0;
-    cudaEventElapsedTime(&time1, start, stop);
-    printf("FFN<Swiglu>: %f ms\n", time1);
 
     // Final output feedforward output computation
     grid = dim3(
         (L3_Layer->mlp_down_proj->shape[0] + TILE_SIZE - 1) / TILE_SIZE,
         (h_NUM_TOKENS + TILE_SIZE - 1) / TILE_SIZE);
 
-    cudaEventRecord(start, 0);
     kernel_standard_tiled_gemm<<<grid, block, shared_mem_size>>>(
         X->d_fp16_tensor, Cache->d_feedforward_cache_up, L3_Layer->mlp_down_proj->d_fp16_tensor,
         h_NUM_TOKENS, L3_Layer->mlp_down_proj->shape[0], L3_Layer->mlp_down_proj->shape[1], TILE_SIZE);
     cudaDeviceSynchronize();
-    cudaEventRecord(stop, 0);
-    cudaEventSynchronize(stop);
-    time1 = 0;
-    cudaEventElapsedTime(&time1, start, stop);
-    printf("FFN<Down>: %f ms\n", time1);
 
     return;
 }
