@@ -331,6 +331,8 @@ int inference(Llama3 *llama3_model, Tensor *X, int *d_tokens, int *h_tokens, Cud
 
     CHECK_CUDA_ERROR();
 
+    exit(1);
+
     // printCudaMemoryInfo();
 
     return output;
