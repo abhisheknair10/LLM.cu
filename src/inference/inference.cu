@@ -1,5 +1,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -573,7 +574,7 @@ __global__ void kernel_standard_tiled_gemm(
     // Loop over tiles
     float value = 0.0f;
     int half2_k = (k + 1) / 2;
-    for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; ++t) {
+    for (int t = 0; t < (half2_k + tile_size - 1) / tile_size; ++tW) {
         // Load tile of X into shared memory
         if (row < m) {
             int X_idx = row * half2_k + t * tile_size + threadIdx.x;
@@ -877,40 +878,85 @@ __global__ void kernel_compute_masked_gmq_attention_scores_tiled_matmul(
 
 __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) {
     extern __shared__ float shared_mem[];
-    float *vec = shared_mem;
-    float *buffer = shared_mem + 2048;
+    float *vec = shared_mem;            // Shared memory for attention scores
+    float *buffer = shared_mem + 2048;  // Shared memory for reductions (assuming blockDim.x <= 2048)
 
     int token_idx_y = blockIdx.x;
     int head_idx = blockIdx.y;
 
     if (token_idx_y >= num_tokens) return;
-    if (head_idx >= 32) return;
+    if (head_idx >= 32) return;  // Assuming 32 heads
 
     int token_idx_x;
-    float exp_sum = 0.0f;
+    float max_val = -FLT_MAX;  // Initialize to the lowest possible float value
 
-    // Load relevant attention scores and apply masking
+    // Step 1: Load attention scores into shared memory and find the maximum value
     for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
         token_idx_x = i * blockDim.x + threadIdx.x;
 
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
-                vec[token_idx_x] = attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x];
-                exp_sum += expf(vec[token_idx_x]);
+                // Load the attention score
+                float score = attention_scores[(head_idx * num_tokens * num_tokens) +
+                                               (token_idx_y * num_tokens) +
+                                               token_idx_x];
+                vec[token_idx_x] = score;
+
+                // Update the maximum value
+                if (score > max_val) {
+                    max_val = score;
+                }
             } else {
-                vec[token_idx_x] = 0.0f;
+                vec[token_idx_x] = -FLT_MAX;  // Assign the lowest value for masked positions
             }
         } else {
-            vec[token_idx_x] = 0.0f;
+            vec[token_idx_x] = -FLT_MAX;  // Assign the lowest value for out-of-bounds
         }
         __syncthreads();
     }
 
-    // Reduction to compute softmax denominator
+    // Step 2: Reduction to find the global maximum value
+    buffer[threadIdx.x] = max_val;
+    __syncthreads();
+
+    // Perform parallel reduction to find the maximum
+    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {
+        if (threadIdx.x < offset) {
+            buffer[threadIdx.x] = fmaxf(buffer[threadIdx.x], buffer[threadIdx.x + offset]);
+        }
+        __syncthreads();
+    }
+
+    float global_max = buffer[0];
+    __syncthreads();
+
+    // Step 3: Compute exponentials and accumulate the sum
+    float exp_sum = 0.0f;
+    for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
+        token_idx_x = i * blockDim.x + threadIdx.x;
+
+        if (token_idx_x < num_tokens) {
+            if (token_idx_x <= token_idx_y) {
+                // Subtract the maximum value for numerical stability
+                float stabilized_score = vec[token_idx_x] - global_max;
+                float exp_score = expf(stabilized_score);
+                vec[token_idx_x] = exp_score;  // Store the exponentiated value
+                exp_sum += exp_score;
+            } else {
+                vec[token_idx_x] = 0.0f;  // Masked positions remain zero
+            }
+        } else {
+            vec[token_idx_x] = 0.0f;  // Out-of-bounds positions remain zero
+        }
+        __syncthreads();
+    }
+
+    // Step 4: Reduction to compute the sum of exponentials (softmax denominator)
     buffer[threadIdx.x] = exp_sum;
     __syncthreads();
 
-    for (int offset = 512; offset > 0; offset /= 2) {
+    // Perform parallel reduction to sum the exponentials
+    for (int offset = blockDim.x / 2; offset > 0; offset >>= 1) {
         if (threadIdx.x < offset) {
             buffer[threadIdx.x] += buffer[threadIdx.x + offset];
         }
@@ -920,14 +966,19 @@ __global__ void kernel_masking_softmax(float *attention_scores, int num_tokens) 
     float softmax_den = buffer[0];
     __syncthreads();
 
-    // Compute softmax
+    // Step 5: Normalize the exponentials to obtain softmax probabilities
     for (int i = 0; i < (num_tokens + blockDim.x - 1) / blockDim.x; ++i) {
         token_idx_x = i * blockDim.x + threadIdx.x;
+
         if (token_idx_x < num_tokens) {
             if (token_idx_x <= token_idx_y) {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = expf(vec[token_idx_x]) / softmax_den;
+                attention_scores[(head_idx * num_tokens * num_tokens) +
+                                 (token_idx_y * num_tokens) +
+                                 token_idx_x] = vec[token_idx_x] / softmax_den;
             } else {
-                attention_scores[(head_idx * num_tokens * num_tokens) + (token_idx_y * num_tokens) + token_idx_x] = 0.0f;
+                attention_scores[(head_idx * num_tokens * num_tokens) +
+                                 (token_idx_y * num_tokens) +
+                                 token_idx_x] = 0.0f;
             }
         }
         __syncthreads();
